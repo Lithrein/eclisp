@@ -1,0 +1,14 @@
+switch (a) {
+  case 1:   break;
+  case 2:   break;
+  case 3:        ;
+  case 4:   break;
+  default: break;
+}
+
+(switch a
+  (1 ( break))
+  (2 ( break))
+  (3 ( ))
+  (4 ( break))
+  (t ( break)))

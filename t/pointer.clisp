@@ -1,0 +1,2 @@
+(dref p) = *p
+(addr p) = &p

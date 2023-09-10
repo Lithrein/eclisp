@@ -1,0 +1,2 @@
+(deffun main ((var1 type1) (var2 type2)) (type)
+  body)
