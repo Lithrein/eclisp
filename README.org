@@ -1,0 +1,5 @@
+* CLisp
+
+** Rationale
+
+C is the best language out there.  C has the best compilers.  C is only lacking a good preprocessor.
