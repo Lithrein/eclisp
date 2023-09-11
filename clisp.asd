@@ -5,9 +5,18 @@
   :maintainer "lithrein <lithrein.site@gmail.com>"
   :author "lithrein"
   :serial t
+  :in-order-to ((test-op (test-op "clisp/tests")))
   :build-operation "program-op"
   :build-pathname "clisp"
   :entry-point (uiop:symbol-call :clisp "MAIN")
   :components ((:file "package")
                (:file "clisp")))
 
+(asdf:defsystem #:clisp/tests
+  :depends-on (:clisp :fiveam)
+  :perform (test-op (o s)
+            (uiop:symbol-call :clisp-tests :test-clisp))
+  :components ((:module "t"
+                :serial t
+                :components ((:file "package")
+                             (:file "main")))))
