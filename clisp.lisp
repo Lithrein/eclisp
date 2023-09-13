@@ -8,7 +8,10 @@
        ,@body)))
 
 (defun compile-include (include-forms to-stream)
-  "Compile an include directive."
+  "Compile an include directive.
+syntax: (%include header-list)
+where header-list is a list of header names either enclosed in double-quotes
+or in angle-brackets."
   (loop for filename in include-forms do
 	(format to-stream
 		(cond ((symbolp filename) "#include ~a~%")
