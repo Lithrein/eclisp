@@ -38,4 +38,6 @@ At the end the RESULT file is deleted."
 (test conformance-tests
   "Assert the conformance of the implementation"
   (is (compare-to-ref (compile-to-file "t/include.clisp" "t/include.c.tmp")
-                     "t/include.c")))
+                      "t/include.c"))
+  (is (compare-to-ref (compile-to-file "t/includes.clisp" "t/includes.c.tmp")
+                      "t/include.c")))
