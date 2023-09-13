@@ -7,7 +7,7 @@
      (progn
        ,@body)))
 
-(defun main (from-stream to-stream)
+(defun compile-clisp (from-stream to-stream)
   "Write the result of the compilation of the content of FROM-STREAM into
 TO-STREAM."
   (let ((form (with-case-sensitivity (read from-stream))))
@@ -17,3 +17,5 @@ TO-STREAM."
 			 (cond ((symbolp filename) "#include ~a~%")
 			       (t "#include \"~a\"~%"))
 			 filename))))))
+(defun main ()
+  (compile-clisp *standard-input* *standard-output*))
