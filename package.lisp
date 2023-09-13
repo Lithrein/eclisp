@@ -1,3 +1,3 @@
 (defpackage #:clisp
-  (:use #:cl)
+  (:use #:cl #:alexandria)
   (:export "main"))
