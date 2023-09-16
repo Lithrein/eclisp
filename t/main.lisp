@@ -46,4 +46,7 @@ At the end the RESULT file is deleted."
 		     "t/include.c"))
  (is (compare-to-ref (compile-to-file "t/cpp-define.clisp"
                                       "t/cpp-define.c.tmp")
-                     "t/cpp-define.c")))
+		     "t/cpp-define.c"))
+ (is (compare-to-ref (compile-to-file "t/cpp-if.clisp"
+                                      "t/cpp-if.c.tmp")
+                     "t/cpp-if.c")))

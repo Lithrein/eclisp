@@ -71,6 +71,37 @@ the expression."
         (when (cddr cur)
           (format to-stream " && ")))
       (format to-stream ")"))))
+
+(defun compile-cpp-cond-expr (form to-stream)
+  "Compile a preprocessor condition FORM, i.e.,  one that may appear after
+#if and #elif, and write it on TO-STREAM."
+  (if (consp form)
+      (destructuring-bind (op &rest args) form
+        (cond
+          ((string= "defined" op)
+           (format to-stream "defined~a" args))
+          ((member (string op) '("<" ">" "<=" ">=" ">" "==") :test #'equal)
+           (compile-cmp-op form to-stream t))
+          ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "||" "&" "&&" "~" "<<" ">>")
+                   :test #'equal)
+           (compile-arith-binop form to-stream t))))
+      (format to-stream "~a" form)))
+
+(defun compile-if (form to-stream)
+  "Compile a if preprocessor directive FORM and write it on TO-STREAM"
+  (do ((cur form (cdr cur))
+       (first t nil))
+      ((not cur))
+    (destructuring-bind (cond body) (car cur)
+      (if first
+          (format to-stream "#if ")
+          (format to-stream (if (and (symbolp cond) (string= cond "t")) "#else" "#elif ")))
+      (unless (and (symbolp cond) (string= cond "t")) (compile-cpp-cond-expr cond to-stream))
+      (format to-stream "~%")
+      (compile-form body to-stream)
+      (format to-stream "~%")))
+  (format to-stream "#endif~%"))
+
 (defun compile-form (form to-stream)
   "Compile a clisp FROM and write it on TO-STREAM"
   (if (consp form)
@@ -78,6 +109,7 @@ the expression."
         (cond
           ((string= "%include" (string op)) (compile-include args to-stream))
           ((string= "%define" (string op)) (compile-define args to-stream))
+          ((string= "%if" (string op)) (compile-if args to-stream))
           ((member (string op) '("<" ">" "<=" ">=" ">" "=" "&&" "||") :test #'equal)
            (compile-cmp-op form to-stream))
           ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
