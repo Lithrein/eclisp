@@ -29,12 +29,21 @@ or in angle-brackets."
 	    (cond ((symbolp filename) "#include ~a~%")
 		  (t "#include \"~a\"~%"))
 	    filename)))
+
+(defun compile-define (form to-stream)
+  "Compile a define directive: %(define name substitution) and write it
+to TO-STREAM. FORM is a cons made of NAME and SUBSTITUTION.
+NAME and SUBSTITUTION are both strings and should enclosed in double-quotes.
+NAME can contain parenthesis just like a C macro does, i.e., no spaces before
+the parenthesis.  SUBSTITUTION should be valid C code."
+  (format to-stream "#define ~{~a~^ ~}~%" form))
 (defun compile-form (form to-stream)
   "Compile a clisp FROM and write it on TO-STREAM"
   (if (consp form)
       (destructuring-bind (op &rest args) form
         (cond
           ((string= "%include" (string op)) (compile-include args to-stream))
+          ((string= "%define" (string op)) (compile-define args to-stream))
           (t (format t "unknown construct ~a" (car form)))))
       (format to-stream "~a" form)))
 
