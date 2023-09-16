@@ -1,1 +1,12 @@
-(defvar a (type) val)
+(defvar nb_events 0
+  "This is the number of events received since the start of the program across
+all threads.")
+
+(defvar (pi (const float)) 3.14
+  "Very well know constant.")
+
+(defvar a)
+
+(defvar (e float) 2.718)
+
+(defvar (b float))

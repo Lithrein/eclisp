@@ -102,14 +102,47 @@ the expression."
       (format to-stream "~%")))
   (format to-stream "#endif~%"))
 
+(defun compile-type (type to-stream)
+  "Compile TYPE and write it on TO-STREAM."
+  (if (listp type)
+      (format to-stream "~{~a~^ ~}" type)
+      (format to-stream "~a" type)))
+
+(defun compile-defvar (form to-stream)
+  "Compile a form which declares a global variable.
+                  (defvar (var type) value documentation)
+VALUE is optional, TYE is optional as well and defaults to int.  If TYPE is
+not present the parenthesis around (VAR TYPE) are optional. DOCUMENTATION is
+also optional, however, a default value is mandatory before the documentation
+string."
+  (let ((var nil) (type nil) (value nil) (documentation nil))
+    (if (listp (car form))
+        (progn
+          (setf var (caar form))
+          (setf type (cadar form)))
+        (setf var (car form)))
+    (unless (null (cdr form)) (setf value (cadr form)))
+    (unless (null (cddr form)) (setf documentation (caddr form)))
+    (unless (null documentation)
+      (format to-stream "/* ~a  */~%"
+              (regex-replace-all "\\n" documentation "
+   ")))
+    (if (null type)
+        (format to-stream "int")
+        (compile-type type to-stream))
+    (format to-stream " ~a" var)
+    (when value (format to-stream " = ~a" value))
+    (format to-stream ";~%")))
+
 (defun compile-form (form to-stream)
   "Compile a clisp FROM and write it on TO-STREAM"
   (if (consp form)
       (destructuring-bind (op &rest args) form
         (cond
           ((string= "%include" (string op)) (compile-cpp-include args to-stream))
-          ((string= "%define" (string op)) (compile-cpp-define args to-stream))
-          ((string= "%if" (string op)) (compile-cpp-if args to-stream))
+          ((string= "%define"  (string op)) (compile-cpp-define args to-stream))
+          ((string= "%if"      (string op)) (compile-cpp-if args to-stream))
+          ((string= "defvar"   (string op)) (compile-defvar args to-stream))
           ((member (string op) '("<" ">" "<=" ">=" ">" "=" "&&" "||") :test #'equal)
            (compile-cmp-op form to-stream))
           ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
