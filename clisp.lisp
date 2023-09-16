@@ -38,6 +38,21 @@ NAME can contain parenthesis just like a C macro does, i.e., no spaces before
 the parenthesis.  SUBSTITUTION should be valid C code."
   (format to-stream "#define ~{~a~^ ~}~%" form))
 
+(defun compile-arith-binop (form to-stream &optional (cpp nil))
+  "Compile a FORM beginning with an arithmetic operator (+ - * / % ^ | || & &&
+~ << >>) into a valid C expression and write it on TO-STREAM.
+The CPP parameter enable C Preprocessor mode, restricting what can appear in
+the expression."
+  (let ((compile-proxy (if cpp #'compile-cpp-cond-expr #'compile-form)))
+    (destructuring-bind (op &rest args) form
+      (format to-stream "(")
+      (do ((cur args (cdr cur)))
+          ((not cur))
+        (funcall compile-proxy (car cur) to-stream)
+        (when (cdr cur)
+          (format to-stream " ~a " op)))
+      (format to-stream ")"))))
+
 (defun compile-cmp-op (form to-stream &optional (cpp nil))
   "Compile a FORM beginning with a compare operator (< > <= >= > ==) into a valid
 C expression and write it on TO-STREAM.
@@ -65,6 +80,9 @@ the expression."
           ((string= "%define" (string op)) (compile-define args to-stream))
           ((member (string op) '("<" ">" "<=" ">=" ">" "=" "&&" "||") :test #'equal)
            (compile-cmp-op form to-stream))
+          ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
+                   :test #'equal)
+           (compile-arith-binop form to-stream))
           (t (format t "unknown construct ~a" (car form)))))
       (format to-stream "~a" form)))
 
