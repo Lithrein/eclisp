@@ -1,3 +1,4 @@
 (defpackage #:clisp
-  (:use #:cl #:alexandria)
+  (:use #:cl)
+  (:import-from :cl-ppcre :regex-replace-all)
   (:export "main"))

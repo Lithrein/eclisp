@@ -9,7 +9,7 @@
   :build-operation "program-op"
   :build-pathname "clisp"
   :entry-point (uiop:symbol-call :clisp "MAIN")
-  :depends-on (:alexandria)
+  :depends-on (:cl-ppcre)
   :components ((:file "package")
                (:file "clisp")))
 
