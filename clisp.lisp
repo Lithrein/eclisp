@@ -20,7 +20,7 @@ characters in the IGNORE-CHARS string while performing READ."
      (progn
        ,@body)))
 
-(defun compile-include (include-forms to-stream)
+(defun compile-cpp-include (include-forms to-stream)
   "Compile an include directive: (%include header-list)
 where header-list is a list of header names either enclosed in double-quotes
 or in angle-brackets."
@@ -30,7 +30,7 @@ or in angle-brackets."
 		  (t "#include \"~a\"~%"))
 	    filename)))
 
-(defun compile-define (form to-stream)
+(defun compile-cpp-define (form to-stream)
   "Compile a define directive: %(define name substitution) and write it
 to TO-STREAM. FORM is a cons made of NAME and SUBSTITUTION.
 NAME and SUBSTITUTION are both strings and should enclosed in double-quotes.
@@ -87,7 +87,7 @@ the expression."
            (compile-arith-binop form to-stream t))))
       (format to-stream "~a" form)))
 
-(defun compile-if (form to-stream)
+(defun compile-cpp-if (form to-stream)
   "Compile a if preprocessor directive FORM and write it on TO-STREAM"
   (do ((cur form (cdr cur))
        (first t nil))
@@ -107,9 +107,9 @@ the expression."
   (if (consp form)
       (destructuring-bind (op &rest args) form
         (cond
-          ((string= "%include" (string op)) (compile-include args to-stream))
-          ((string= "%define" (string op)) (compile-define args to-stream))
-          ((string= "%if" (string op)) (compile-if args to-stream))
+          ((string= "%include" (string op)) (compile-cpp-include args to-stream))
+          ((string= "%define" (string op)) (compile-cpp-define args to-stream))
+          ((string= "%if" (string op)) (compile-cpp-if args to-stream))
           ((member (string op) '("<" ">" "<=" ">=" ">" "=" "&&" "||") :test #'equal)
            (compile-cmp-op form to-stream))
           ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
