@@ -92,14 +92,14 @@ the expression."
   (do ((cur form (cdr cur))
        (first t nil))
       ((not cur))
-    (destructuring-bind (cond body) (car cur)
+    (destructuring-bind (cond &rest body) (car cur)
       (if first
           (format to-stream "#if ")
           (format to-stream (if (and (symbolp cond) (string= cond "t")) "#else" "#elif ")))
       (unless (and (symbolp cond) (string= cond "t")) (compile-cpp-cond-expr cond to-stream))
       (format to-stream "~%")
-      (compile-form body to-stream)
-      (format to-stream "~%")))
+      (loop for b in body do
+            (compile-form b to-stream))))
   (format to-stream "#endif~%"))
 
 (defun compile-type (type to-stream)
