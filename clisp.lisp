@@ -103,10 +103,42 @@ the expression."
   (format to-stream "#endif~%"))
 
 (defun compile-type (type to-stream)
+(defun print-ll (l to-stream)
+  "Flatten and print to TO-STREAM the list produced by PRINT-C-TYPE."
+  (cond ((null l) nil)
+        ((consp l)
+         (cond ((listp (car l)) (print-ll (car l) to-stream))
+               (t (let ((*print-case* :downcase))
+                    (format to-stream "~a" (car l)))))
+         (print-ll (cdr l) to-stream))))
+
+(defun print-c-type (name type acc)
+  "Create a nested list which represents the variable NAME of TYPE.
+ACC should be NIL at first."
+  (cond
+    ((string= "ptr"  (car type))
+     (print-c-type "" (cadr type)  (list "(*" acc name ")")))
+    ((string= "array" (car type))
+     (print-c-type "" (caddr type)
+                   (if (and (null acc) (string= name ""))
+                       (list "[" (cadr type) "]")
+                       (list "(" acc name ")[" (cadr type) "]"))))
+    ((string= "fun" (car type))
+     (print-c-type "" (cadadr type)
+                   (list "(" acc name ")("
+                         ((lambda (l) (cons (cdar l) (cdr l)))
+                          (loop for tt in (cddr type)
+                                collect (list "," (print-c-type "" tt nil))))
+                         ")")))
+    ((string= "volatile" (car type))
+     (print-c-type "" (cadr type)  (list "volatile " acc name)))
+    ((string= "const" (car type))
+     (print-c-type "" (cadr type)  (list "const " acc name)))
+    (t (list (car type) (if (null acc) nil " ") acc (if (string= name "") nil " ") name))))
+
+(defun compile-type (name type to-stream)
   "Compile TYPE and write it on TO-STREAM."
-  (if (listp type)
-      (format to-stream "~{~a~^ ~}" type)
-      (format to-stream "~a" type)))
+  (print-ll (print-c-type name type nil) to-stream))
 
 (defun compile-defvar (form to-stream)
   "Compile a form which declares a global variable.

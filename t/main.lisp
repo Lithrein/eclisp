@@ -38,6 +38,9 @@ At the end the RESULT file is deleted."
 (test
  conformance-tests
  "Assert the conformance of the implementation"
+ (is (compare-to-ref (compile-to-file "t/types.clisp"
+                                      "t/types.c.tmp")
+                     "t/types.c"))
  (is (compare-to-ref (compile-to-file "t/defvar.clisp"
                                       "t/defvar.c.tmp")
                      "t/defvar.c"))
