@@ -139,6 +139,11 @@ ACC should be NIL at first."
   "Compile TYPE and write it on TO-STREAM."
   (print-ll (print-c-type name type nil) to-stream))
 
+(defun compile-progn (form to-stream)
+  (format to-stream "{~%")
+  (loop for f in form do (compile-form f to-stream))
+  (format to-stream "}~%"))
+
 (defun compile-defvar (form to-stream)
   "Compile a form which declares a global variable.
                   (defvar (var type) value documentation)
@@ -171,6 +176,7 @@ string."
           ((string= "%define"  (string op)) (compile-cpp-define args to-stream))
           ((string= "%if"      (string op)) (compile-cpp-if args to-stream))
           ((string= "defvar"   (string op)) (compile-defvar args to-stream))
+          ((string= "progn"    (string op)) (compile-progn args to-stream))
           ((member (string op) '("<" ">" "<=" ">=" ">" "=" "&&" "||") :test #'equal)
            (compile-cmp-op form to-stream))
           ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
