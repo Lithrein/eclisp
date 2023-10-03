@@ -95,14 +95,13 @@ the expression."
     (destructuring-bind (cond &rest body) (car cur)
       (if first
           (format to-stream "#if ")
-          (format to-stream (if (and (symbolp cond) (string= cond "t")) "#else" "#elif ")))
+          (format to-stream (if (and (symbolp cond) (string= cond "t")) "~%#else" "~%#elif ")))
       (unless (and (symbolp cond) (string= cond "t")) (compile-cpp-cond-expr cond to-stream))
       (format to-stream "~%")
       (loop for b in body do
             (compile-form b to-stream))))
-  (format to-stream "#endif~%"))
+  (format to-stream "~%#endif~%"))
 
-(defun compile-type (type to-stream)
 (defun print-ll (l to-stream)
   "Flatten and print to TO-STREAM the list produced by PRINT-C-TYPE."
   (cond ((null l) nil)
@@ -157,12 +156,9 @@ string."
     (unless (null (cddr form)) (setf documentation (caddr form)))
     (unless (null documentation)
       (format to-stream "/* ~a  */~%"
-              (regex-replace-all "\\n" documentation "
-   ")))
-    (if (null type)
-        (format to-stream "int")
-        (compile-type type to-stream))
-    (format to-stream " ~a" var)
+              (regex-replace-all "\\n" documentation
+                                 (concatenate 'string '(#\Newline) "   "))))
+    (compile-type var (if (null type) '(int) type) to-stream)
     (when value (format to-stream " = ~a" value))
     (format to-stream ";~%")))
 
