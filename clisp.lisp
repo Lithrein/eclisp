@@ -20,40 +20,43 @@ characters in the IGNORE-CHARS string while performing READ."
      (progn
        ,@body)))
 
-(defun compile-cpp-include (include-forms to-stream)
+(defun compile-cpp-include (include-forms indent to-stream)
   "Compile an include directive: (%include header-list)
 where header-list is a list of header names either enclosed in double-quotes
 or in angle-brackets."
   (loop for filename in include-forms do
+    (format to-stream "~v@{~C~:*~}" indent #\Space)
     (format to-stream
 	    (cond ((symbolp filename) "#include ~a~%")
 		  (t "#include \"~a\"~%"))
 	    filename)))
 
-(defun compile-cpp-define (form to-stream)
+(defun compile-cpp-define (form indent to-stream)
   "Compile a define directive: %(define name substitution) and write it
 to TO-STREAM. FORM is a cons made of NAME and SUBSTITUTION.
 NAME and SUBSTITUTION are both strings and should enclosed in double-quotes.
 NAME can contain parenthesis just like a C macro does, i.e., no spaces before
 the parenthesis.  SUBSTITUTION should be valid C code."
+  (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "#define ~{~a~^ ~}~%" form))
 
-(defun compile-arith-binop (form to-stream &optional (cpp nil))
+(defun compile-arith-binop (form indent to-stream &optional (cpp nil))
   "Compile a FORM beginning with an arithmetic operator (+ - * / % ^ | || & &&
 ~ << >>) into a valid C expression and write it on TO-STREAM.
 The CPP parameter enable C Preprocessor mode, restricting what can appear in
 the expression."
   (let ((compile-proxy (if cpp #'compile-cpp-cond-expr #'compile-form)))
     (destructuring-bind (op &rest args) form
+      (format to-stream "~v@{~C~:*~}" indent #\Space)
       (format to-stream "(")
       (do ((cur args (cdr cur)))
           ((not cur))
-        (funcall compile-proxy (car cur) to-stream)
+        (funcall compile-proxy (car cur) 0 to-stream)
         (when (cdr cur)
           (format to-stream " ~a " op)))
       (format to-stream ")"))))
 
-(defun compile-cmp-op (form to-stream &optional (cpp nil))
+(defun compile-cmp-op (form indent to-stream &optional (cpp nil))
   "Compile a FORM beginning with a compare operator (< > <= >= > ==) into a valid
 C expression and write it on TO-STREAM.
 The CPP parameter enable C Preprocessor mode, restricting what can appear in
@@ -64,43 +67,47 @@ the expression."
       (do ((cur args (cdr cur)))
           ((not (cdr cur)))
         (format to-stream "(")
-        (funcall compile-proxy (car cur) to-stream)
+        (funcall compile-proxy (car cur) indent to-stream)
         (format to-stream " ~a " op)
-        (funcall compile-proxy (cadr cur) to-stream)
+        (funcall compile-proxy (cadr cur) indent to-stream)
         (format to-stream ")")
         (when (cddr cur)
           (format to-stream " && ")))
       (format to-stream ")"))))
 
-(defun compile-cpp-cond-expr (form to-stream)
+(defun compile-cpp-cond-expr (form indent to-stream)
   "Compile a preprocessor condition FORM, i.e.,  one that may appear after
 #if and #elif, and write it on TO-STREAM."
+  (declare (ignore indent))
   (if (consp form)
       (destructuring-bind (op &rest args) form
         (cond
           ((string= "defined" op)
            (format to-stream "defined~a" args))
           ((member (string op) '("<" ">" "<=" ">=" ">" "==") :test #'equal)
-           (compile-cmp-op form to-stream t))
+           (compile-cmp-op form indent to-stream t))
           ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "||" "&" "&&" "~" "<<" ">>")
                    :test #'equal)
-           (compile-arith-binop form to-stream t))))
+           (compile-arith-binop form 0 to-stream t))))
       (format to-stream "~a" form)))
 
-(defun compile-cpp-if (form to-stream)
+(defun compile-cpp-if (form indent to-stream)
   "Compile a if preprocessor directive FORM and write it on TO-STREAM"
   (do ((cur form (cdr cur))
        (first t nil))
       ((not cur))
     (destructuring-bind (cond &rest body) (car cur)
+      (format to-stream "~v@{~C~:*~}" indent #\Space)
       (if first
           (format to-stream "#if ")
-          (format to-stream (if (and (symbolp cond) (string= cond "t")) "~%#else" "~%#elif ")))
-      (unless (and (symbolp cond) (string= cond "t")) (compile-cpp-cond-expr cond to-stream))
+          (format to-stream (if (and (symbolp cond) (string= cond "t"))
+                                "~%~v@{~C~:*~}#else" "~%~v@{~C~:*~}#elif ")
+                  indent #\Space))
+      (unless (and (symbolp cond) (string= cond "t")) (compile-cpp-cond-expr cond 0 to-stream))
       (format to-stream "~%")
       (loop for b in body do
-            (compile-form b to-stream))))
-  (format to-stream "~%#endif~%"))
+        (compile-form b (+ 2 indent) to-stream))))
+  (format to-stream "~%~v@{~C~:*~}#endif~%" indent #\Space))
 
 (defun print-ll (l to-stream)
   "Flatten and print to TO-STREAM the list produced by PRINT-C-TYPE."
@@ -139,12 +146,16 @@ ACC should be NIL at first."
   "Compile TYPE and write it on TO-STREAM."
   (print-ll (print-c-type name type nil) to-stream))
 
-(defun compile-progn (form to-stream)
-  (format to-stream "{~%")
-  (loop for f in form do (compile-form f to-stream))
-  (format to-stream "}~%"))
+(defun compile-if (form to-stream)
+  )
 
-(defun compile-defvar (form to-stream)
+
+(defun compile-progn (form indent to-stream)
+  (format to-stream "~v@{~C~:*~}{~%" indent #\Space)
+  (loop for f in form do (compile-form f (+ 2 indent) to-stream))
+  (format to-stream "~v@{~C~:*~}}~%" indent #\Space))
+
+(defun compile-defvar (form indent to-stream)
   "Compile a form which declares a global variable.
                   (defvar (var type) value documentation)
 VALUE is optional, TYE is optional as well and defaults to int.  If TYPE is
@@ -160,36 +171,42 @@ string."
     (unless (null (cdr form)) (setf value (cadr form)))
     (unless (null (cddr form)) (setf documentation (caddr form)))
     (unless (null documentation)
-      (format to-stream "/* ~a  */~%"
-              (regex-replace-all "\\n" documentation
-                                 (concatenate 'string '(#\Newline) "   "))))
+      (progn
+        (format to-stream "~v@{~C~:*~}" indent #\Space)
+        (format to-stream "/* ~a  */~%"
+                (regex-replace-all "\\n" documentation
+                                   (concatenate 'string '(#\Newline) "   "
+                                                (format nil "~v@{~C~:*~}" indent #\Space))))))
+    (format to-stream "~v@{~C~:*~}" indent #\Space)
     (compile-type var (if (null type) '(int) type) to-stream)
     (when value (format to-stream " = ~a" value))
     (format to-stream ";~%")))
 
-(defun compile-form (form to-stream)
+(defun compile-form (form indent to-stream)
   "Compile a clisp FROM and write it on TO-STREAM"
   (if (consp form)
       (destructuring-bind (op &rest args) form
         (cond
-          ((string= "%include" (string op)) (compile-cpp-include args to-stream))
-          ((string= "%define"  (string op)) (compile-cpp-define args to-stream))
-          ((string= "%if"      (string op)) (compile-cpp-if args to-stream))
-          ((string= "defvar"   (string op)) (compile-defvar args to-stream))
-          ((string= "progn"    (string op)) (compile-progn args to-stream))
+          ((string= "%include" (string op)) (compile-cpp-include args indent to-stream))
+          ((string= "%define"  (string op)) (compile-cpp-define args indent to-stream))
+          ((string= "%if"      (string op)) (compile-cpp-if args indent to-stream))
+          ((string= "defvar"   (string op)) (compile-defvar args indent to-stream))
+          ((string= "progn"    (string op)) (compile-progn args indent to-stream))
           ((member (string op) '("<" ">" "<=" ">=" ">" "=" "&&" "||") :test #'equal)
-           (compile-cmp-op form to-stream))
+           (compile-cmp-op form indent to-stream))
           ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
                    :test #'equal)
-           (compile-arith-binop form to-stream))
+           (compile-arith-binop form indent to-stream))
           (t (format t "unknown construct ~a" (car form)))))
-      (format to-stream "~a" form)))
+      (progn
+        (format to-stream "~v@{~C~:*~}" indent #\Space)
+        (format to-stream "~a" form))))
 
 (defun compile-clisp (from-stream to-stream)
   "Write the result of the compilation of the content of FROM-STREAM into
 TO-STREAM."
   (loop for form = (with-custom-reader "'|" (read from-stream nil))
-        while form do (compile-form form to-stream)))
+        while form do (compile-form form 0 to-stream)))
 
 (defun main ()
   "The entry point."
