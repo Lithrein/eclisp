@@ -178,6 +178,31 @@ string."
     (when value (format to-stream " = ~a" value))
     (format to-stream ";~%")))
 
+(defun compile-defun (form indent to-stream)
+  "Compile a form which declares a global variable.
+                  (defun (f type) documentation body)
+BODY is optional, TYPE is optional as well and defaults to void.  If TYPE is
+not present the parenthesis around (VAR TYPE) are optional. DOCUMENTATION is
+also optional"
+  (let ((var nil) (type nil) (body nil) (documentation nil))
+    (if (listp (car form))
+        (progn
+          (setf var (caar form))
+          (setf type (cadar form)))
+        (setf var (car form)))
+    (unless (null (cdr form)) (setf documentation (cadr form)))
+    (unless (null (cddr form)) (setf body (cddr form)))
+    (unless (null documentation)
+      (progn
+        (format to-stream "~v@{~C~:*~}" indent #\Space)
+        (format to-stream "/* ~a  */~%"
+                (regex-replace-all "\\n" documentation
+                                   (concatenate 'string '(#\Newline) "   "
+                                                (format nil "~v@{~C~:*~}" indent #\Space))))))
+    (format to-stream "~v@{~C~:*~}" indent #\Space)
+    (compile-type var (if (null type) '(void) type) to-stream)
+    (when body (compile-progn body indent to-stream))))
+
 (defun compile-set (form indent to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (compile-form (car form) indent to-stream)
@@ -207,6 +232,7 @@ string."
           ((string= "%define"  (string op)) (compile-cpp-define args indent to-stream))
           ((string= "%if"      (string op)) (compile-cpp-if args indent to-stream))
           ((string= "defvar"   (string op)) (compile-defvar args indent to-stream))
+          ((string= "defun"    (string op)) (compile-defun args indent to-stream))
           ((string= "progn"    (string op)) (compile-progn args indent to-stream))
           ((string= "set"      (string op)) (compile-set args indent to-stream))
           ((string= "->"       (string op)) (compile-arrow args indent to-stream))

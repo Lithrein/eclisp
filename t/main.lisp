@@ -38,6 +38,9 @@ At the end the RESULT file is deleted."
 (test
  conformance-tests
  "Assert the conformance of the implementation"
+ (is (compare-to-ref (compile-to-file "t/hello.eclisp"
+                                      "t/hello.c.tmp")
+                     "t/hello.c"))
  (is (compare-to-ref (compile-to-file "t/arrow.eclisp"
                                       "t/arrow.c.tmp")
                      "t/arrow.c"))
