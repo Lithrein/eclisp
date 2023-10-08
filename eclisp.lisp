@@ -185,6 +185,12 @@ string."
   (compile-form (cadr form) indent to-stream)
   (format to-stream ";"))
 
+(defun compile-arrow (form indent to-stream)
+  (format to-stream "~v@{~C~:*~}" indent #\Space)
+  (compile-form (car form) indent to-stream)
+  (format to-stream "->")
+  (compile-form (cadr form) indent to-stream))
+
 (defun compile-aref (form indent to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (compile-form (car form) indent to-stream)
@@ -203,6 +209,7 @@ string."
           ((string= "defvar"   (string op)) (compile-defvar args indent to-stream))
           ((string= "progn"    (string op)) (compile-progn args indent to-stream))
           ((string= "set"      (string op)) (compile-set args indent to-stream))
+          ((string= "->"       (string op)) (compile-arrow args indent to-stream))
           ((string= "aref"     (string op)) (compile-aref args indent to-stream))
           ((member (string op) '("<" ">" "<=" ">=" ">" "=" "&&" "||") :test #'equal)
            (compile-cmp-op form indent to-stream))
