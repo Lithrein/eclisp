@@ -92,6 +92,20 @@ the expression."
            (compile-arith-binop form 0 to-stream t))))
       (format to-stream "~a" form)))
 
+(defun compile-cond-expr (form indent to-stream)
+  "Compile a condition FORM, i.e.,  one that may appear after
+and if, and write it on TO-STREAM."
+  (declare (ignore indent))
+  (if (consp form)
+      (destructuring-bind (op &rest args) form
+        (cond
+          ((member (string op) '("<" ">" "<=" ">=" ">" "==") :test #'equal)
+           (compile-cmp-op form indent to-stream))
+          ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "||" "&" "&&" "~" "<<" ">>")
+                   :test #'equal)
+           (compile-arith-binop form 0 to-stream))))
+      (format to-stream "~a" form)))
+
 (defun compile-cpp-if (form indent to-stream)
   "Compile a if preprocessor directive FORM and write it on TO-STREAM"
   (do ((cur form (cdr cur))
@@ -206,6 +220,15 @@ also optional"
       (format to-stream "~%")
       (compile-progn body indent to-stream))))
 
+(defun compile-if (form indent to-stream)
+  (format to-stream "~v@{~C~:*~} if " indent #\Space)
+  (compile-cond-expr (car form) indent to-stream)
+  (format to-stream "~%")
+  (compile-form (cadr form) t (+ 2 indent) to-stream)
+  (unless (null (caddr form))
+    (format to-stream "~v@{~C~:*~} else ~%" indent #\Space)
+    (compile-form (caddr form) t (+ 2 indent) to-stream)))
+
 (defun compile-set (form indent to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (compile-form (car form) nil indent to-stream)
@@ -240,6 +263,7 @@ also optional"
           ((string= "set"      (string op)) (compile-set args indent to-stream))
           ((string= "->"       (string op)) (compile-arrow args indent to-stream))
           ((string= "aref"     (string op)) (compile-aref args indent to-stream))
+          ((string= "if"       (string op)) (compile-if args indent to-stream))
           ((member (string op) '("<" ">" "<=" ">=" ">" "=" "&&" "||") :test #'equal)
            (compile-cmp-op form indent to-stream))
           ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
