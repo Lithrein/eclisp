@@ -201,10 +201,15 @@ string."
           ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
                    :test #'equal)
            (compile-arith-binop form indent to-stream))
-          (t (format t "unknown construct ~a" (car form)))))
-      (progn
-        (format to-stream "~v@{~C~:*~}" indent #\Space)
-        (format to-stream "~a" form))))
+          (t
+           (format to-stream "~v@{~C~:*~}" indent #\Space)
+           (format to-stream "~a (~{~a~^, ~});~%"
+                   (car form)
+                   (mapcar (lambda (x) (if (stringp x) (format nil "\"~a\"" x) x))
+                           (cdr form))))))
+    (progn
+      (format to-stream "~v@{~C~:*~}" indent #\Space)
+      (format to-stream "~a" form))))
 
 (defun compile-eclisp (from-stream to-stream)
   "Write the result of the compilation of the content of FROM-STREAM into

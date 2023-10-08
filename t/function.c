@@ -1,0 +1,1 @@
+printf ("%d: %s", i, "hello");
