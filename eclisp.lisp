@@ -1,4 +1,4 @@
-(in-package #:clisp)
+(in-package #:eclisp)
 
 (defmacro with-custom-reader (ignore-chars &body body)
   "Enable case sensitivity and disable the reader macros associated to
@@ -146,10 +146,6 @@ ACC should be NIL at first."
   "Compile TYPE and write it on TO-STREAM."
   (print-ll (print-c-type name type nil) to-stream))
 
-(defun compile-if (form to-stream)
-  )
-
-
 (defun compile-progn (form indent to-stream)
   (format to-stream "~v@{~C~:*~}{~%" indent #\Space)
   (loop for f in form do (compile-form f (+ 2 indent) to-stream))
@@ -183,7 +179,7 @@ string."
     (format to-stream ";~%")))
 
 (defun compile-form (form indent to-stream)
-  "Compile a clisp FROM and write it on TO-STREAM"
+  "Compile an eclisp FROM and write it on TO-STREAM"
   (if (consp form)
       (destructuring-bind (op &rest args) form
         (cond
@@ -202,7 +198,7 @@ string."
         (format to-stream "~v@{~C~:*~}" indent #\Space)
         (format to-stream "~a" form))))
 
-(defun compile-clisp (from-stream to-stream)
+(defun compile-eclisp (from-stream to-stream)
   "Write the result of the compilation of the content of FROM-STREAM into
 TO-STREAM."
   (loop for form = (with-custom-reader "'|" (read from-stream nil))
@@ -210,4 +206,4 @@ TO-STREAM."
 
 (defun main ()
   "The entry point."
-  (compile-clisp *standard-input* *standard-output*))
+  (compile-eclisp *standard-input* *standard-output*))

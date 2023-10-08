@@ -1,11 +1,11 @@
-(in-package #:clisp-tests)
+(in-package #:eclisp-tests)
 
 (def-suite all-tests
-    :description "The master suite of all clisp tests.")
+    :description "The master suite of all eclisp tests.")
 
 (in-suite all-tests)
 
-(defun test-clisp ()
+(defun test-eclisp ()
   (run! 'all-tests))
 
 (defun compare-to-ref (result reference)
@@ -28,31 +28,31 @@ At the end the RESULT file is deleted."
     (delete-file result)
     res))
 
-(defun compile-to-file (clisp-file res-file)
+(defun compile-to-file (eclisp-file res-file)
   "Lower CLISP-FILE to a RES-FILE (a C file)"
   (with-open-file (res-stream res-file :direction :output)
-    (with-open-file (clisp-stream clisp-file)
-      (clisp::compile-clisp clisp-stream res-stream)))
+    (with-open-file (eclisp-stream eclisp-file)
+      (eclisp::compile-eclisp eclisp-stream res-stream)))
   res-file)
 
 (test
  conformance-tests
  "Assert the conformance of the implementation"
- (is (compare-to-ref (compile-to-file "t/types.clisp"
+ (is (compare-to-ref (compile-to-file "t/types.eclisp"
                                       "t/types.c.tmp")
                      "t/types.c"))
- (is (compare-to-ref (compile-to-file "t/defvar.clisp"
+ (is (compare-to-ref (compile-to-file "t/defvar.eclisp"
                                       "t/defvar.c.tmp")
                      "t/defvar.c"))
- (is (compare-to-ref (compile-to-file "t/include.clisp"
+ (is (compare-to-ref (compile-to-file "t/include.eclisp"
 				      "t/include.c.tmp")
 		     "t/include.c"))
- (is (compare-to-ref (compile-to-file "t/includes.clisp"
+ (is (compare-to-ref (compile-to-file "t/includes.eclisp"
 				      "t/includes.c.tmp")
 		     "t/include.c"))
- (is (compare-to-ref (compile-to-file "t/cpp-define.clisp"
+ (is (compare-to-ref (compile-to-file "t/cpp-define.eclisp"
                                       "t/cpp-define.c.tmp")
 		     "t/cpp-define.c"))
- (is (compare-to-ref (compile-to-file "t/cpp-if.clisp"
+ (is (compare-to-ref (compile-to-file "t/cpp-if.eclisp"
                                       "t/cpp-if.c.tmp")
                      "t/cpp-if.c")))
