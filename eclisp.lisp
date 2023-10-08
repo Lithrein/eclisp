@@ -178,6 +178,13 @@ string."
     (when value (format to-stream " = ~a" value))
     (format to-stream ";~%")))
 
+(defun compile-set (form indent to-stream)
+  (format to-stream "~v@{~C~:*~}" indent #\Space)
+  (compile-form (car form) indent to-stream)
+  (format to-stream " = ")
+  (compile-form (cadr form) indent to-stream)
+  (format to-stream ";"))
+
 (defun compile-form (form indent to-stream)
   "Compile an eclisp FROM and write it on TO-STREAM"
   (if (consp form)
@@ -188,6 +195,7 @@ string."
           ((string= "%if"      (string op)) (compile-cpp-if args indent to-stream))
           ((string= "defvar"   (string op)) (compile-defvar args indent to-stream))
           ((string= "progn"    (string op)) (compile-progn args indent to-stream))
+          ((string= "set"      (string op)) (compile-set args indent to-stream))
           ((member (string op) '("<" ">" "<=" ">=" ">" "=" "&&" "||") :test #'equal)
            (compile-cmp-op form indent to-stream))
           ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
