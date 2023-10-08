@@ -154,7 +154,7 @@ ACC should be NIL at first."
 (defun compile-defvar (form indent to-stream)
   "Compile a form which declares a global variable.
                   (defvar (var type) value documentation)
-VALUE is optional, TYE is optional as well and defaults to int.  If TYPE is
+VALUE is optional, TYPE is optional as well and defaults to int.  If TYPE is
 not present the parenthesis around (VAR TYPE) are optional. DOCUMENTATION is
 also optional, however, a default value is mandatory before the documentation
 string."
