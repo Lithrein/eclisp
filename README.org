@@ -2,4 +2,34 @@
 
 ** Rationale
 
-C is the best language out there.  C has the best compilers.  C is only lacking a good preprocessor.
+C is the best language out there.  C has the best compilers.
+C is only lacking a good preprocessor.
+
+Eclisp is a transpiler from C as s-expressions to regular C, while taking some
+idea from common-lisp such as the possiblity to attach documentation to
+symbols.  The advantages of s-expressions is among others, the fact that code
+can be easily crafted at compile time through macros acting directly on the
+AST, since the code is the AST and vice-versa.  On the other hand, Prefix
+notation allows to consider any binary operators as a n-ary operator.
+
+The syntax is still highly experimental as I try to find what works the best
+while allowing a 1-1 mapping between C programs and Eclisp programs.  The fact
+that invalid programs C can be created from Eclisp is intentional. Eclisp only
+translate mindlessly "C as s-exp" to traditional C.
+
+Currently, the code is pretty much hot garbage and I know it.  I'll keep it
+this way until the syntax has stabilized, at this point I'll do a complete
+rewrite, add macros (and gensym).
+
+** How to install
+
+eclisp depends on sbcl and quicklisp.  It should work with other Common Lisp
+implementation but you are on you own.
+
+The Makefile currently makes the assumption that quicklisp has been installed
+and that your `.sbclrc' contains the result of `(ql:add-to-init-file)'.  More
+information can be found on the installation guide of quicklisp.
+
+The project can be compiled with `make' and the testsuite is run with `make
+check'.  The compiled binary `eclisp' reads its input from stdin and output its
+result on stdout.
