@@ -168,7 +168,7 @@ ACC should be NIL at first."
   (loop for f in form do (compile-form f t (+ 2 indent) to-stream))
   (format to-stream "~v@{~C~:*~}}~%" indent #\Space))
 
-(defun compile-defvar (form indent to-stream)
+(defun compile-defvar (form stmtp indent to-stream)
   "Compile a form which declares a global variable.
                   (defvar (var type) value documentation)
 VALUE is optional, TYPE is optional as well and defaults to int.  If TYPE is
@@ -260,7 +260,7 @@ also optional"
           ((string= "%include" (string op)) (compile-cpp-include args indent to-stream))
           ((string= "%define"  (string op)) (compile-cpp-define args indent to-stream))
           ((string= "%if"      (string op)) (compile-cpp-if args indent to-stream))
-          ((string= "defvar"   (string op)) (compile-defvar args indent to-stream))
+          ((string= "defvar"   (string op)) (compile-defvar args stmtp indent to-stream))
           ((string= "defun"    (string op)) (compile-defun args indent to-stream))
           ((string= "progn"    (string op)) (compile-progn args indent to-stream))
           ((string= "set"      (string op)) (compile-set args indent to-stream))
