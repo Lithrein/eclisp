@@ -99,7 +99,7 @@ and if, and write it on TO-STREAM."
   (if (consp form)
       (destructuring-bind (op &rest args) form
         (cond
-          ((member (string op) '("<" ">" "<=" ">=" ">" "==") :test #'equal)
+          ((member (string op) '("<" ">" "<=" ">=" ">" "==" "!=") :test #'equal)
            (compile-cmp-op form indent to-stream))
           ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "||" "&" "&&" "~" "<<" ">>")
                    :test #'equal)
@@ -264,7 +264,7 @@ also optional"
           ((string= "->"       (string op)) (compile-arrow args indent to-stream))
           ((string= "aref"     (string op)) (compile-aref args indent to-stream))
           ((string= "if"       (string op)) (compile-if args indent to-stream))
-          ((member (string op) '("<" ">" "<=" ">=" ">" "=" "&&" "||") :test #'equal)
+          ((member (string op) '("<" ">" "<=" ">=" ">" "==" "!=" "&&" "||") :test #'equal)
            (compile-cmp-op form indent to-stream))
           ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
                    :test #'equal)
