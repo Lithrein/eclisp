@@ -232,12 +232,12 @@ also optional"
     (format to-stream "~v@{~C~:*~}else ~%" indent #\Space)
     (compile-form (caddr form) t (+ 2 indent) to-stream)))
 
-(defun compile-set (form stmtp indent to-stream)
+(defun compile-set (form stmtp op indent to-stream)
   (if stmtp
       (format to-stream "~v@{~C~:*~}" indent #\Space)
       (format to-stream "("))
   (compile-form (car form) nil 0 to-stream)
-  (format to-stream " = ")
+  (format to-stream " ~a " op)
   (compile-form (cadr form) nil 0 to-stream)
   (if stmtp
       (format to-stream ";~%")
@@ -378,7 +378,6 @@ also optional"
           ((string= "defvar"   (string op)) (compile-defvar args stmtp indent to-stream))
           ((string= "defun"    (string op)) (compile-defun args indent to-stream))
           ((string= "progn"    (string op)) (compile-progn args indent to-stream))
-          ((string= "set"      (string op)) (compile-set args stmtp indent to-stream))
           ((string= "addr"     (string op)) (compile-addr args indent to-stream))
           ((string= "deref"    (string op)) (compile-deref args indent to-stream))
           ((string= "."        (string op)) (compile-dot args indent to-stream))
@@ -391,6 +390,9 @@ also optional"
           ((string= "while"    (string op)) (compile-while args indent to-stream))
           ((string= "switch"   (string op)) (compile-switch args indent to-stream))
           ((string= "return"   (string op)) (compile-return args indent to-stream))
+          ((member (string op) '("=" "+=" "-=" "*=" "/=" "%=" "&=" "^=" "|=" "<<=" ">>=")
+                   :test #'equal)
+           (compile-set args stmtp op indent to-stream))
           ((member (string op) '("<" ">" "<=" ">=" ">" "==" "!=" "&&" "||") :test #'equal)
            (compile-cmp-op form indent to-stream))
           ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")

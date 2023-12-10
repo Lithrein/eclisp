@@ -1,4 +1,4 @@
 (progn
-  (set a (cast (ptr (int)) b))
+  (= a (cast (ptr (int)) b))
   (cast (int) (+ 1 a)))
 
