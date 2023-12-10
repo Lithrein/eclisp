@@ -304,6 +304,12 @@ also optional"
   (format to-stream ")~%")
   (compile-form (cadddr form) t (+ 2 indent) to-stream))
 
+(defun compile-return (form indent to-stream)
+  (format to-stream "~v@{~C~:*~}" indent #\Space)
+  (format to-stream "return ")
+  (compile-form (car form) nil 0 to-stream)
+  (format to-stream ";~%"))
+
 (defun compile-comment (form indent to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "//~a~%" (car form)))
@@ -330,6 +336,7 @@ also optional"
           ((string= "for"      (string op)) (compile-for args indent to-stream))
           ((string= "do-while" (string op)) (compile-do-while args indent to-stream))
           ((string= "while"    (string op)) (compile-while args indent to-stream))
+          ((string= "return"   (string op)) (compile-return args indent to-stream))
           ((member (string op) '("<" ">" "<=" ">=" ">" "==" "!=" "&&" "||") :test #'equal)
            (compile-cmp-op form indent to-stream))
           ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
