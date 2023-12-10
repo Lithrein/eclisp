@@ -267,6 +267,11 @@ also optional"
   (format to-stream "&")
   (compile-form (car form) nil indent to-stream))
 
+(defun compile-deref (form indent to-stream)
+  (format to-stream "~v@{~C~:*~}" indent #\Space)
+  (format to-stream "*")
+  (compile-form (car form) nil indent to-stream))
+
 (defun compile-while (form indent to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "while (")
@@ -338,6 +343,7 @@ also optional"
           ((string= "progn"    (string op)) (compile-progn args indent to-stream))
           ((string= "set"      (string op)) (compile-set args stmtp indent to-stream))
           ((string= "addr"     (string op)) (compile-addr args indent to-stream))
+          ((string= "deref"    (string op)) (compile-deref args indent to-stream))
           ((string= "."        (string op)) (compile-dot args indent to-stream))
           ((string= "->"       (string op)) (compile-arrow args indent to-stream))
           ((string= "aref"     (string op)) (compile-aref args indent to-stream))
