@@ -224,12 +224,12 @@ also optional"
       (compile-progn body indent to-stream))))
 
 (defun compile-if (form indent to-stream)
-  (format to-stream "~v@{~C~:*~} if " indent #\Space)
-  (compile-cond-expr (car form) indent to-stream)
-  (format to-stream "~%")
+  (format to-stream "~v@{~C~:*~}if (" indent #\Space)
+  (compile-form (car form) nil 0 to-stream)
+  (format to-stream ")~%")
   (compile-form (cadr form) t (+ 2 indent) to-stream)
   (unless (null (caddr form))
-    (format to-stream "~v@{~C~:*~} else ~%" indent #\Space)
+    (format to-stream "~v@{~C~:*~}else ~%" indent #\Space)
     (compile-form (caddr form) t (+ 2 indent) to-stream)))
 
 (defun compile-set (form stmtp indent to-stream)

@@ -1,7 +1,7 @@
- if ((strcmp (str1, "str1") == 0))
+if (((strcmp (str1, "str1") == 0)))
   {
     (1 + 2);
     puts ("bla");
   }
- else 
+else 
   (2 + 3);
