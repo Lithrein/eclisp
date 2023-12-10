@@ -44,6 +44,9 @@ At the end the RESULT file is deleted."
  (is (compare-to-ref (compile-to-file "t/dot.eclisp"
                                       "t/dot.c.tmp")
                      "t/dot.c"))
+ (is (compare-to-ref (compile-to-file "t/continue.eclisp"
+                                      "t/continue.c.tmp")
+                     "t/continue.c"))
  (is (compare-to-ref (compile-to-file "t/for.eclisp"
                                       "t/for.c.tmp")
                      "t/for.c"))
