@@ -11,7 +11,8 @@
   :entry-point (uiop:symbol-call :eclisp "MAIN")
   :depends-on (:cl-ppcre)
   :components ((:file "package")
-               (:file "eclisp")))
+               (:file "eclisp")
+               (:file "reader")))
 
 (asdf:defsystem #:eclisp/tests
   :depends-on (:eclisp :fiveam)

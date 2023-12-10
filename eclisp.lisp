@@ -284,7 +284,7 @@ also optional"
 (defun compile-eclisp (from-stream to-stream)
   "Write the result of the compilation of the content of FROM-STREAM into
 TO-STREAM."
-  (loop for form = (with-custom-reader "'|" (read from-stream nil))
+  (loop for form = (parse from-stream)
         while form do (compile-form form t 0 to-stream)))
 
 (defun main ()
