@@ -334,6 +334,31 @@ also optional"
      (format to-stream ";~%")
      (format to-stream ")")))
 
+(defun compile-switch (form indent to-stream)
+  (format to-stream "~v@{~C~:*~}switch (" indent #\Space)
+  (compile-form (car form) nil 0 to-stream)
+  (format to-stream ")~%")
+  (format to-stream "~v@{~C~:*~}  {~%" indent #\Space)
+  (loop for (label clause) in (cdr form) do
+        (if (consp label)
+            (loop for l in label do
+                  (if (string= (format nil "~a" l) "default")
+                      (format to-stream "~v@{~C~:*~}default:~%" (+ 2 indent) #\Space)
+                      (progn
+                        (format to-stream "~v@{~C~:*~}case " (+ 2 indent) #\Space)
+                        (compile-form l nil 0 to-stream)
+                        (format to-stream ":~%"))))
+          (progn
+            (if (string= (format nil "~a" label) "default")
+                (format to-stream "~v@{~C~:*~}default:~%" (+ 2 indent) #\Space)
+              (progn
+                (format to-stream "~v@{~C~:*~}case " (+ 2 indent) #\Space)
+                (compile-form label nil 0 to-stream)
+                (format to-stream ":~%")))))
+        (compile-form clause t (+ indent 4) to-stream))
+  (format to-stream "~v@{~C~:*~}  }~%" indent #\Space)
+  )
+
 (defun compile-comment (form indent to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "//~a~%" (car form)))
@@ -364,6 +389,7 @@ also optional"
           ((string= "for"      (string op)) (compile-for args indent to-stream))
           ((string= "do-while" (string op)) (compile-do-while args indent to-stream))
           ((string= "while"    (string op)) (compile-while args indent to-stream))
+          ((string= "switch"   (string op)) (compile-switch args indent to-stream))
           ((string= "return"   (string op)) (compile-return args indent to-stream))
           ((member (string op) '("<" ">" "<=" ">=" ">" "==" "!=" "&&" "||") :test #'equal)
            (compile-cmp-op form indent to-stream))
