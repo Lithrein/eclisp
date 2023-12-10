@@ -357,7 +357,8 @@ also optional"
            (format to-stream "~v@{~C~:*~}" indent #\Space)
            (format to-stream "~a (~{~a~^, ~})"
                    (car form)
-                   (mapcar (lambda (x) (if (stringp x) (format nil "\"~a\"" x) x))
+                   (mapcar (lambda (x) (if (stringp x) (format nil "\"~a\"" x)
+                                           (with-output-to-string (s) (compile-form x nil 0 s))))
                            (cdr form)))
            (when stmtp (format to-stream ";~%")))))
     (progn
