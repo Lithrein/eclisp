@@ -262,6 +262,10 @@ also optional"
   (compile-form (cadr form) nil indent to-stream)
   (format to-stream "]"))
 
+(defun compile-comment (form indent to-stream)
+  (format to-stream "~v@{~C~:*~}" indent #\Space)
+  (format to-stream "//~a~%" (car form)))
+
 (defun compile-form (form stmtp indent to-stream)
   "Compile an eclisp FROM and write it on TO-STREAM"
   (if (consp form)
@@ -270,6 +274,7 @@ also optional"
           ((string= "%include" (string op)) (compile-cpp-include args indent to-stream))
           ((string= "%define"  (string op)) (compile-cpp-define args indent to-stream))
           ((string= "%if"      (string op)) (compile-cpp-if args indent to-stream))
+          ((string= "%comment" (string op)) (compile-comment args indent to-stream))
           ((string= "defvar"   (string op)) (compile-defvar args stmtp indent to-stream))
           ((string= "defun"    (string op)) (compile-defun args indent to-stream))
           ((string= "progn"    (string op)) (compile-progn args indent to-stream))
