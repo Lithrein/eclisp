@@ -50,6 +50,9 @@ At the end the RESULT file is deleted."
  (is (compare-to-ref (compile-to-file "t/while.eclisp"
                                       "t/while.c.tmp")
                      "t/while.c"))
+ (is (compare-to-ref (compile-to-file "t/do-while.eclisp"
+                                      "t/do-while.c.tmp")
+                     "t/do-while.c"))
  (is (compare-to-ref (compile-to-file "t/return.eclisp"
                                       "t/return.c.tmp")
                      "t/return.c"))
