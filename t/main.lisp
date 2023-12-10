@@ -53,6 +53,9 @@ At the end the RESULT file is deleted."
  (is (compare-to-ref (compile-to-file "t/addr.eclisp"
                                       "t/addr.c.tmp")
                      "t/addr.c"))
+ (is (compare-to-ref (compile-to-file "t/deref.eclisp"
+                                      "t/deref.c.tmp")
+                     "t/deref.c"))
  (is (compare-to-ref (compile-to-file "t/for.eclisp"
                                       "t/for.c.tmp")
                      "t/for.c"))
