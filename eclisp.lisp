@@ -310,6 +310,10 @@ also optional"
   (compile-form (car form) nil 0 to-stream)
   (format to-stream ";~%"))
 
+(defun compile-break (form indent to-stream)
+  (format to-stream "~v@{~C~:*~}" indent #\Space)
+  (format to-stream "break;~%"))
+
 (defun compile-comment (form indent to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "//~a~%" (car form)))
@@ -323,6 +327,7 @@ also optional"
           ((string= "%define"  (string op)) (compile-cpp-define args indent to-stream))
           ((string= "%if"      (string op)) (compile-cpp-if args indent to-stream))
           ((string= "%comment" (string op)) (compile-comment args indent to-stream))
+          ((string= "break"    (string op)) (compile-break args indent to-stream))
           ((string= "defvar"   (string op)) (compile-defvar args stmtp indent to-stream))
           ((string= "defun"    (string op)) (compile-defun args indent to-stream))
           ((string= "progn"    (string op)) (compile-progn args indent to-stream))
