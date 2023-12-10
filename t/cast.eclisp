@@ -1,3 +1,4 @@
-(type) a;
+(progn
+  (set a (cast (ptr (int)) b))
+  (cast (int) (+ 1 a)))
 
-(type a)
