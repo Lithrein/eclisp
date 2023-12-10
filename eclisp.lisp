@@ -129,8 +129,7 @@ and if, and write it on TO-STREAM."
   (cond ((null l) nil)
         ((consp l)
          (cond ((listp (car l)) (print-ll (car l) to-stream))
-               (t (let ((*print-case* :downcase))
-                    (format to-stream "~a" (car l)))))
+               (t (format to-stream "~a" (car l))))
          (print-ll (cdr l) to-stream))))
 
 (defun print-c-type (name type acc)
@@ -149,7 +148,10 @@ ACC should be NIL at first."
                    (list "(" acc name ")("
                          ((lambda (l) (cons (cdar l) (cdr l)))
                           (loop for tt in (cddr type)
-                                collect (list "," (print-c-type "" tt nil))))
+                                collect (list ", "
+                                              (if (symbolp (car tt))
+                                                  (print-c-type (car tt) (cadr tt) nil)
+                                                (print-c-type "" (car tt) nil)))))
                          ")")))
     ((string= "volatile" (car type))
      (print-c-type "" (cadr type)  (list "volatile " acc name)))
@@ -189,9 +191,10 @@ string."
                                    (concatenate 'string '(#\Newline) "   "
                                                 (format nil "~v@{~C~:*~}" indent #\Space))))))
     (format to-stream "~v@{~C~:*~}" indent #\Space)
-    (compile-type var (if (null type) '(int) type) to-stream)
-    (when value (format to-stream " = ~a" value))
-    (format to-stream ";~%")))
+    (compile-type var (if (null type) '(|int|) type) to-stream)
+    (when value (format to-stream " = ~a"
+                        (with-output-to-string (s) (compile-form value nil 0 s))))
+    (when stmtp (format to-stream ";~%"))))
 
 (defun compile-defun (form indent to-stream)
   "Compile a form which declares a global variable.
