@@ -284,6 +284,15 @@ also optional"
   (compile-cond-expr (car form) 0 to-stream)
   (format to-stream ";~%"))
 
+(defun compile-ite (form stmtp indent to-stream)
+  (format to-stream "~v@{~C~:*~}" indent #\Space)
+  (compile-cond-expr (car form) 0 to-stream)
+  (format to-stream " ? ")
+  (compile-form (cadr form) nil 0 to-stream)
+  (format to-stream " : ")
+  (compile-form (caddr form) nil 0 to-stream)
+  (when stmtp (format to-stream ";~%")))
+
 (defun compile-comment (form indent to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "//~a~%" (car form)))
@@ -306,6 +315,7 @@ also optional"
           ((string= "->"       (string op)) (compile-arrow args indent to-stream))
           ((string= "aref"     (string op)) (compile-aref args indent to-stream))
           ((string= "if"       (string op)) (compile-if args indent to-stream))
+          ((string= "?:"       (string op)) (compile-ite args stmtp indent to-stream))
           ((string= "do-while" (string op)) (compile-do-while args indent to-stream))
           ((string= "while"    (string op)) (compile-while args indent to-stream))
           ((member (string op) '("<" ">" "<=" ">=" ">" "==" "!=" "&&" "||") :test #'equal)
