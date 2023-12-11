@@ -12,3 +12,7 @@
 (defvar (x (ptr (fun (return (void)) ((void))))))
 (defvar (x (fun (return (ptr (array "" (ptr (fun (return (void)) ((char))))))) ((void)))))
 (defvar (x (array 3 (volatile (ptr (fun (return (const (ptr (array 5 (char))))) ((void))))))))
+
+(defun (main (fun (return int) (argc int) (argv (ptr ptr (array 3 int)))))
+  "A function with slightly less parenthesis in the types."
+  (return 1))

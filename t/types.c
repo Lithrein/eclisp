@@ -12,3 +12,8 @@ int ((*(x)(void)))[3];
 void ((*x))(void);
 void ((*((*(x)(void)))[]))(char);
 char ((*const ((*volatile (x)[3]))(void)))[5];
+/* A function with slightly less parenthesis in the types.  */
+int (main)(int argc, int ((*(*argv)))[3])
+{
+  return 1;
+}

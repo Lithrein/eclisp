@@ -136,27 +136,37 @@ and if, and write it on TO-STREAM."
   "Create a nested list which represents the variable NAME of TYPE.
 ACC should be NIL at first."
   (cond
+    ((not (consp type))
+     (list type (if (null acc) nil " ") acc (if (string= name "") nil " ") name))
     ((string= "ptr"  (car type))
-     (print-c-type "" (cadr type)  (list "(*" acc name ")")))
+     (print-c-type ""
+                   (if (consp (cadr type)) (cadr type) (cdr type))
+                   (list "(*" acc name ")")))
     ((string= "array" (car type))
-     (print-c-type "" (caddr type)
+     (print-c-type ""
+                   (if (consp (caddr type)) (caddr type) (cddr type))
                    (if (and (null acc) (string= name ""))
                        (list "[" (cadr type) "]")
                        (list "(" acc name ")[" (cadr type) "]"))))
     ((string= "fun" (car type))
-     (print-c-type "" (cadadr type)
+     (print-c-type ""
+                   (if (consp (cdadr type)) (cadadr type) (cdadr type))
                    (list "(" acc name ")("
                          ((lambda (l) (cons (cdar l) (cdr l)))
                           (loop for tt in (cddr type)
                                 collect (list ", "
                                               (if (symbolp (car tt))
                                                   (print-c-type (car tt) (cadr tt) nil)
-                                                (print-c-type "" (car tt) nil)))))
+                                                  (print-c-type "" (car tt) nil)))))
                          ")")))
     ((string= "volatile" (car type))
-     (print-c-type "" (cadr type)  (list "volatile " acc name)))
+     (print-c-type ""
+                   (if (consp (cadr type)) (cadr type) (cdr type))
+                   (list "volatile " acc name)))
     ((string= "const" (car type))
-     (print-c-type "" (cadr type)  (list "const " acc name)))
+     (print-c-type ""
+                   (if (consp (cadr type)) (cadr type) (cdr type))
+                   (list "const " acc name)))
     (t (list (car type) (if (null acc) nil " ") acc (if (string= name "") nil " ") name))))
 
 (defun compile-type (name type to-stream)
