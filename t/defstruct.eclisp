@@ -5,4 +5,4 @@
   "documentation")
 
 struct a = { .p = 1, .e = 4 };
-(defvar a (static (struct a)) ((:p 1) (:e 4)))
+(def a (static (struct a)) ((:p 1) (:e 4)))

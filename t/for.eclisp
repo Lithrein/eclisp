@@ -1,2 +1,2 @@
-(for (defvar i 0) (< i 0) (+= i 1)
+(for (def i 0) (< i 0) (+= i 1)
   (+= i (+ 1 2)))

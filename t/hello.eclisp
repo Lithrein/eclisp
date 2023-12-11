@@ -1,4 +1,4 @@
 (%include <stdio.h>)
-(defun (main (fun (return (int)) ((void))))
+(def (main (fun (return (int)) ((void))))
   "The typical hello world program"
   (puts "my first program"))

@@ -231,7 +231,19 @@ also optional"
     (compile-type var (if (null type) '(void) type) to-stream)
     (when body
       (format to-stream "~%")
-      (compile-progn body indent to-stream))))
+      (compile-progn body indent to-stream))
+    (when (not body)
+      (format to-stream ";~%"))))
+
+(defun compile-def (form stmtp indent to-stream)
+  (if (string= "fun"
+               (string (if (consp (car form))
+                           (car (if (null (cdar form)) (caar form)
+                                    (if (consp (cadar form))
+                                        (cadar form) (list (cadar form)))))
+                           (car form))))
+      (compile-defun form indent to-stream)
+      (compile-defvar form stmtp indent to-stream)))
 
 (defun compile-if (form indent to-stream)
   (format to-stream "~v@{~C~:*~}if (" indent #\Space)
@@ -385,8 +397,7 @@ also optional"
           ((string= "break"    (string op)) (compile-break args indent to-stream))
           ((string= "continue" (string op)) (compile-continue args indent to-stream))
           ((string= "cast"     (string op)) (compile-cast args stmtp indent to-stream))
-          ((string= "defvar"   (string op)) (compile-defvar args stmtp indent to-stream))
-          ((string= "defun"    (string op)) (compile-defun args indent to-stream))
+          ((string= "def"      (string op)) (compile-def args stmtp indent to-stream))
           ((string= "progn"    (string op)) (compile-progn args indent to-stream))
           ((string= "addr"     (string op)) (compile-addr args indent to-stream))
           ((string= "deref"    (string op)) (compile-deref args indent to-stream))
