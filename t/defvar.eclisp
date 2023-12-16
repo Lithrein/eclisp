@@ -2,11 +2,11 @@
   "This is the number of events received since the start of the program across
 all threads.")
 
-(def (pi (const (float))) 3.14
+(def pi (const (float)) 3.14
   "Very well know constant.")
 
 (def a)
 
-(def (e (float)) 2.718)
+(def e (float) 2.718)
 
-(def (b (float)))
+(def b (float))

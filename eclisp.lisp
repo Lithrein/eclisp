@@ -180,19 +180,25 @@ ACC should be NIL at first."
 
 (defun compile-defvar (form stmtp indent to-stream)
   "Compile a form which declares a global variable.
-                  (defvar (var type) value documentation)
-VALUE is optional, TYPE is optional as well and defaults to int.  If TYPE is
-not present the parenthesis around (VAR TYPE) are optional. DOCUMENTATION is
-also optional, however, a default value is mandatory before the documentation
-string."
+                  (def var type value documentation)"
   (let ((var nil) (type nil) (value nil) (documentation nil))
-    (if (listp (car form))
+    (if (consp (car form))
+        ;; no name, hence no value
         (progn
-          (setf var (caar form))
-          (setf type (cadar form)))
-        (setf var (car form)))
-    (unless (null (cdr form)) (setf value (cadr form)))
-    (unless (null (cddr form)) (setf documentation (caddr form)))
+          (setf type (car form))
+          (setf documentation (cadr form)))
+      ;; name is present
+      (progn
+        (setf var (car form))
+        (if (consp (cadr form))
+            (progn
+              (setf type (cadr form))
+              (setf value (caddr form))
+              (setf documentation (cadddr form)))
+          (progn
+            (setf value (cadr form))
+            (setf documentation (caddr form))))))
+    (when (and (symbolp value) (string= (string value) "%nothing")) (setf value nil))
     (unless (null documentation)
       (progn
         (format to-stream "~v@{~C~:*~}" indent #\Space)
@@ -208,18 +214,16 @@ string."
 
 (defun compile-defun (form indent to-stream)
   "Compile a form which declares a global variable.
-                  (defun (f type) documentation body)
-BODY is optional, TYPE is optional as well and defaults to void.  If TYPE is
-not present the parenthesis around (VAR TYPE) are optional. DOCUMENTATION is
-also optional"
+                  (def f (-> rettype params) documentation body)
+BODY is optional. DOCUMENTATION is optional"
   (let ((var nil) (type nil) (body nil) (documentation nil))
-    (if (listp (car form))
+    (setf var (car form))
+    (setf type (cadr form))
+    (if (stringp (caddr form))
         (progn
-          (setf var (caar form))
-          (setf type (cadar form)))
-        (setf var (car form)))
-    (unless (null (cdr form)) (setf documentation (cadr form)))
-    (unless (null (cddr form)) (setf body (cddr form)))
+          (setf documentation (caddr form))
+          (setf body (cdddr form)))
+      (setf body (cddr form)))
     (unless (null documentation)
       (progn
         (format to-stream "~v@{~C~:*~}" indent #\Space)
@@ -236,14 +240,16 @@ also optional"
       (format to-stream ";~%"))))
 
 (defun compile-def (form stmtp indent to-stream)
-  (if (string= "fun"
-               (string (if (consp (car form))
-                           (car (if (null (cdar form)) (caar form)
-                                    (if (consp (cadar form))
-                                        (cadar form) (list (cadar form)))))
-                           (car form))))
-      (compile-defun form indent to-stream)
-      (compile-defvar form stmtp indent to-stream)))
+  (let ((category nil) (var nil) (type nil))
+    (if (consp (car form))
+        (setf type (car form))
+      ;; name is present
+      (progn
+        (setf var (car form))
+        (when (consp (cadr form)) (setf type (cadr form)))))
+    (cond ((and type (string= (car type) "fun"))
+           (compile-defun form indent to-stream))
+          (t (compile-defvar form stmtp indent to-stream)))))
 
 (defun compile-if (form indent to-stream)
   (format to-stream "~v@{~C~:*~}if (" indent #\Space)
