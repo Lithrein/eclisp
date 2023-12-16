@@ -199,6 +199,26 @@ ACC should be NIL at first."
                                                                  (print-c-type (car tt) (cadr tt) nil)
                                                                (print-c-type "" (car tt) nil)) ";" #\Newline))
                                          "}")))))))
+    ((string= "union" (car type))
+     (list "union "
+           (print-c-type name nil
+                         (if (consp (cadr type))
+                             (list "{" #\Newline
+                                   (loop for tt in (cddr type)
+                                         collect (list "  "
+                                                       (if (symbolp (car tt))
+                                                           (print-c-type (car tt) (cadr tt) nil)
+                                                         (print-c-type "" (car tt) nil)) ";" #\Newline))
+                                   "}")
+                           (list (cadr type)
+                                 (when (consp (caddr type))
+                                   (list " {" #\Newline
+                                         (loop for tt in (cdddr type)
+                                               collect (list "  "
+                                                             (if (symbolp (car tt))
+                                                                 (print-c-type (car tt) (cadr tt) nil)
+                                                               (print-c-type "" (car tt) nil)) ";" #\Newline))
+                                         "}")))))))
     ((string= "volatile" (car type))
      (print-c-type ""
                    (if (consp (cadr type)) (cadr type) (cdr type))
