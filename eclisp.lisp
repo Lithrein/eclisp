@@ -251,6 +251,10 @@ ACC should be NIL at first."
      (list "signed " (print-c-type name
                                   (if (consp (cadr type)) (cadr type) (cdr type))
                                   acc)))
+    ((string= "unsigned" (car type))
+     (list "unsigned " (print-c-type name
+                                  (if (consp (cadr type)) (cadr type) (cdr type))
+                                  acc)))
     ((string= "const" (car type))
      (print-c-type ""
                    (if (consp (cadr type)) (cadr type) (cdr type))
