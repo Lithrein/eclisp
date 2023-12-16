@@ -1,8 +1,28 @@
-(defstruct a
-  ((var1 (type1) cst "first field is a bitfield")
-  (var2 (type2) "second field"))
-  (var1 (var2 "the second variable") var3)
-  "documentation")
+(def sa
+  (struct tag0
+    (a int)
+    (b (long long))))
 
-struct a = { .p = 1, .e = 4 };
-(def a (static (struct a)) ((:p 1) (:e 4)))
+(def sb
+  (typedef struct tag1
+    (a int)
+    (b (struct (bla int) (blo float)))
+    (c (struct tag0))))
+
+(def sc
+  (typedef struct
+    (a int)
+    (b (struct (bla int) (blo float)))
+    (c (struct tag0))))
+
+(def
+  (typedef struct
+    (a int)
+    (b (struct (bla int) (blo float)))
+    (c (struct tag0))))
+
+(def
+  (struct
+    (a int)
+    (b (struct (bla int) (blo float)))
+    (c (struct tag0))))
