@@ -362,17 +362,27 @@ BODY is optional. DOCUMENTATION is optional"
   (if stmtp
       (format to-stream ";~%")))
 
-(defun compile-dot (form indent to-stream)
-  (format to-stream "~v@{~C~:*~}" indent #\Space)
-  (compile-form (car form) nil indent to-stream)
-  (format to-stream ".")
-  (compile-form (cadr form) nil indent to-stream))
+(defun compile-dot (form stmtp indent to-stream)
+  (if stmtp
+      (format to-stream "~v@{~C~:*~}" indent #\Space))
+  (let ((cur form))
+    (loop while cur do
+          (compile-form (car cur) nil 0 to-stream)
+          (if (cdr cur) (format to-stream "."))
+          (setf cur (cdr cur))))
+  (if stmtp
+      (format to-stream ";~%")))
 
-(defun compile-arrow (form indent to-stream)
-  (format to-stream "~v@{~C~:*~}" indent #\Space)
-  (compile-form (car form) nil indent to-stream)
-  (format to-stream "->")
-  (compile-form (cadr form) nil indent to-stream))
+(defun compile-arrow (form stmtp indent to-stream)
+  (if stmtp
+      (format to-stream "~v@{~C~:*~}" indent #\Space))
+  (let ((cur form))
+    (loop while cur do
+          (compile-form (car cur) nil 0 to-stream)
+          (if (cdr cur) (format to-stream "->"))
+          (setf cur (cdr cur))))
+  (if stmtp
+      (format to-stream ";~%")))
 
 (defun compile-aref (form indent to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
@@ -506,8 +516,8 @@ BODY is optional. DOCUMENTATION is optional"
           ((string= "progn"    (string op)) (compile-progn args indent to-stream))
           ((string= "addr"     (string op)) (compile-addr args indent to-stream))
           ((string= "deref"    (string op)) (compile-deref args indent to-stream))
-          ((string= "."        (string op)) (compile-dot args indent to-stream))
-          ((string= "->"       (string op)) (compile-arrow args indent to-stream))
+          ((string= "."        (string op)) (compile-dot args stmtp indent to-stream))
+          ((string= "->"       (string op)) (compile-arrow args stmtp indent to-stream))
           ((string= "aref"     (string op)) (compile-aref args indent to-stream))
           ((string= "if"       (string op)) (compile-if args indent to-stream))
           ((string= "label"    (string op)) (compile-label args indent to-stream))
