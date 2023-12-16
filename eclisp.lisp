@@ -171,6 +171,10 @@ ACC should be NIL at first."
      (list "static " (print-c-type name
                                    (if (consp (cadr type)) (cadr type) (cdr type))
                                    name)))
+    ((string= "extern" (car type))
+     (list "extern " (print-c-type name
+                                   (if (consp (cadr type)) (cadr type) (cdr type))
+                                   name)))
     ((string= "const" (car type))
      (print-c-type ""
                    (if (consp (cadr type)) (cadr type) (cdr type))
