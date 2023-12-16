@@ -265,6 +265,17 @@ also optional"
       (format to-stream ";~%")
       (format to-stream ")")))
 
+(defun compile-seq (form stmtp indent to-stream)
+  (if stmtp
+      (format to-stream "~v@{~C~:*~}" indent #\Space))
+  (let ((cur form))
+    (loop while cur do
+          (compile-form (car cur) nil 0 to-stream)
+          (if (cdr cur) (format to-stream ", "))
+          (setf cur (cdr cur))))
+  (if stmtp
+      (format to-stream ";~%")))
+
 (defun compile-dot (form indent to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (compile-form (car form) nil indent to-stream)
@@ -405,6 +416,7 @@ also optional"
           ((string= "continue" (string op)) (compile-continue args indent to-stream))
           ((string= "cast"     (string op)) (compile-cast args stmtp indent to-stream))
           ((string= "def"      (string op)) (compile-def args stmtp indent to-stream))
+          ((string= "seq"      (string op)) (compile-seq args stmtp indent to-stream))
           ((string= "progn"    (string op)) (compile-progn args indent to-stream))
           ((string= "addr"     (string op)) (compile-addr args indent to-stream))
           ((string= "deref"    (string op)) (compile-deref args indent to-stream))
