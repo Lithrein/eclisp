@@ -148,7 +148,7 @@ ACC should be NIL at first."
                    (if (and (null acc) (string= name ""))
                        (list "[" (cadr type) "]")
                        (list "(" acc name ")[" (cadr type) "]"))))
-    ((string= "fun" (car type))
+    ((string= "->" (car type))
      (print-c-type ""
                    (if (consp (cdadr type)) (cadadr type) (cdadr type))
                    (list "(" acc name ")("
@@ -327,7 +327,7 @@ BODY is optional. DOCUMENTATION is optional"
       (progn
         (setf var (car form))
         (when (consp (cadr form)) (setf type (cadr form)))))
-    (cond ((and type (string= (car type) "fun"))
+    (cond ((and type (string= (car type) "->"))
            (compile-defun form indent to-stream))
           (t (compile-defvar form stmtp indent to-stream)))))
 
