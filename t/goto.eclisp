@@ -1,7 +1,1 @@
-  goto label1;
-
-label1:
-
-(tagbody
-  (go label1)
-  label1)
+(goto a)

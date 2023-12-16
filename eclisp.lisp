@@ -384,6 +384,9 @@ also optional"
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "~a:~%" (car form)))
 
+(defun compile-goto (form indent to-stream)
+  (format to-stream "~v@{~C~:*~}" indent #\Space)
+  (format to-stream "goto ~a;~%" (car form)))
 
 (defun compile-comment (form indent to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
