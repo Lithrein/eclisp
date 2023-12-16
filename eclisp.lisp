@@ -431,6 +431,7 @@ BODY is optional. DOCUMENTATION is optional"
           ((string= "aref"     (string op)) (compile-aref args indent to-stream))
           ((string= "if"       (string op)) (compile-if args indent to-stream))
           ((string= "label"    (string op)) (compile-label args indent to-stream))
+          ((string= "goto"     (string op)) (compile-goto args indent to-stream))
           ((string= "?:"       (string op)) (compile-ite args stmtp indent to-stream))
           ((string= "for"      (string op)) (compile-for args indent to-stream))
           ((string= "do-while" (string op)) (compile-do-while args indent to-stream))
