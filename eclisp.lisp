@@ -163,6 +163,10 @@ ACC should be NIL at first."
      (print-c-type ""
                    (if (consp (cadr type)) (cadr type) (cdr type))
                    (list "volatile " acc name)))
+    ((string= "typedef" (car type))
+     (list "typedef " (print-c-type name
+                                    (if (consp (cadr type)) (cadr type) (cdr type))
+                                    acc)))
     ((string= "const" (car type))
      (print-c-type ""
                    (if (consp (cadr type)) (cadr type) (cdr type))
