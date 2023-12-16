@@ -343,13 +343,15 @@ BODY is optional. DOCUMENTATION is optional"
 (defun compile-set (form stmtp op indent to-stream)
   (if stmtp
       (format to-stream "~v@{~C~:*~}" indent #\Space)
-      (format to-stream "("))
-  (compile-form (car form) nil 0 to-stream)
-  (format to-stream " ~a " op)
-  (compile-form (cadr form) nil 0 to-stream)
+    (format to-stream "("))
+ (let ((cur form))
+    (loop while cur do
+          (compile-form (car cur) nil 0 to-stream)
+          (if (cdr cur) (format to-stream " ~a " op))
+          (setf cur (cdr cur))))
   (if stmtp
       (format to-stream ";~%")
-      (format to-stream ")")))
+    (format to-stream ")")))
 
 (defun compile-seq (form stmtp indent to-stream)
   (if stmtp
