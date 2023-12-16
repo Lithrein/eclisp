@@ -167,6 +167,10 @@ ACC should be NIL at first."
      (list "typedef " (print-c-type name
                                     (if (consp (cadr type)) (cadr type) (cdr type))
                                     acc)))
+    ((string= "static" (car type))
+     (list "static " (print-c-type name
+                                   (if (consp (cadr type)) (cadr type) (cdr type))
+                                   name)))
     ((string= "const" (car type))
      (print-c-type ""
                    (if (consp (cadr type)) (cadr type) (cdr type))
