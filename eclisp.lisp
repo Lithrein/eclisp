@@ -179,6 +179,10 @@ ACC should be NIL at first."
      (list "long " (print-c-type name
                                  (if (consp (cadr type)) (cadr type) (cdr type))
                                  nil)))
+    ((string= "short" (car type))
+     (list "short " (print-c-type name
+                                  (if (consp (cadr type)) (cadr type) (cdr type))
+                                  nil)))
     ((string= "const" (car type))
      (print-c-type ""
                    (if (consp (cadr type)) (cadr type) (cdr type))
