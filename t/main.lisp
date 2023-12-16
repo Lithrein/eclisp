@@ -77,6 +77,9 @@ At the end the RESULT file is deleted."
  (is (compare-to-ref (compile-to-file "t/defstruct.eclisp"
                                       "t/defstruct.c.tmp")
                      "t/defstruct.c"))
+ (is (compare-to-ref (compile-to-file "t/enum.eclisp"
+                                      "t/enum.c.tmp")
+                     "t/enum.c"))
  (is (compare-to-ref (compile-to-file "t/while.eclisp"
                                       "t/while.c.tmp")
                      "t/while.c"))

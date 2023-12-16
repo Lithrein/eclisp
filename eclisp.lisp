@@ -159,6 +159,26 @@ ACC should be NIL at first."
                                                   (print-c-type (car tt) (cadr tt) nil)
                                                   (print-c-type "" (car tt) nil)))))
                          ")")))
+    ((string= "enum" (car type))
+     (print-c-type name nil
+                   (list "enum "
+                         (if (consp (cadr type))
+                             (list #\Newline "{"
+                                   ((lambda (l) (cons (cdar l) (cdr l)))
+                                    (loop for tt in (cadr type)
+                                          collect (list "," #\Newline
+                                                        (if (consp tt)
+                                                            (list "  " (car tt) " = " (cadr tt))
+                                                          (list "  " tt)))))
+                                   #\Newline "}")
+                           (list (cadr type) #\Newline "{"
+                                 ((lambda (l) (cons (cdar l) (cdr l)))
+                                  (loop for tt in (cddr type)
+                                        collect (list "," #\Newline
+                                                      (if (consp tt)
+                                                          (list "  " (car tt) " = " (cadr tt))
+                                                        (list "  " tt)))))
+                                 #\Newline "}")))))
     ((string= "struct" (car type))
      (list "struct "
            (print-c-type name nil
