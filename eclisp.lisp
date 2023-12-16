@@ -132,6 +132,12 @@ and if, and write it on TO-STREAM."
                (t (format to-stream "~a" (car l))))
          (print-ll (cdr l) to-stream))))
 
+(defvar c-keywords
+  '("auto" "break" "case" "char" "const" "continue" "default" "do" "double"
+    "else" "enum" "extern" "float" "for" "goto" "if" "int" "long" "register"
+    "return" "short" "signed" "sizeof" "static" "struct" "switch" "typedef"
+    "union" "unsigned" "void" "volatile" "while") )
+
 (defun print-c-type (name type acc)
   "Create a nested list which represents the variable NAME of TYPE.
 ACC should be NIL at first."
@@ -150,14 +156,25 @@ ACC should be NIL at first."
                        (list "(" acc name ")[" (cadr type) "]"))))
     ((string= "->" (car type))
      (print-c-type ""
-                   (if (consp (cdadr type)) (cadadr type) (cdadr type))
+                   (cadr type)
                    (list "(" acc name ")("
                          ((lambda (l) (cons (cdar l) (cdr l)))
                           (loop for tt in (cddr type)
                                 collect (list ", "
-                                              (if (symbolp (car tt))
-                                                  (print-c-type (car tt) (cadr tt) nil)
-                                                  (print-c-type "" (car tt) nil)))))
+                                              (cond
+                                               ((symbolp tt) (print-c-type "" tt nil))
+                                               ((and (symbolp (car tt)) (not (member (string (car tt)) c-keywords
+                                                                                     :test #'string=)))
+                                                (let ((rev-tt (reverse tt)) (names nil) (typ nil))
+                                                  (setf typ (car rev-tt))
+                                                  (setf names (reverse (cdr rev-tt)))
+                                                  ((lambda (l) (cons (cdar l) (cdr l)))
+                                                   (loop for n in names
+                                                         collect (list ", " (print-c-type n typ nil))))))
+                                               ((and (symbolp (car tt)) (member (string (car tt)) c-keywords
+                                                                                :test #'string=))
+                                                (print-c-type "" tt nil))
+                                               (t (print-c-type "" (car tt) nil))))))
                          ")")))
     ((string= "enum" (car type))
      (print-c-type name nil

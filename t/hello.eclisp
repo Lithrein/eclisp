@@ -1,4 +1,4 @@
 (%include <stdio.h>)
-(def main (-> (return (int)) ((void)))
+(def main (-> (int) ((void)))
   "The typical hello world program"
   (puts "my first program"))
