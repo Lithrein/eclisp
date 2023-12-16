@@ -395,8 +395,8 @@ BODY is optional. DOCUMENTATION is optional"
                 (compile-form label nil 0 to-stream)
                 (format to-stream ":~%")))))
         (compile-form clause t (+ indent 4) to-stream))
-  (format to-stream "~v@{~C~:*~}  }~%" indent #\Space)
-  )
+  (format to-stream "~v@{~C~:*~}  }~%" indent #\Space))
+
 (defun compile-label (form indent to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "~a:~%" (car form)))
