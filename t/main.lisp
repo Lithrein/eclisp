@@ -65,6 +65,9 @@ At the end the RESULT file is deleted."
  (is (compare-to-ref (compile-to-file "t/for.eclisp"
                                       "t/for.c.tmp")
                      "t/for.c"))
+ (is (compare-to-ref (compile-to-file "t/label.eclisp"
+                                      "t/label.c.tmp")
+                     "t/label.c"))
  (is (compare-to-ref (compile-to-file "t/while.eclisp"
                                       "t/while.c.tmp")
                      "t/while.c"))

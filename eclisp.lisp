@@ -380,6 +380,10 @@ also optional"
         (compile-form clause t (+ indent 4) to-stream))
   (format to-stream "~v@{~C~:*~}  }~%" indent #\Space)
   )
+(defun compile-label (form indent to-stream)
+  (format to-stream "~v@{~C~:*~}" indent #\Space)
+  (format to-stream "~a:~%" (car form)))
+
 
 (defun compile-comment (form indent to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
@@ -405,6 +409,7 @@ also optional"
           ((string= "->"       (string op)) (compile-arrow args indent to-stream))
           ((string= "aref"     (string op)) (compile-aref args indent to-stream))
           ((string= "if"       (string op)) (compile-if args indent to-stream))
+          ((string= "label"    (string op)) (compile-label args indent to-stream))
           ((string= "?:"       (string op)) (compile-ite args stmtp indent to-stream))
           ((string= "for"      (string op)) (compile-for args indent to-stream))
           ((string= "do-while" (string op)) (compile-do-while args indent to-stream))
