@@ -230,7 +230,7 @@ ACC should be NIL at first."
     ((string= "static" (car type))
      (list "static " (print-c-type name
                                    (if (consp (cadr type)) (cadr type) (cdr type))
-                                   name)))
+                                   acc)))
     ((string= "register" (car type))
      (list "register " (print-c-type name
                                    (if (consp (cadr type)) (cadr type) (cdr type))
@@ -238,15 +238,15 @@ ACC should be NIL at first."
     ((string= "extern" (car type))
      (list "extern " (print-c-type name
                                    (if (consp (cadr type)) (cadr type) (cdr type))
-                                   name)))
+                                   acc)))
     ((string= "long" (car type))
      (list "long " (print-c-type name
                                  (if (consp (cadr type)) (cadr type) (cdr type))
-                                 nil)))
+                                 acc)))
     ((string= "short" (car type))
      (list "short " (print-c-type name
                                   (if (consp (cadr type)) (cadr type) (cdr type))
-                                  nil)))
+                                  acc)))
     ((string= "signed" (car type))
      (list "signed " (print-c-type name
                                   (if (consp (cadr type)) (cadr type) (cdr type))
