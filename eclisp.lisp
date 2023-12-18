@@ -370,17 +370,19 @@ BODY is optional. DOCUMENTATION is optional"
     (compile-form (caddr form) t (+ 2 indent) to-stream)))
 
 (defun compile-set (form stmtp op indent to-stream)
-  (if stmtp
-      (format to-stream "~v@{~C~:*~}" indent #\Space)
-    (format to-stream "("))
- (let ((cur form))
+  (cond
+   ((and stmtp (not (eql stmtp 'init)))
+    (format to-stream "~v@{~C~:*~}" indent #\Space))
+   ((not stmtp) (format to-stream "(")))
+  (let ((cur form))
     (loop while cur do
           (compile-form (car cur) nil 0 to-stream)
           (if (cdr cur) (format to-stream " ~a " op))
           (setf cur (cdr cur))))
-  (if stmtp
-      (format to-stream ";~%")
-    (format to-stream ")")))
+  (cond
+   ((and stmtp (not (eql stmtp 'init)))
+    (format to-stream ";~%"))
+   ((not stmtp) (format to-stream ")"))))
 
 (defun compile-seq (form stmtp indent to-stream)
   (if stmtp
@@ -390,6 +392,19 @@ BODY is optional. DOCUMENTATION is optional"
           (compile-form (car cur) nil 0 to-stream)
           (if (cdr cur) (format to-stream ", "))
           (setf cur (cdr cur))))
+  (if stmtp
+      (format to-stream ";~%")))
+
+(defun compile-list (form stmtp indent to-stream)
+  (if stmtp
+      (format to-stream "~v@{~C~:*~}" indent #\Space))
+  (format to-stream "{")
+  (let ((cur form))
+    (loop while cur do
+          (compile-form (car cur) 'init 0 to-stream)
+          (if (cdr cur) (format to-stream ", "))
+          (setf cur (cdr cur))))
+  (format to-stream " }")
   (if stmtp
       (format to-stream ";~%")))
 
@@ -544,6 +559,7 @@ BODY is optional. DOCUMENTATION is optional"
           ((string= "cast"     (string op)) (compile-cast args stmtp indent to-stream))
           ((string= "def"      (string op)) (compile-def args stmtp indent to-stream))
           ((string= "seq"      (string op)) (compile-seq args stmtp indent to-stream))
+          ((string= "list"     (string op)) (compile-list args stmtp indent to-stream))
           ((string= "progn"    (string op)) (compile-progn args indent to-stream))
           ((string= "addr"     (string op)) (compile-addr args indent to-stream))
           ((string= "deref"    (string op)) (compile-deref args indent to-stream))
