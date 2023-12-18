@@ -452,13 +452,15 @@ BODY is optional. DOCUMENTATION is optional"
   (format to-stream "while (")
   (compile-form (car form) nil 0 to-stream)
   (format to-stream ")~%")
-  (compile-form (cadr form) t (+ 2 indent) to-stream))
+  (if (cadr form)
+      (compile-form `(|progn| ,@(cdr form)) t (+ 2 indent) to-stream)
+    (format to-stream ";~%")))
 
 (defun compile-do-while (form indent to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "do")
   (format to-stream "~%")
-  (compile-form (cadr form) t (+ 2 indent) to-stream)
+  (compile-form `(|progn| ,(cadr form)) t (+ 2 indent) to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "while ")
   (compile-cond-expr (car form) 0 to-stream)
@@ -482,7 +484,9 @@ BODY is optional. DOCUMENTATION is optional"
   (format to-stream "; ")
   (compile-form (caddr form) nil 0 to-stream)
   (format to-stream ")~%")
-  (compile-form (cadddr form) t (+ 2 indent) to-stream))
+  (if (cadddr form)
+      (compile-form `(|progn| ,@(cdddr form)) t (+ 2 indent) to-stream)
+    (format to-stream ";~%")))
 
 (defun compile-return (form indent to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
@@ -514,23 +518,25 @@ BODY is optional. DOCUMENTATION is optional"
   (compile-form (car form) nil 0 to-stream)
   (format to-stream ")~%")
   (format to-stream "~v@{~C~:*~}  {~%" indent #\Space)
-  (loop for (label clause) in (cdr form) do
-        (if (consp label)
-            (loop for l in label do
-                  (if (string= (format nil "~a" l) "default")
-                      (format to-stream "~v@{~C~:*~}default:~%" (+ 2 indent) #\Space)
-                      (progn
-                        (format to-stream "~v@{~C~:*~}case " (+ 2 indent) #\Space)
-                        (compile-form l nil 0 to-stream)
-                        (format to-stream ":~%"))))
-          (progn
-            (if (string= (format nil "~a" label) "default")
-                (format to-stream "~v@{~C~:*~}default:~%" (+ 2 indent) #\Space)
-              (progn
-                (format to-stream "~v@{~C~:*~}case " (+ 2 indent) #\Space)
-                (compile-form label nil 0 to-stream)
-                (format to-stream ":~%")))))
-        (compile-form clause t (+ indent 4) to-stream))
+  (loop for label-clauses in (cdr form) do
+        (destructuring-bind
+         (label &rest clauses) label-clauses
+         (if (consp label)
+             (loop for l in label do
+                   (if (string= (format nil "~a" l) "default")
+                       (format to-stream "~v@{~C~:*~}default:~%" (+ 2 indent) #\Space)
+                     (progn
+                       (format to-stream "~v@{~C~:*~}case " (+ 2 indent) #\Space)
+                       (compile-form l nil 0 to-stream)
+                       (format to-stream ":~%"))))
+           (progn
+             (if (string= (format nil "~a" label) "default")
+                 (format to-stream "~v@{~C~:*~}default:~%" (+ 2 indent) #\Space)
+               (progn
+                 (format to-stream "~v@{~C~:*~}case " (+ 2 indent) #\Space)
+                 (compile-form label nil 0 to-stream)
+                 (format to-stream ":~%")))))
+         (compile-form `(|progn| ,@clauses) t (+ indent 4) to-stream)))
   (format to-stream "~v@{~C~:*~}  }~%" indent #\Space))
 
 (defun compile-label (form indent to-stream)
