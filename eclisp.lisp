@@ -1,25 +1,5 @@
 (in-package #:eclisp)
 
-(defmacro with-custom-reader (ignore-chars &body body)
-  "Enable case sensitivity and disable the reader macros associated to
-characters in the IGNORE-CHARS string while performing READ."
-  `(let ((*readtable* (copy-readtable)))
-     (loop for cc across ,ignore-chars do
-       (set-macro-character
-        cc
-        (lambda (stream char)
-          (concatenate
-           'string
-           (make-string 1 :initial-element char)
-           (loop for c = (peek-char nil stream nil nil)
-                 while (and c (eql c (peek-char t stream nil nil)))
-                 collect (read-char stream) into letters
-                 finally (return (coerce letters 'string)))))
-        t *readtable*))
-     (setf (readtable-case *readtable*) :preserve)
-     (progn
-       ,@body)))
-
 (defun compile-cpp-include (include-forms indent to-stream)
   "Compile an include directive: (%include header-list)
 where header-list is a list of header names either enclosed in double-quotes
