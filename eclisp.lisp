@@ -134,10 +134,24 @@ ACC should be NIL at first."
                    (list "(*" acc name ")")))
     ((string= "array" (car type))
      (print-c-type ""
-                   (if (consp (caddr type)) (caddr type) (cddr type))
+                   (if (null (caddr type))
+                       (if (consp (cadr type)) (cadr type) (cdr type))
+                       (if (consp (caddr type)) (caddr type) (cddr type)))
                    (if (and (null acc) (string= name ""))
-                       (list "[" (cadr type) "]")
-                       (list "(" acc name ")[" (cadr type) "]"))))
+                       (list "["
+                             (if (null (caddr type))
+                                 ""
+                                 (with-output-to-string
+                                   (s)
+                                   (compile-cpp-cond-expr (cadr type) nil 0 s)))
+                             "]")
+                     (list "(" acc name ")["
+                           (if (null (caddr type))
+                               ""
+                               (with-output-to-string
+                                 (s)
+                                 (compile-cpp-cond-expr (cadr type) nil 0 s)))
+                           "]"))))
     ((string= "->" (car type))
      (print-c-type ""
                    (cadr type)
