@@ -196,14 +196,16 @@ ACC should be NIL at first."
                                                                 (list "  " tt)))))
                                          #\Newline "}")))) acc)))
     ((string= "struct" (car type))
-     (list "struct "
-           (print-c-type name nil
-                         (if (consp (cadr type))
+     (print-c-type name "struct "
+                   (list (if (consp (cadr type))
                              (list "{" #\Newline
                                    (loop for tt in (cdr type)
                                          collect (list "  "
                                                        (if (symbolp (car tt))
-                                                           (print-c-type (car tt) (cadr tt) nil)
+                                                           (list
+                                                            (when (and (cddr tt) (stringp (caddr tt)))
+                                                              (with-output-to-string (s) (format s "/* ~a */~%" (caddr tt))))
+                                                            (print-c-type (car tt) (cadr tt) nil))
                                                          (print-c-type "" (car tt) nil)) ";" #\Newline))
                                    "}")
                            (list (cadr type)
@@ -212,29 +214,37 @@ ACC should be NIL at first."
                                          (loop for tt in (cddr type)
                                                collect (list "  "
                                                              (if (symbolp (car tt))
-                                                                 (print-c-type (car tt) (cadr tt) nil)
+                                                                 (list
+                                                                  (when (and (cddr tt) (stringp (caddr tt)))
+                                                                    (with-output-to-string (s) (format s "/* ~a */~%" (caddr tt))))
+                                                                  (print-c-type (car tt) (cadr tt) nil))
                                                                (print-c-type "" (car tt) nil)) ";" #\Newline))
-                                         "}")))))))
+                                         "}")))) acc)))
     ((string= "union" (car type))
-     (list "union "
-           (print-c-type name nil
-                         (if (consp (cadr type))
+     (print-c-type name "union "
+                   (list (if (consp (cadr type))
                              (list "{" #\Newline
-                                   (loop for tt in (cddr type)
+                                   (loop for tt in (cdr type)
                                          collect (list "  "
                                                        (if (symbolp (car tt))
-                                                           (print-c-type (car tt) (cadr tt) nil)
+                                                           (list
+                                                            (when (and (cddr tt) (stringp (caddr tt)))
+                                                              (with-output-to-string (s) (format s "/* ~a */~%" (caddr tt))))
+                                                            (print-c-type (car tt) (cadr tt) nil))
                                                          (print-c-type "" (car tt) nil)) ";" #\Newline))
                                    "}")
                            (list (cadr type)
                                  (when (consp (caddr type))
                                    (list " {" #\Newline
-                                         (loop for tt in (cdddr type)
+                                         (loop for tt in (cddr type)
                                                collect (list "  "
                                                              (if (symbolp (car tt))
-                                                                 (print-c-type (car tt) (cadr tt) nil)
+                                                                 (list
+                                                                  (when (and (cddr tt) (stringp (caddr tt)))
+                                                                    (with-output-to-string (s) (format s "/* ~a */~%" (caddr tt))))
+                                                                  (print-c-type (car tt) (cadr tt) nil))
                                                                (print-c-type "" (car tt) nil)) ";" #\Newline))
-                                         "}")))))))
+                                         "}")))) acc)))
     ((string= "volatile" (car type))
      (print-c-type ""
                    (if (consp (cadr type)) (cadr type) (cdr type))
