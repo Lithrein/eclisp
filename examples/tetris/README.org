@@ -1,0 +1,22 @@
+* Requirements
+
+As long as your system has `make', a C compiler, `pkg-config', and libsdl2 installed,
+the following command should be sufficient.
+
+#+begin_src shell
+  make && ./tetris
+#+end_src
+
+* How to play
+
+The edge are very /ROUGH/, but it is playable. Block do not fall down but each time you
+perform a movement they will perform the movement and then fall down.
+
+Keys:
+
+ - UP, rotate right.
+ - LEFT, move left.
+ - RIGHT, move right.
+ - DOWN, soft drop.
+ - SPACE, hard drop.
+ - SHIFT, hold (but you can't see the hold space)
