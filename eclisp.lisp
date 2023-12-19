@@ -405,7 +405,7 @@ BODY is optional. DOCUMENTATION is optional"
       (format to-stream ";~%")))
 
 (defun compile-list (form stmtp indent to-stream)
-  (if stmtp
+  (if (and stmtp (not (eql stmtp 'init)))
       (format to-stream "~v@{~C~:*~}" indent #\Space))
   (format to-stream "{")
   (let ((cur form))
@@ -414,7 +414,7 @@ BODY is optional. DOCUMENTATION is optional"
           (if (cdr cur) (format to-stream ", "))
           (setf cur (cdr cur))))
   (format to-stream " }")
-  (if stmtp
+  (if (and stmtp (not (eql stmtp 'init)))
       (format to-stream ";~%")))
 
 (defun compile-dot (form stmtp indent to-stream)
@@ -598,7 +598,7 @@ BODY is optional. DOCUMENTATION is optional"
           ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
                    :test #'equal)
            (compile-arith-binop form indent to-stream)
-           (when stmtp (format to-stream ";~%")))
+           (when (and stmtp (not (eql stmtp 'init))) (format to-stream ";~%")))
           (t
            (format to-stream "~v@{~C~:*~}" indent #\Space)
            (format to-stream "~a (~{~a~^, ~})"
