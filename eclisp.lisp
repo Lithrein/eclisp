@@ -29,11 +29,15 @@ the expression."
     (destructuring-bind (op &rest args) form
       (format to-stream "~v@{~C~:*~}" indent #\Space)
       (format to-stream "(")
-      (do ((cur args (cdr cur)))
-          ((not cur))
-        (funcall compile-proxy (car cur) nil 0 to-stream)
-        (when (cdr cur)
-          (format to-stream " ~a " op)))
+      (if (cdr args)
+          (do ((cur args (cdr cur)))
+              ((not cur))
+              (funcall compile-proxy (car cur) nil 0 to-stream)
+              (when (cdr cur)
+                (format to-stream " ~a " op)))
+        (progn
+          (format to-stream "~a " op)
+          (funcall compile-proxy (car args) nil 0 to-stream)))
       (format to-stream ")"))))
 
 (defun compile-cmp-op (form indent to-stream &optional (cpp nil))
