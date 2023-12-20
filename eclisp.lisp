@@ -608,6 +608,66 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
       (compile-quote-macro args)
       (compile-quote-as-c args stmtp indent to-stream)))
 
+(defun compile-backquote-macro (args)
+  args)
+
+(defun compile-backquote-as-c (args stmtp indent to-stream)
+  (when stmtp
+    (format to-stream "~v@{~C~:*~}" indent #\Space))
+  (if (consp args)
+      (progn
+        (do* ((cur args (cdr cur)) (el (car cur) (car cur)))
+             ((not cur))
+          (if (consp el)
+              (progn
+                (if (and (or (stringp (car el)) (symbolp (car el))))
+                    (cond ((string= (car el) "key")
+                           (if (and (consp (caddr el))
+                                    (or (stringp (caaddr el)) (symbolp (caaddr el)))
+                                    (string= (caaddr el) "unquote"))
+                               (if (eql (cadr el) 'num)
+                                   (format to-stream "[~a] = " (with-output-to-string (s)
+                                                                 (compile-form (car (cdaddr el)) nil 0 s)))
+                                   (format to-stream ".~a = " (with-output-to-string (s)
+                                                                (compile-form (car (cdaddr el)) nil 0 s))))
+                               (if (eql (cadr el) 'num)
+                                   (format to-stream "[~a] = " (caddr el))
+                                   (format to-stream ".~a = " (caddr el)))))
+                          ;; quote within quote should not happen in this mode,
+                          ;; but you can still try
+                          ((string= (car el) "quote") (format to-stream "~a" el))
+                          ((string= (car el) "unquote")
+                           (compile-form (cadr el) nil 0 to-stream)
+                           (when (cdr cur)
+                             (format to-stream ", ")))
+                          (t
+                           (format to-stream "{")
+                           (compile-backquote-as-c el nil (+ 2 indent) to-stream)
+                           (format to-stream "}")
+                           (when (cdr cur)
+                             (format to-stream ", "))))
+                    (progn
+                      (format to-stream "{")
+                      (compile-backquote-as-c el nil (+ 2 indent) to-stream)
+                      (format to-stream "}")
+                      (when (cdr cur)
+                        (format to-stream ", ")))))
+              (progn
+                (format to-stream "~a" el)
+                (when (cdr cur)
+                  (format to-stream ", "))))))
+      (format to-stream "~a" args))
+  (when stmtp
+    (format to-stream ";~%")))
+
+(defun compile-backquote (args stmtp indent to-stream in-macro-p)
+  "This function is pretty different when operating from within macros where
+it behaves like in other lisps.  However, when from outside macros, it expands
+into the C-ish equivalent. C has something that looks like assoctiation lists"
+  (if in-macro-p
+      (compile-backquote-macro args)
+      (compile-backquote-as-c args stmtp indent to-stream)))
+
 (defun compile-form (form stmtp indent to-stream)
   "Compile an eclisp FROM and write it on TO-STREAM"
   (if (consp form)
@@ -639,6 +699,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
           ((string= "switch"   (string op)) (compile-switch args indent to-stream))
           ((string= "return"   (string op)) (compile-return args indent to-stream))
           ((string= "quote"    (string op)) (compile-quote args stmtp indent to-stream nil))
+          ((string= "backquote" (string op)) (compile-backquote args stmtp indent to-stream nil))
           ((member (string op) '("=" "+=" "-=" "*=" "/=" "%=" "&=" "^=" "|=" "<<=" ">>=")
                    :test #'equal)
            (compile-set args stmtp op indent to-stream))
