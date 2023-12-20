@@ -90,6 +90,11 @@
       ((string= c "Space") (intern "' '"))
       (t (intern (concatenate 'string "'" c "'"))))))
 
+(defun parse-quote (stream)
+  ;; skip the ' character
+  (read-char stream nil)
+  `(|quote| ,(parse stream)))
+
 (defun parse (stream)
   ;; skip whitespace
   (skip-whitespace stream)
@@ -103,3 +108,4 @@
       ((char= cur-char #\#) (parse-character stream))
       ((char= cur-char #\;) (parse-comment stream))
       (t (parse-symbol stream)))))
+      ((char= cur-char #\') (parse-quote stream))
