@@ -95,6 +95,11 @@
   (read-char stream nil)
   `(|quote| ,(parse stream)))
 
+(defun parse-backquote (stream)
+  ;; skip the ' character
+  (read-char stream nil)
+  `(|backquote| ,(parse stream)))
+
 (defun parse (stream)
   ;; skip whitespace
   (skip-whitespace stream)
@@ -108,4 +113,5 @@
       ((char= cur-char #\#) (parse-character stream))
       ((char= cur-char #\;) (parse-comment stream))
       (t (parse-symbol stream)))))
+      ((char= cur-char #\`) (parse-backquote stream))
       ((char= cur-char #\') (parse-quote stream))
