@@ -7,21 +7,6 @@
         while c collect c into terms
         finally (return terms)))
 
-(defun parse-number (stream)
-  (let ((res 0) (dec 0) (n 1))
-    (loop while (number-p (peek-char nil stream nil))
-          do (setf res (+ (- (char-code (read-char stream nil)) 48) (* 10 res))))
-    (when (char= #\. (peek-char nil stream nil))
-      (progn
-        ;; eat the .
-        (read-char stream nil)
-        (loop while (number-p (peek-char nil stream nil)) do
-          (setf dec (+ (- (char-code (read-char stream nil)) 48) (* 10 dec)))
-          (setf n (* 10 n)))))
-    (if (not (= dec 0))
-        (coerce (+ res (/ dec n)) 'float)
-        res)))
-
 (defun parse-string (stream)
   (let ((escape nil)
         (char-list nil))
@@ -110,6 +95,26 @@
           `(|unquote-splice| ,(parse stream)))
         `(|unquote| ,(parse stream)))))
 
+(defmacro with-custom-reader (ignore-chars &body body)
+  "Enable case sensitivity and disable the reader macros associated to
+characters in the IGNORE-CHARS string while performing READ."
+  `(let ((*readtable* (copy-readtable)))
+     (loop for cc across ,ignore-chars do
+       (set-macro-character
+        cc
+        (lambda (stream char)
+          (concatenate
+           'string
+           (make-string 1 :initial-element char)
+           (loop for c = (peek-char nil stream nil nil)
+                 while (and c (eql c (peek-char t stream nil nil)))
+                 collect (read-char stream) into letters
+                 finally (return (coerce letters 'string)))))
+        t *readtable*))
+     (setf (readtable-case *readtable*) :preserve)
+     (progn
+       ,@body)))
+
 (defun parse-dot (stream)
   ;; skip the . character
   (read-char stream nil)
@@ -126,15 +131,14 @@
   (let ((cur-char (peek-char nil stream nil nil nil)))
     (cond
       ((null cur-char) nil)
-      ((number-p cur-char) (parse-number stream))
       ((char= cur-char #\() (parse-list stream))
       ((char= cur-char #\)) (progn (read-char stream nil) nil))
       ((char= cur-char #\") (parse-string stream))
       ((char= cur-char #\#) (parse-character stream))
       ((char= cur-char #\;) (parse-comment stream))
-      (t (parse-symbol stream)))))
       ((char= cur-char #\`) (parse-backquote stream))
       ((char= cur-char #\') (parse-quote stream))
       ((char= cur-char #\,) (parse-comma stream))
       ((char= cur-char #\.) (parse-dot stream))
       ((char= cur-char #\:) (progn (read-char stream nil) `(|key| num ,(parse stream))))
+      (t (with-custom-reader "'|" (read stream nil))))))
