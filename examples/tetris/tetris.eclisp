@@ -1,7 +1,7 @@
 (%include <stdbool.h> <stdio.h> <stdlib.h> <time.h>)
 (%include <SDL2/SDL.h>)
 
-(%define BOARD_WIDTH 10)
+(%define BOARD_WIDTH  10)
 (%define BOARD_HEIGHT 20)
 
 ;; bug: (def (struct point (x y int))))
@@ -17,51 +17,25 @@
              (blocks (array 4 (struct point))
                      "The 4 elements of the tetromino.")
              (typ    (enum tm_type)
-                  "The shape (and color) of the tetromino."))
+                     "The shape (and color) of the tetromino."))
   "This holds the rotation center and the different elements of a
 tetromino.")
 
-(def configs (array (TM_LAST) (struct tetromino))
-  (list
-    (= [TM_L] (list
-                (= .center (list 6 1))
-                (= .blocks (list (list 5 0) (list 5 1) (list 5 2) (list 6 2)))
-                (= .typ TM_L)))
-    (= [TM_J] (list
-                (= .center (list 4 1))
-                (= .blocks (list (list 5 0) (list 5 1) (list 5 2) (list 4 2)))
-                (= .typ TM_J)))
-    (= [TM_T] (list 
-                (= .center (list 5 1))
-                (= .blocks (list (list 4 1) (list 5 1) (list 6 1) (list 5 0)))
-                (= .typ TM_L)))
-    (= [TM_I] (list
-                (= .center (list 5 2))
-                (= .blocks (list (list 5 0) (list 5 1) (list 5 2) (list 5 3)))
-                (= .typ TM_I)))
-    (= [TM_O] (list
-                (= .center (list 5 1))
-                (= .blocks (list (list 5 0) (list 5 1) (list 6 0) (list 6 1)))
-                (= .typ TM_O)))
-    (= [TM_S] (list
-                (= .center (list 5 1))
-                (= .blocks (list (list 5 1) (list 5 0) (list 4 1) (list 6 0)))
-                (= .typ TM_S)))
-    (= [TM_Z] (list
-                (= .center (list 5 1))
-                (= .blocks (list (list 5 0) (list 5 1) (list 4 0) (list 6 1)))
-                (= .typ TM_Z))))
+(def configs (array TM_LAST (struct tetromino))
+  '(:TM_I (.center (5 2) .blocks ((5 0) (5 1) (5 2) (5 3)) .typ TM_I)
+    :TM_J (.center (4 1) .blocks ((5 0) (5 1) (5 2) (4 2)) .typ TM_J)
+    :TM_L (.center (6 1) .blocks ((5 0) (5 1) (5 2) (6 2)) .typ TM_L)
+    :TM_O (.center (5 1) .blocks ((5 0) (5 1) (6 0) (6 1)) .typ TM_O)
+    :TM_S (.center (5 1) .blocks ((5 0) (5 1) (6 0) (4 1)) .typ TM_S)
+    :TM_T (.center (5 1) .blocks ((5 0) (5 1) (6 1) (4 1)) .typ TM_T)
+    :TM_Z (.center (5 1) .blocks ((5 0) (5 1) (6 1) (4 0)) .typ TM_Z))
   "An array with the inital configurations for each tetromino.")
 
 (def colors (array TM_LAST SDL_Color) 
-  (list (= [TM_NONE] (list 150 150 150 255))
-        (= [TM_L]    (list 255 165 0   255))
-        (= [TM_J]    (list 0   0   255 255))
-        (= [TM_T]    (list 170 0   255 255))
-        (= [TM_I]    (list 0   255 255 255))
-        (= [TM_O]    (list 255 255 0   255))
-        (= [TM_S]    (list 0   255 0   255))
-        (= [TM_Z]    (list 255 0   0   255)))
+  '(:TM_NONE (150 150 150 255)  :TM_L (255 165 0   255)
+    :TM_J    (0   0   255 255)  :TM_T (170 0   255 255)
+    :TM_I    (0   255 255 255)  :TM_O (255 255 0   255)
+    :TM_S    (0   255 0   255)  :TM_Z (255 0   0   255))
   "Assocation table between each tetromino and its color.")
 
 (def access (-> int (board (ptr int)) (x y int))
@@ -116,8 +90,8 @@ Returns -1 when the access is out of the BOARD."
                  (tm (ptr struct tetromino)) (dir (enum rotation)))
   "Move a teromino TM in direction DIR with the BOARD.  Returns 1 when
 successful, 0 otherwise."
-  (def dx (array int) (list (= [LEFT] (- 1)) (= [RIGHT] 1) (= [UP] 0) (= [DOWN] 0)))
-  (def dy (array int) (list (= [LEFT] 0) (= [RIGHT] 0) (= [UP] (- 1)) (= [DOWN] 1)))
+  (def dx (array int) '(:LEFT -1 :RIGHT 1 :UP  0 :DOWN 0))
+  (def dy (array int) '(:LEFT  0 :RIGHT 0 :UP -1 :DOWN 1))
 
   (for (def i (int) 0) (< i 4) (+= i 1)
     (if (access board (+ (. (aref (-> tm blocks) i) x) (aref dx dir))
@@ -154,7 +128,7 @@ onto TM."
     (def should_clear (int) true)
     (for (def x (int) 0) (&& should_clear (< x BOARD_WIDTH)) (+= x 1)
       (= should_clear (&& should_clear
-                          (access (cast (ptr int) board) x y))))
+                          (access board x y))))
     (if (! should_clear)
       (progn
         (for (def x (int) 0) (< x BOARD_WIDTH) (+= x 1)
@@ -169,7 +143,7 @@ onto TM."
                        (renderer (ptr SDL_Renderer)))
   "Perform a full redraw."
   ;; background
-  (def rect (SDL_Rect) (list 50 40 200 400))
+  (def rect (SDL_Rect) '(50 40 200 400))
   (SDL_SetRenderDrawColor renderer
                           (. (aref colors TM_NONE) r)
                           (. (aref colors TM_NONE) g)
@@ -183,9 +157,7 @@ onto TM."
       (def cid (int) (access board x y))
       (if cid
         (progn 
-          (def rect (SDL_Rect) (list (+ 50 (* 20 x))
-                                     (+ 40 (* 20 y)) 
-                                     20 20))
+          (def rect (SDL_Rect) `(,(+ 50 (* 20 x)) ,(+ 40 (* 20 y)) 20 20))
           (SDL_SetRenderDrawColor renderer
                                   (. (aref colors cid) r)
                                   (. (aref colors cid) g)
@@ -196,9 +168,9 @@ onto TM."
   ;; current tetromino
   (for (def i 0) (< i 4) (+= i 1)
     (def cid (enum tm_type) (-> tetro typ))
-    (def rect (SDL_Rect) (list (+ 50 (* 20 (. (-> tetro (aref blocks i)) x)))
-                               (+ 40 (* 20 (. (-> tetro (aref blocks i)) y)))
-                               20 20))
+    (def rect (SDL_Rect) `(,(+ 50 (* 20 (. (-> tetro (aref blocks i)) x)))
+                           ,(+ 40 (* 20 (. (-> tetro (aref blocks i)) y)))
+                             20 20))
     (SDL_SetRenderDrawColor renderer
                             (. (aref colors cid) r)
                             (. (aref colors cid) g)
@@ -213,7 +185,7 @@ onto TM."
 (def main (-> int void)
   (def tetro (struct tetromino))
   (def hold  (enum tm_type) TM_NONE)
-  (def board (array (* BOARD_WIDTH BOARD_HEIGHT) (int)) (list 0))
+  (def board (array (* BOARD_WIDTH BOARD_HEIGHT) (int)) '(0))
   (def window (ptr SDL_Window) NULL)
   (def renderer (ptr SDL_Renderer) NULL)
   (def quit (bool) false)
