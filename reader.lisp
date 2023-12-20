@@ -110,6 +110,16 @@
           `(|unquote-splice| ,(parse stream)))
         `(|unquote| ,(parse stream)))))
 
+(defun parse-dot (stream)
+  ;; skip the . character
+  (read-char stream nil)
+  (let ((c (peek-char nil stream nil nil nil)))
+    (if (or (char= #\Space c)
+            (char= #\Newline c)
+            (char= #\Tab c))
+        '|.|
+        `(|key| id ,(parse stream)))))
+
 (defun parse (stream)
   ;; skip whitespace
   (skip-whitespace stream)
@@ -126,3 +136,5 @@
       ((char= cur-char #\`) (parse-backquote stream))
       ((char= cur-char #\') (parse-quote stream))
       ((char= cur-char #\,) (parse-comma stream))
+      ((char= cur-char #\.) (parse-dot stream))
+      ((char= cur-char #\:) (progn (read-char stream nil) `(|key| num ,(parse stream))))
