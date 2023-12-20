@@ -560,6 +560,54 @@ BODY is optional. DOCUMENTATION is optional"
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "//~a~%" (car form)))
 
+(defun compile-quote-macro (args)
+  args)
+
+(defun compile-quote-as-c (args stmtp indent to-stream)
+  (when stmtp
+    (format to-stream "~v@{~C~:*~}" indent #\Space))
+  (if (consp args)
+      (progn
+        (do* ((cur args (cdr cur)) (el (car cur) (car cur)))
+             ((not cur))
+          (if (consp el)
+              (progn
+                (if (and (or (stringp (car el)) (symbolp (car el))))
+                    (cond ((string= (car el) "key")
+                           (if (eql (cadr el) 'num)
+                               (format to-stream "[~a] = " (caddr el))
+                               (format to-stream ".~a = " (caddr el))))
+                          ;; quote within quote should not happen in this mode,
+                          ;; but you can still try
+                          ((string= (car el) "quote") (format to-stream "~a" el))
+                          (t
+                           (format to-stream "{")
+                           (compile-quote-as-c el nil (+ 2 indent) to-stream)
+                           (format to-stream "}")
+                           (when (cdr cur)
+                             (format to-stream ", "))))
+                    (progn
+                      (format to-stream "{")
+                      (compile-quote-as-c el nil (+ 2 indent) to-stream)
+                      (format to-stream "}")
+                      (when (cdr cur)
+                        (format to-stream ", ")))))
+              (progn
+                (format to-stream "~a" el)
+                (when (cdr cur)
+                  (format to-stream ", "))))))
+      (format to-stream "~a" args))
+  (when stmtp
+    (format to-stream ";~%")))
+
+(defun compile-quote (args stmtp indent to-stream in-macro-p)
+  "This function is pretty different when operating from within macros where
+it behaves like in other lisps.  However, when from outside macros, it expands
+into the C-ish equivalent. C has something that looks like assoctiation lists"
+  (if in-macro-p
+      (compile-quote-macro args)
+      (compile-quote-as-c args stmtp indent to-stream)))
+
 (defun compile-form (form stmtp indent to-stream)
   "Compile an eclisp FROM and write it on TO-STREAM"
   (if (consp form)
@@ -590,6 +638,7 @@ BODY is optional. DOCUMENTATION is optional"
           ((string= "while"    (string op)) (compile-while args indent to-stream))
           ((string= "switch"   (string op)) (compile-switch args indent to-stream))
           ((string= "return"   (string op)) (compile-return args indent to-stream))
+          ((string= "quote"    (string op)) (compile-quote args stmtp indent to-stream nil))
           ((member (string op) '("=" "+=" "-=" "*=" "/=" "%=" "&=" "^=" "|=" "<<=" ">>=")
                    :test #'equal)
            (compile-set args stmtp op indent to-stream))
