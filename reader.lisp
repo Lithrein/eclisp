@@ -100,6 +100,16 @@
   (read-char stream nil)
   `(|backquote| ,(parse stream)))
 
+(defun parse-comma (stream)
+  ;; skip the , character
+  (read-char stream nil)
+  (let ((cur-char (peek-char nil stream nil nil nil)))
+    (if (char= cur-char #\@)
+        (progn
+          (read-char stream nil)
+          `(|unquote-splice| ,(parse stream)))
+        `(|unquote| ,(parse stream)))))
+
 (defun parse (stream)
   ;; skip whitespace
   (skip-whitespace stream)
@@ -115,3 +125,4 @@
       (t (parse-symbol stream)))))
       ((char= cur-char #\`) (parse-backquote stream))
       ((char= cur-char #\') (parse-quote stream))
+      ((char= cur-char #\,) (parse-comma stream))
