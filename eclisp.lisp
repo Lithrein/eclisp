@@ -839,6 +839,16 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
        ;; eql should be the least surprising
        (string= (format nil "~a" arg0) (format nil "~a" arg1))))))
 
+(defvar *eclisp-gensym-counter* 0)
+
+(defun compile-gensym (args ctx)
+  ;; todo: make something more robust
+  (let ((prefix (car args)))
+    (if (null prefix) (setf prefix "_G"))
+    (make-symbol (concatenate 'string prefix
+                              (format nil "_~a_" (get-universal-time))
+                              (format nil "~a" (incf *eclisp-gensym-counter*))))))
+
 (defun compile-macro (body ctx)
   (let ((res nil))
     (when (or (not (listp body)) (not (listp (car body))))
@@ -861,6 +871,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
                     ((string= "numberp"   (string op)) (compile-numberp args ctx))
                     ((string= "concat"    (string op)) (compile-concat (car args) (cdr args) ctx))
                     ((string= "if"        (string op)) (compile-if-macro args ctx))
+                    ((string= "gensym"    (string op)) (compile-gensym args ctx))
                     ((member (string op) '("<" ">" "<=" ">=" ">" "==" "!=" "&&" "||") :test #'equal)
                      (compile-op-macro op args ctx))
                     ;; not implemented ^ | & ~ << >>
