@@ -3,6 +3,10 @@
 (defvar macro-tbl (make-hash-table)
   "A global variable with the currently defined macros.")
 
+(defvar macrofn-tbl (make-hash-table)
+  "A global variable with the currently defined macrofns, this are functions
+which operates directly on the AST.")
+
 (defun compile-cpp-include (include-forms indent to-stream)
   "Compile an include directive: (%include header-list)
 where header-list is a list of header names either enclosed in double-quotes
@@ -725,6 +729,17 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
         (setf body (caddr args)))
     (setf (gethash name macro-tbl) (list macro-args body))))
 
+(defun register-macrofn (args)
+  (let ((name nil) (macro-args nil) (documentation nil) (body nil))
+    (setf name (car args))
+    (setf macrofn-args (cadr args))
+    (if (stringp (caddr args))
+        (progn
+          (setf documentation (caddr args))
+          (setf body (cadddr args)))
+        (setf body (caddr args)))
+    (setf (gethash name macrofn-tbl) (list macrofn-args body))))
+
 (defun expand-macro (macro args)
   (let ((ctx (make-hash-table))
         (tmpl (car (gethash macro macro-tbl)))
@@ -739,6 +754,21 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
             (setf acur nil))
           (setf (gethash (car tcur) ctx) (car acur))))
       (compile-macro macro-body ctx)))
+
+(defun eval-macrofn (fn args ctx-ref)
+  (let ((ctx (make-hash-table))
+        (tmpl (car (gethash fn macrofn-tbl)))
+        (fn-body (cdr (gethash fn macrofn-tbl))))
+    (do ((acur args (cdr acur))
+           (tcur tmpl (cdr tcur)))
+        ((not tcur))
+      (if (string= (string (car tcur)) "&body")
+          (progn
+            (setf (gethash (cadr tcur) ctx) (ctx-lookup (car acur) ctx-ref))
+            (setf tcur (cdr tcur))
+            (setf acur nil))
+          (setf (gethash (car tcur) ctx) (ctx-lookup (car acur) ctx-ref))))
+    (compile-macro fn-body ctx)))
 
 (defun compile-form (form stmtp indent to-stream)
   "Compile an eclisp FROM and write it on TO-STREAM"
@@ -782,6 +812,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
             ((string= "quote"     (string op)) (compile-quote args stmtp indent to-stream nil))
             ((string= "backquote" (string op)) (compile-backquote args stmtp indent to-stream nil))
             ((string= "macro"     (string op)) (register-macro args))
+            ((string= "macrofn"   (string op)) (register-macrofn args))
             ((member (string op) '("=" "+=" "-=" "*=" "/=" "%=" "&=" "^=" "|=" "<<=" ">>=")
                      :test #'equal)
              (compile-set args stmtp op indent to-stream))
