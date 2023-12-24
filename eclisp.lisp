@@ -953,6 +953,31 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
           (setf (gethash (car tcur) ctx) (ctx-lookup (car acur) ctx-ref))))
     (compile-macro fn-body ctx)))
 
+(defun compile-macrolet (args stmtp indent to-stream)
+  (let ((res nil) (tmp-bindings nil))
+    (destructuring-bind (bindings &rest body) args
+      ;; augment the ctx with the let bindings
+      (do ((bcur bindings (cdr bcur)))
+          ((not bcur))
+        (let ((name nil) (tmpl nil) (documentation nil) (ml-body nil))
+          (setf name (caar bcur))
+          (setf tmpl (cadar bcur))
+          (if (stringp (caddar bcur))
+              (progn
+                (setf documentation (caddar bcur))
+                (setf ml-body (car (cdddar bcur))))
+              (setf ml-body (caddar bcur)))
+          (setf tmp-bindings (cons (list name (gethash name macro-tbl)) tmp-bindings))
+          (setf (gethash name macro-tbl) (list tmpl ml-body))))
+      (setf res (compile-form body stmtp indent to-stream))
+      ;; remove the bindings
+      (do ((bcur tmp-bindings (cdr bcur)))
+          ((not bcur))
+        (remhash (caar bcur) macro-tbl)
+        (when (cadar bcur)
+          (setf (gethash (caar bcur) macro-tbl) (cadar bcur)))))
+    res))
+
 (defun compile-form (form stmtp indent to-stream)
   "Compile an eclisp FROM and write it on TO-STREAM"
   (if (consp form)
@@ -996,6 +1021,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
             ((string= "backquote" (string op)) (compile-backquote args stmtp indent to-stream nil))
             ((string= "macro"     (string op)) (register-macro args))
             ((string= "macrofn"   (string op)) (register-macrofn args))
+            ((string= "macrolet"  (string op)) (compile-macrolet args stmtp indent to-stream))
             ((member (string op) '("=" "+=" "-=" "*=" "/=" "%=" "&=" "^=" "|=" "<<=" ">>=")
                      :test #'equal)
              (compile-set args stmtp op indent to-stream))
