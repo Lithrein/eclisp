@@ -608,8 +608,29 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
       (compile-quote-macro args ctx)
       (compile-quote-as-c args stmtp indent to-stream)))
 
-(defun compile-backquote-macro (args)
-  args)
+(defun compile-backquote-macro (args ctx)
+  (if (null args)
+      ()
+      (if (listp (car args))
+          (if (and (or (stringp (caar args)) (symbolp (caar args))))
+              (cond
+                ((string= "unquote" (string (caar args)))
+                 (cons (if (listp (cadar args))
+                           (compile-macro (cadar args) ctx)
+                           (gethash (cadar args) ctx))
+                       (compile-backquote-macro (cdr args) ctx)))
+                ((string= "unquote-splice" (string (caar args)))
+                 (append (if (listp (cadar args))
+                             (compile-macro (cadar args) ctx)
+                             (gethash (cadar args) ctx))
+                         (compile-backquote-macro (cdr args) ctx)))
+                ((string= "quote" (string (caar args))) (cdar args))
+                (t
+                 (cons (compile-backquote-macro (car args) ctx)
+                       (compile-backquote-macro (cdr args) ctx))))
+              (cons (compile-backquote-macro (car args) ctx)
+                    (compile-backquote-macro (cdr args) ctx)))
+          (cons (car args) (compile-backquote-macro (cdr args) ctx)))))
 
 (defun compile-backquote-as-c (args stmtp indent to-stream)
   (when stmtp
@@ -660,12 +681,12 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
   (when stmtp
     (format to-stream ";~%")))
 
-(defun compile-backquote (args stmtp indent to-stream in-macro-p)
+(defun compile-backquote (args stmtp indent to-stream ctx)
   "This function is pretty different when operating from within macros where
 it behaves like in other lisps.  However, when from outside macros, it expands
 into the C-ish equivalent. C has something that looks like assoctiation lists"
-  (if in-macro-p
-      (compile-backquote-macro args)
+  (if ctx
+      (compile-backquote-macro (car args) ctx)
       (compile-backquote-as-c args stmtp indent to-stream)))
 
 (defun compile-form (form stmtp indent to-stream)
@@ -698,7 +719,6 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
           ((string= "while"    (string op)) (compile-while args indent to-stream))
           ((string= "switch"   (string op)) (compile-switch args indent to-stream))
           ((string= "return"   (string op)) (compile-return args indent to-stream))
-          ((string= "backquote" (string op)) (compile-backquote args stmtp indent to-stream nil))
           ((member (string op) '("=" "+=" "-=" "*=" "/=" "%=" "&=" "^=" "|=" "<<=" ">>=")
                    :test #'equal)
            (compile-set args stmtp op indent to-stream))
@@ -720,6 +740,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
       (format to-stream "~v@{~C~:*~}" indent #\Space)
       (format to-stream "~a" form))))
             ((string= "quote"    (string op)) (compile-quote args stmtp indent to-stream nil))
+            ((string= "backquote" (string op)) (compile-backquote args stmtp indent to-stream nil))
 
 (defun compile-eclisp (from-stream to-stream)
   "Write the result of the compilation of the content of FROM-STREAM into
