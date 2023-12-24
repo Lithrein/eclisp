@@ -66,6 +66,9 @@ syntax match eclispLbl "\v[( ]\zs[\.:][a-zA-Z_]+"
 
 syntax keyword eclispKwd aref
 syntax keyword eclispKwd def
+syntax keyword eclispKwd macro
+syntax keyword eclispKwd macrofn
+syntax keyword eclispKwd macrolet
 
 syntax match eclispPrP "\v\%include"
 syntax match eclispPrP "\v\%define"
