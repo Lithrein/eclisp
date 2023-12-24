@@ -839,6 +839,22 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
        ;; eql should be the least surprising
        (string= (format nil "~a" arg0) (format nil "~a" arg1))))))
 
+(defun compile-let-macro (args ctx)
+  (let ((res nil) (tmp-bindings nil))
+    (destructuring-bind (bindings &rest body) args
+      (do ((bcur bindings (cdr bcur)))
+          ((not bcur))
+        (setf tmp-bindings (cons (list (caar bcur) (gethash (caar bcur) ctx)) tmp-bindings))
+        (setf (gethash (caar bcur) ctx) (ctx-lookup (cadar bcur) ctx)))
+      (setf res (compile-macro body ctx))
+      ;; remove the bindings
+      (do ((bcur tmp-bindings (cdr bcur)))
+          ((not bcur))
+        (remhash (caar bcur) ctx)
+        (when (cadar bcur)
+          (setf (gethash (caar bcur) ctx) (cadar bcur)))))
+    res))
+
 (defvar *eclisp-gensym-counter* 0)
 
 (defun compile-gensym (args ctx)
@@ -872,6 +888,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
                     ((string= "concat"    (string op)) (compile-concat (car args) (cdr args) ctx))
                     ((string= "if"        (string op)) (compile-if-macro args ctx))
                     ((string= "gensym"    (string op)) (compile-gensym args ctx))
+                    ((string= "let"       (string op)) (compile-let-macro args ctx))
                     ((member (string op) '("<" ">" "<=" ">=" ">" "==" "!=" "&&" "||") :test #'equal)
                      (compile-op-macro op args ctx))
                     ;; not implemented ^ | & ~ << >>
