@@ -560,7 +560,7 @@ BODY is optional. DOCUMENTATION is optional"
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "//~a~%" (car form)))
 
-(defun compile-quote-macro (args)
+(defun compile-quote-macro (args ctx)
   args)
 
 (defun compile-quote-as-c (args stmtp indent to-stream)
@@ -600,12 +600,12 @@ BODY is optional. DOCUMENTATION is optional"
   (when stmtp
     (format to-stream ";~%")))
 
-(defun compile-quote (args stmtp indent to-stream in-macro-p)
+(defun compile-quote (args stmtp indent to-stream ctx)
   "This function is pretty different when operating from within macros where
 it behaves like in other lisps.  However, when from outside macros, it expands
 into the C-ish equivalent. C has something that looks like assoctiation lists"
-  (if in-macro-p
-      (compile-quote-macro args)
+  (if ctx
+      (compile-quote-macro args ctx)
       (compile-quote-as-c args stmtp indent to-stream)))
 
 (defun compile-backquote-macro (args)
@@ -698,7 +698,6 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
           ((string= "while"    (string op)) (compile-while args indent to-stream))
           ((string= "switch"   (string op)) (compile-switch args indent to-stream))
           ((string= "return"   (string op)) (compile-return args indent to-stream))
-          ((string= "quote"    (string op)) (compile-quote args stmtp indent to-stream nil))
           ((string= "backquote" (string op)) (compile-backquote args stmtp indent to-stream nil))
           ((member (string op) '("=" "+=" "-=" "*=" "/=" "%=" "&=" "^=" "|=" "<<=" ">>=")
                    :test #'equal)
@@ -720,6 +719,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
     (progn
       (format to-stream "~v@{~C~:*~}" indent #\Space)
       (format to-stream "~a" form))))
+            ((string= "quote"    (string op)) (compile-quote args stmtp indent to-stream nil))
 
 (defun compile-eclisp (from-stream to-stream)
   "Write the result of the compilation of the content of FROM-STREAM into
