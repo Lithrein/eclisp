@@ -1,5 +1,8 @@
 (in-package #:eclisp)
 
+(defvar macro-tbl (make-hash-table)
+  "A global variable with the currently defined macros.")
+
 (defun compile-cpp-include (include-forms indent to-stream)
   "Compile an include directive: (%include header-list)
 where header-list is a list of header names either enclosed in double-quotes
@@ -689,6 +692,54 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
       (compile-backquote-macro (car args) ctx)
       (compile-backquote-as-c args stmtp indent to-stream)))
 
+(defun ctx-lookup (x ctx)
+  (cond ((symbolp x) (gethash x ctx))
+        ((listp x) (compile-macro x ctx))
+        (t x)))
+
+(defun compile-macro (body ctx)
+  (let ((res nil))
+    (when (or (not (listp body)) (not (listp (car body))))
+      (setf body (list body)))
+    (loop for form in body do
+      (setf res
+            (if (consp body)
+                (destructuring-bind (op &rest args) form
+                  (cond
+                    ((string= "backquote" (string op)) (compile-backquote args nil nil nil ctx))
+                    ((string= "quote"     (string op)) (compile-quote args nil nil nil ctx))
+                    (t (if (gethash op macrofn-tbl)
+                           (eval-macrofn op args ctx)
+                           (error (format nil "call to a C function (here, ~a) through the ffi is not yet unsupported.~%" op))))))
+                (format t "unsupported: ~a~%" form))))
+    res))
+
+(defun register-macro (args)
+  (let ((name nil) (macro-args nil) (documentation nil) (body nil))
+    (setf name (car args))
+    (setf macro-args (cadr args))
+    (if (stringp (caddr args))
+        (progn
+          (setf documentation (caddr args))
+          (setf body (cadddr args)))
+        (setf body (caddr args)))
+    (setf (gethash name macro-tbl) (list macro-args body))))
+
+(defun expand-macro (macro args)
+  (let ((ctx (make-hash-table))
+        (tmpl (car (gethash macro macro-tbl)))
+        (macro-body (cdr (gethash macro macro-tbl))))
+    (do ((acur args (cdr acur))
+         (tcur tmpl (cdr tcur)))
+        ((not tcur))
+      (if (string= (string (car tcur)) "&body")
+          (progn
+            (setf (gethash (cadr tcur) ctx) acur)
+            (setf tcur (cdr tcur))
+            (setf acur nil))
+          (setf (gethash (car tcur) ctx) (car acur))))
+      (compile-macro macro-body ctx)))
+
 (defun compile-form (form stmtp indent to-stream)
   "Compile an eclisp FROM and write it on TO-STREAM"
   (if (consp form)
@@ -741,6 +792,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
       (format to-stream "~a" form))))
             ((string= "quote"    (string op)) (compile-quote args stmtp indent to-stream nil))
             ((string= "backquote" (string op)) (compile-backquote args stmtp indent to-stream nil))
+            ((string= "macro"    (string op)) (register-macro args))
 
 (defun compile-eclisp (from-stream to-stream)
   "Write the result of the compilation of the content of FROM-STREAM into
