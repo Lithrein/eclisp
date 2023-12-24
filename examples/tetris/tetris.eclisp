@@ -9,7 +9,7 @@
 (def (struct point (x int) (y int)))
 
 (def (enum rotation LEFT RIGHT UP DOWN))
-(def (enum tm_type TM_NONE TM_L TM_J TM_T TM_I TM_O TM_S TM_Z TM_LAST))
+(def (enum tm_type TM_NONE TM_I TM_J TM_L TM_O TM_S TM_T TM_Z TM_LAST))
 
 (def (struct tetromino
              (center (struct point)
@@ -48,11 +48,10 @@ Returns -1 when the access is out of the BOARD."
 (def set_color (-> int (board (ptr int)) (x y int) (color (enum tm_type)))
   "Set the value (i.e., the color) from the BOARD of the cell at X, Y.
 Returns -1 when the access is out of the BOARD."
-  (if (&& (<= 0 y (- BOARD_HEIGHT 1)) (<= 0 x (- BOARD_WIDTH 1)))
-    (progn
+  (when (&& (<= 0 y (- BOARD_HEIGHT 1)) (<= 0 x (- BOARD_WIDTH 1)))
       (= (aref board (+ (* y BOARD_WIDTH) x)) color)
       (return 0))
-    (return -1)))
+    (return -1))
 
 (def rotate_tm (-> int (board (ptr int)) (tm (ptr struct tetromino)) (dir (enum rotation)))
   "Rotate TM a tetromino around its center in the direction DIR."
@@ -127,13 +126,11 @@ onto TM."
   (for (def y (int) (- BOARD_HEIGHT 1)) (>= y 0) (-= y 1)
     (def should_clear (int) true)
     (for (def x (int) 0) (&& should_clear (< x BOARD_WIDTH)) (+= x 1)
-      (= should_clear (&& should_clear
-                          (access board x y))))
-    (if (! should_clear)
-      (progn
-        (for (def x (int) 0) (< x BOARD_WIDTH) (+= x 1)
-          (set_color board x cursor (access board x y)))
-        (-= cursor 1))))
+      (= should_clear (&& should_clear (access board x y))))
+    (when (! should_clear)
+     (for (def x (int) 0) (< x BOARD_WIDTH) (+= x 1)
+      (set_color board x cursor (access board x y)))
+     (-= cursor 1)))
   (for (def y (int) cursor) (>= y 0) (-= y 1)
     (for (def x (int) 0) (< x BOARD_WIDTH) (+= x 1)
       (set_color board x cursor 0)))
@@ -155,15 +152,14 @@ onto TM."
   (for (def x 0) (< x BOARD_WIDTH) (+= x 1)
     (for (def y 0) (< y BOARD_HEIGHT) (+= y 1)
       (def cid (int) (access board x y))
-      (if cid
-        (progn 
+      (when cid
           (def rect (SDL_Rect) `(,(+ 50 (* 20 x)) ,(+ 40 (* 20 y)) 20 20))
           (SDL_SetRenderDrawColor renderer
                                   (. (aref colors cid) r)
                                   (. (aref colors cid) g)
                                   (. (aref colors cid) b)
                                   (. (aref colors cid) a))
-          (SDL_RenderFillRect renderer (addr rect))))))
+          (SDL_RenderFillRect renderer (addr rect)))))
 
   ;; current tetromino
   (for (def i 0) (< i 4) (+= i 1)
@@ -192,11 +188,10 @@ onto TM."
 
   (srand (time NULL))
 
-  (if (SDL_Init SDL_INIT_VIDEO)
-    (progn
-      (fprintf stderr  "Erreur SDL_Init : %s" (SDL_GetError))
-      (goto quit)
-      (return EXIT_FAILURE)))
+  (when (SDL_Init SDL_INIT_VIDEO)
+   (fprintf stderr  "Erreur SDL_Init : %s" (SDL_GetError))
+   (goto quit)
+   (return EXIT_FAILURE))
 
   (= window 
      (SDL_CreateWindow "Tetris"
@@ -204,19 +199,17 @@ onto TM."
                        640 480
                        SDL_WINDOW_SHOWN))
 
-  (if (! window)
-    (progn
-      (fprintf stderr "Erreur SDL_CreateWindow : %s" (SDL_GetError))
-      (goto quit)
-      (return EXIT_FAILURE)))
+  (when (! window)
+   (fprintf stderr "Erreur SDL_CreateWindow : %s" (SDL_GetError))
+   (goto quit)
+   (return EXIT_FAILURE))
 
   (= renderer
      (SDL_CreateRenderer window -1 SDL_RENDERER_ACCELERATED))
 
-  (if (! renderer)
-    (progn
-      (fprintf stderr "Erreur SDL_CreateRenderer : %s" (SDL_GetError))
-      (goto quit)))
+  (when (! renderer)
+   (fprintf stderr "Erreur SDL_CreateRenderer : %s" (SDL_GetError))
+   (goto quit))
 
   (setup_new_tm (addr tetro) TM_NONE)
   (update_screen (cast (ptr int) board) (addr tetro) renderer)
@@ -252,15 +245,14 @@ onto TM."
             (SDLK_UP
               (rotate_tm (cast (ptr int) (addr board)) (addr tetro) RIGHT)
               (break)))
-          (if (! (move_tm (cast (ptr int) (addr board)) (addr tetro) DOWN))
-            (progn
-              (for (def i 0) (< i 4) (+= i 1)
-                (set_color (cast (ptr int) (addr board))
-                           (. tetro (aref blocks i) x)
-                           (. tetro (aref blocks i) y)
-                           (. tetro typ)))
+          (when (! (move_tm (cast (ptr int) (addr board)) (addr tetro) DOWN))
+           (for (def i 0) (< i 4) (+= i 1)
+            (set_color (cast (ptr int) (addr board))
+                       (. tetro (aref blocks i) x)
+                       (. tetro (aref blocks i) y)
+                       (. tetro typ)))
               (clear_lines (cast (ptr int) board))
-              (setup_new_tm (addr tetro) TM_NONE)))
+              (setup_new_tm (addr tetro) TM_NONE))
           (update_screen (cast (ptr int) board) (addr tetro) renderer))
         (default (break))))
     (SDL_Delay 10))

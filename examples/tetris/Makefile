@@ -5,7 +5,7 @@ LDFLAGS := $(shell pkg-config --libs sdl2)
 .SUFFIXES: .eclisp
 
 .eclisp.c:
-	$(QUIET)$(ECLISP) < $< > $@
+	$(QUIET)cat macros.eclisph $< | $(ECLISP) > $@
 
 tetris: tetris.o
 	gcc $(CLAGS) $< $(LDFLAGS) -o $@
