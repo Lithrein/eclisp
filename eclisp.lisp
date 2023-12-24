@@ -701,6 +701,12 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
         ((listp x) (compile-macro x ctx))
         (t x)))
 
+(defun compile-concat (typ args ctx)
+  (let ((res
+          (apply #'concatenate 'string
+                 (mapcar #'(lambda (x) (format nil "~a" (ctx-lookup x ctx))) args))))
+    (if (string= typ "string") res (intern res))))
+
 (defun compile-macro (body ctx)
   (let ((res nil))
     (when (or (not (listp body)) (not (listp (car body))))
@@ -712,6 +718,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
                   (cond
                     ((string= "backquote" (string op)) (compile-backquote args nil nil nil ctx))
                     ((string= "quote"     (string op)) (compile-quote args nil nil nil ctx))
+                    ((string= "concat"    (string op)) (compile-concat (car args) (cdr args) ctx))
                     (t (if (gethash op macrofn-tbl)
                            (eval-macrofn op args ctx)
                            (error (format nil "call to a C function (here, ~a) through the ffi is not yet unsupported.~%" op))))))
