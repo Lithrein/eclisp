@@ -28,11 +28,11 @@
     (coerce (reverse char-list) 'string)))
 
 (defun parse-symbol (stream)
-  (intern (loop for c = (peek-char nil stream nil nil)
-                while (and c (eql c (peek-char t stream nil nil))
-                           (not (char= c #\))))
-                collect (read-char stream) into letters
-                finally (return (coerce letters 'string)))))
+  (loop for c = (peek-char nil stream nil nil)
+        while (and c (eql c (peek-char t stream nil nil))
+                   (not (char= c #\))))
+        collect (read-char stream) into letters
+        finally (return (coerce letters 'string))))
 
 (defun parse-comment (stream)
   ;; skip semi-colons;
@@ -125,6 +125,26 @@ characters in the IGNORE-CHARS string while performing READ."
         '|.|
         `(|key| id ,(parse stream)))))
 
+(defun parse-verbatim (stream)
+  (let ((level 1))
+    (loop for c = (peek-char nil stream nil nil)
+          do (cond ((char= c #\() (incf level))
+                   ((char= c #\)) (decf level)))
+          while (and c (> level 0))
+          if (char= c #\Newline) collect #\\ into letters
+          collect (read-char stream) into letters
+          finally (return (coerce letters 'string)))))
+
+(defun parse-percent (stream)
+  ;; skip the % character
+  (read-char stream nil)
+  (let ((c (peek-char nil stream nil nil nil)))
+    (cond ((char= c #\:)
+           (read-char stream nil)
+           (list "%:" (parse-verbatim stream)))
+          ((char= c #\Space) "%")
+          (t (intern (concatenate 'string "%" (parse-symbol stream)))))))
+
 (defun parse (stream)
   ;; skip whitespace
   (skip-whitespace stream)
@@ -133,6 +153,7 @@ characters in the IGNORE-CHARS string while performing READ."
       ((null cur-char) nil)
       ((char= cur-char #\() (parse-list stream))
       ((char= cur-char #\)) (progn (read-char stream nil) nil))
+      ((char= cur-char #\%) (parse-percent stream))
       ((char= cur-char #\") (parse-string stream))
       ((char= cur-char #\#) (parse-character stream))
       ((char= cur-char #\;) (parse-comment stream))
