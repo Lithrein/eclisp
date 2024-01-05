@@ -520,11 +520,14 @@ BODY is optional. DOCUMENTATION is optional"
 
 (defun compile-cast (form stmtp indent to-stream)
   (if stmtp
-     (format to-stream "~v@{~C~:*~}(" indent #\Space)
-     (format to-stream "(("))
-  (compile-type "" (car form) to-stream)
-  (format to-stream ")")
-  (compile-form (cadr form) nil 0 to-stream)
+     (format to-stream "~v@{~C~:*~}" indent #\Space)
+     (format to-stream "("))
+    (do ((cur form (cdr cur)))
+      ((not (cdr cur)))
+      (format to-stream "(")
+      (compile-type "" (car cur) to-stream)
+      (format to-stream ")"))
+    (compile-form (car (reverse form)) nil 0 to-stream)
   (if stmtp
      (format to-stream ";~%")
      (format to-stream ")")))
