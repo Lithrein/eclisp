@@ -143,7 +143,8 @@ ACC should be NIL at first."
      (print-c-type ""
                    (if (consp (cadr type)) (cadr type) (cdr type))
                    (list "(*" acc name ")")))
-    ((string= "array" (car type))
+    ((and (string= "array" (car type))
+          (cdr type))
      (print-c-type ""
                    (if (null (caddr type))
                        (if (consp (cadr type)) (cadr type) (cdr type))
