@@ -422,6 +422,12 @@ BODY is optional. DOCUMENTATION is optional"
   (format to-stream "{")
   (let ((cur form))
     (loop while cur do
+          (when (and (consp (car cur))
+                     (or (stringp (caar cur)) (symbolp (caar cur)))
+                     (string= (caar cur) "%key"))
+            (format to-stream (if (eql (cadar cur) 'num) "[~a] = " ".~a = ")
+                    (with-output-to-string (s) (compile-form (caddar cur) nil 0 s)))
+            (setf cur (cdr cur)))
           (compile-form (car cur) 'init 0 to-stream)
           (if (cdr cur) (format to-stream ", "))
           (setf cur (cdr cur))))
@@ -588,7 +594,7 @@ BODY is optional. DOCUMENTATION is optional"
           (if (consp el)
               (progn
                 (if (and (or (stringp (car el)) (symbolp (car el))))
-                    (cond ((string= (car el) "key")
+                    (cond ((string= (car el) "%key")
                            (if (eql (cadr el) 'num)
                                (format to-stream "[~a] = " (caddr el))
                                (format to-stream ".~a = " (caddr el))))
@@ -657,7 +663,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
           (if (consp el)
               (progn
                 (if (and (or (stringp (car el)) (symbolp (car el))))
-                    (cond ((string= (car el) "key")
+                    (cond ((string= (car el) "%key")
                            (if (and (consp (caddr el))
                                     (or (stringp (caaddr el)) (symbolp (caaddr el)))
                                     (string= (caaddr el) "unquote"))

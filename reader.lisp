@@ -123,7 +123,7 @@ characters in the IGNORE-CHARS string while performing READ."
             (char= #\Newline c)
             (char= #\Tab c))
         '|.|
-        `(|key| id ,(parse stream)))))
+        `(|%key| id ,(parse stream)))))
 
 (defun parse-verbatim (stream)
   (let ((level 1))
@@ -161,5 +161,5 @@ characters in the IGNORE-CHARS string while performing READ."
       ((char= cur-char #\') (parse-quote stream))
       ((char= cur-char #\,) (parse-comma stream))
       ((char= cur-char #\.) (parse-dot stream))
-      ((char= cur-char #\:) (progn (read-char stream nil) `(|key| num ,(parse stream))))
+      ((char= cur-char #\:) (progn (read-char stream nil) `(|%key| num ,(parse stream))))
       (t (with-custom-reader "'|" (read stream nil))))))
