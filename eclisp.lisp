@@ -27,8 +27,9 @@ the parenthesis.  SUBSTITUTION should be valid C code."
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "#define ~{~a~^ ~}~%" form))
 
-(defun compile-verbatim (form to-stream)
-  (format to-stream "~a~%" (car form)))
+(defun compile-verbatim (form stmtp to-stream)
+  (format to-stream "~a" (car form))
+  (when stmtp (format to-stream "~%")))
 
 (defun compile-arith-binop (form indent to-stream &optional (cpp nil))
   "Compile a FORM beginning with an arithmetic operator (+ - * / % ^ | || & &&
@@ -975,7 +976,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
             ((string= "%include"  (string op)) (compile-cpp-include args indent to-stream))
             ((string= "%define"   (string op)) (compile-cpp-define args indent to-stream))
             ((string= "%if"       (string op)) (compile-cpp-if args indent to-stream))
-            ((string= "%:"        (string op)) (compile-verbatim args to-stream))
+            ((string= "%:"        (string op)) (compile-verbatim args stmtp to-stream))
             ((string= "%comment"  (string op)) (compile-comment args indent to-stream))
             ((string= "break"     (string op)) (compile-break args indent to-stream))
             ((string= "continue"  (string op)) (compile-continue args indent to-stream))
