@@ -5,7 +5,7 @@
 (def x (ptr (array 13 (int))))
 (def x (array 13 (ptr (int))))
 (def x (ptr (-> (void) ((void)))))
-(def x (-> (void) ((ptr (array "" (ptr (-> (void) ((char)))))))))
+(def x (-> (void) ((ptr (array (ptr (-> (void) ((char)))))))))
 (def x (array 3 (volatile (ptr (-> (void) ((const (ptr (array 5 (char))))))))))
 (def x (ptr (-> (array 3 (ptr (char))) ((void)))))
 (def x (-> (ptr (array 3 (int))) ((void))))
