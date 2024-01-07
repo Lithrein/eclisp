@@ -1,0 +1,5 @@
+* A simple ray tracer
+
+Simple ray tracer, inspired from [1].
+
+[1]: https://raytracing.github.io/books/RayTracingInOneWeekend.html
