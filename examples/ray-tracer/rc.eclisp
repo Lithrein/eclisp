@@ -26,9 +26,9 @@
 
 (macro mk-naryop (name binop)
   `(macro ,name (arg1 arg2 &body rest)
-     '(if (null rest)
-       `(vec3_add ,arg1 ,arg2)
-       `(vec3_add ,arg1 (vec3+ ,arg2 ,@rest)))))
+     (if (null rest)
+       `(,binop ',arg1 ',arg2)
+       `(,binop ',arg1 (,name ',arg2 ',@rest)))))
 
 (def vec3_minus (-> (union vec3) (v (union vec3)))
   (return (mkvec3 -v.x -v.y -v.z)))
