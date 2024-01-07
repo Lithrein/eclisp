@@ -392,8 +392,7 @@ BODY is optional. DOCUMENTATION is optional"
 
 (defun compile-set (form stmtp op indent to-stream)
   (cond
-   ((and stmtp (not (eql stmtp 'init)))
-    (format to-stream "~v@{~C~:*~}" indent #\Space))
+   (stmtp (format to-stream "~v@{~C~:*~}" indent #\Space))
    ((not stmtp) (format to-stream "(")))
   (let ((cur form))
     (loop while cur do
@@ -401,8 +400,7 @@ BODY is optional. DOCUMENTATION is optional"
           (if (cdr cur) (format to-stream " ~a " op))
           (setf cur (cdr cur))))
   (cond
-   ((and stmtp (not (eql stmtp 'init)))
-    (format to-stream ";~%"))
+   (stmtp (format to-stream ";~%"))
    ((not stmtp) (format to-stream ")"))))
 
 (defun compile-seq (form stmtp indent to-stream)
@@ -417,7 +415,7 @@ BODY is optional. DOCUMENTATION is optional"
       (format to-stream ";~%")))
 
 (defun compile-list (form stmtp indent to-stream)
-  (if (and stmtp (not (eql stmtp 'init)))
+  (if (and stmtp)
       (format to-stream "~v@{~C~:*~}" indent #\Space))
   (format to-stream "{")
   (let ((cur form))
@@ -428,11 +426,11 @@ BODY is optional. DOCUMENTATION is optional"
             (format to-stream (if (eql (cadar cur) 'num) "[~a] = " ".~a = ")
                     (with-output-to-string (s) (compile-form (caddar cur) nil 0 s)))
             (setf cur (cdr cur)))
-          (compile-form (car cur) 'init 0 to-stream)
+          (compile-form (car cur) nil 0 to-stream)
           (if (cdr cur) (format to-stream ", "))
           (setf cur (cdr cur))))
   (format to-stream " }")
-  (if (and stmtp (not (eql stmtp 'init)))
+  (if (and stmtp)
       (format to-stream ";~%")))
 
 (defun compile-dot (form stmtp indent to-stream)
@@ -1019,7 +1017,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
             ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
                      :test #'equal)
              (compile-arith-binop f indent to-stream)
-             (when (and stmtp (not (eql stmtp 'init))) (format to-stream ";~%")))
+             (when stmtp (format to-stream ";~%")))
             (t
              (format to-stream "~v@{~C~:*~}" indent #\Space)
              (format to-stream "~a (~{~a~^, ~})"
