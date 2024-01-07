@@ -162,4 +162,4 @@ characters in the IGNORE-CHARS string while performing READ."
       ((char= cur-char #\,) (parse-comma stream))
       ((char= cur-char #\.) (parse-dot stream))
       ((char= cur-char #\:) (progn (read-char stream nil) `(|%key| num ,(parse stream))))
-      (t (with-custom-reader "'|" (read stream nil))))))
+      (t (with-custom-reader "'|?" (read stream nil))))))
