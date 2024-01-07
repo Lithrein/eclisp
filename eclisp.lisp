@@ -643,7 +643,8 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
                              (compile-macro (cadar args) ctx)
                              (gethash (cadar args) ctx))
                          (compile-backquote-macro (cdr args) ctx)))
-                ((string= "quote" (string (caar args))) (cdar args))
+                ((string= "quote" (string (caar args)))
+                 (cons (cadar args) (compile-backquote-macro (cdr args) ctx)))
                 (t
                  (cons (compile-backquote-macro (car args) ctx)
                        (compile-backquote-macro (cdr args) ctx))))
