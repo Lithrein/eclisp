@@ -11,6 +11,9 @@
 (def max_i (-> int (a b int))
   (return (?: (> a b) a b)))
 
+(def degrees_to_radians (-> double (degrees double))
+    (return (/ (* degrees 3.14) 180.0)))
+
 ;; end utils
 
 ;; vec3
@@ -176,13 +179,23 @@
     (return (mkvec3 0 0 0)))
 
   ;; sphere
-  (def t (double) (hit_sphere (addr (mkvec3 0 0 -1)) 0.5 r &rec))
+  (def t (double) (hit_sphere (addr (mkvec3 0 0.25 -1)) 0.75 r &rec))
   (when (> t 0.0)
     (def direction (union vec3) (vec3+ rec.normal (random_unit_vector)))
-    (return (vec3_mul (mkvec3 0 0.9 0.9) (vec3_smul (ray_color (addr (mkray rec.p direction)) (- depth 1)) 0.6))))
+    (return (vec3_mul (mkvec3 0 0.9 0.9) (vec3_smul (ray_color (addr (mkray rec.p direction)) (- depth 1)) 0.5))))
+
+  (= t (hit_sphere (addr (mkvec3 4 0 -1)) 0.5 r &rec))
+  (when (> t 0.0)
+    (def direction (union vec3) (vec3+ rec.normal (random_unit_vector)))
+    (return (vec3_mul (mkvec3 0.9 0.9 0) (vec3_smul (ray_color (addr (mkray rec.p direction)) (- depth 1)) 0.3))))
+
+  (= t (hit_sphere (addr (mkvec3 4 0 -3)) 0.5 r &rec))
+  (when (> t 0.0)
+    (def direction (union vec3) (vec3+ rec.normal (random_unit_vector)))
+    (return (vec3_mul (mkvec3 0.7 0.4 0.3) (vec3_smul (ray_color (addr (mkray rec.p direction)) (- depth 1)) 0.75))))
 
   ;; ground
-  (= t (hit_sphere (addr (mkvec3 0 -100.5 -1)) 100 r &rec))
+  (= t (hit_sphere (addr (mkvec3 0 -1000.5 -1)) 1000 r &rec))
   (when (> t 0.0)
     (def direction (union vec3) (vec3+ rec.normal (random_unit_vector)))
     (return (vec3_smul (ray_color (addr (mkray rec.p direction)) (- depth 1)) 0.5)))
@@ -194,32 +207,43 @@
 (def main (-> int void)
   "The entry point."
 
-  (def samples_per_pixel (int) 10)
+  (def samples_per_pixel (int) 500)
   (def max_depth (int) 50)
   (srand (time NULL))
 
   ;; image
   (def aspect_ratio (double) (/ 16.0 9.0))
-  (def image_width (int) 256)
+  (def image_width (int) 1024)
   (def image_height (int) (max_i 1 (cast int (/ image_width aspect_ratio))))
 
   ;; camera
-  (def camera_center (union vec3) '(0 0 0))
-  (def focal_length (double) 1.0)
-  (def viewport_height (double) 2.0)
+  (def camera_center (union vec3) '(-8 3 1))
+  (def lookat (union vec3) '(0 0 -1))
+  (def vup (union vec3) (mkvec3 0 1 0))
+  (def vfov (double) 30.0)
+  (def theta (double) (degrees_to_radians vfov))
+  (def h (double) (tan (/ theta 2)))
+  (def focal_length (double) (vec3_len (vec3- camera_center lookat)))
+  (def viewport_height (double) (* 2 h focal_length))
   (def viewport_width (double) (* viewport_height
                                   (/ (cast double image_width) image_height)))
+  (def u (union vec3))
+  (def v (union vec3))
+  (def w (union vec3))
+  (= w (vec3_unit (vec3- camera_center lookat)))
+  (= u (vec3_unit (vec3_cross vup w)))
+  (= v (vec3_cross w u))
 
   ;; u and v are the vectors of the basis of viewport
-  (def viewport_u (union vec3) '(viewport_width 0 0))
-  (def viewport_v (union vec3) '(0 -viewport_width 0))
+  (def viewport_u (union vec3) (vec3_smul u viewport_width))
+  (def viewport_v (union vec3) (vec3_smul (vec3_minus v) viewport_height))
   ;; delta vectors
   (def pixel_delta_u (union vec3) (vec3_sdiv viewport_u image_width))
   (def pixel_delta_v (union vec3) (vec3_sdiv viewport_v image_height))
   ;; location of the upper left pixel.
   (def viewport_upper_left (union vec3)
        (vec3+ camera_center
-         (vec3_minus (vec3+ (mkvec3 0 0 focal_length)
+         (vec3_minus (vec3+ (vec3_smul w focal_length)
                             (vec3_sdiv viewport_u 2)
                             (vec3_sdiv viewport_v 2)))))
 
