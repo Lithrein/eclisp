@@ -14,17 +14,17 @@
     (read-char stream nil)
     (loop for c = (read-char stream nil)
           while (and c (or (not (char= c #\")) escape)) do
-            (if escape
-                (progn
-                  (cond ((char= c #\n) (setf char-list (cons #\n (cons #\\ char-list))))
-                        ((char= c #\r) (setf char-list (cons #\r (cons #\\ char-list))))
-                        ((char= c #\f) (setf char-list (cons #\f (cons #\\ char-list))))
-                        (t (setf char-list (cons c char-list))))
-                  (setf escape nil))
-                (progn
-                  (if (char= #\\ c)
-                      (setf escape t)
-                      (setf char-list (cons c char-list))))))
+          (if escape
+              (progn
+                (cond ((char= c #\n) (setf char-list (cons #\n (cons #\\ char-list))))
+                      ((char= c #\r) (setf char-list (cons #\r (cons #\\ char-list))))
+                      ((char= c #\f) (setf char-list (cons #\f (cons #\\ char-list))))
+                      (t (setf char-list (cons c char-list))))
+                (setf escape nil))
+              (progn
+                (if (char= #\\ c)
+                    (setf escape t)
+                    (setf char-list (cons c char-list))))))
     (coerce (reverse char-list) 'string)))
 
 (defun parse-symbol (stream)
@@ -41,9 +41,9 @@
         do (read-char stream nil))
   `(|%comment|
     ,(loop for c = (read-char stream nil)
-          while (and c (not (char= c #\Newline)))
-          collect c into letters
-          finally (return (coerce letters 'string)))))
+           while (and c (not (char= c #\Newline)))
+           collect c into letters
+           finally (return (coerce letters 'string)))))
 
 (defun skip-whitespace (stream)
   (loop for c = (peek-char nil stream nil nil nil)
@@ -100,17 +100,17 @@
 characters in the IGNORE-CHARS string while performing READ."
   `(let ((*readtable* (copy-readtable)))
      (loop for cc across ,ignore-chars do
-       (set-macro-character
-        cc
-        (lambda (stream char)
-          (concatenate
-           'string
-           (make-string 1 :initial-element char)
-           (loop for c = (peek-char nil stream nil nil)
-                 while (and c (eql c (peek-char t stream nil nil)))
-                 collect (read-char stream) into letters
-                 finally (return (coerce letters 'string)))))
-        t *readtable*))
+           (set-macro-character
+            cc
+            (lambda (stream char)
+              (concatenate
+               'string
+               (make-string 1 :initial-element char)
+               (loop for c = (peek-char nil stream nil nil)
+                     while (and c (eql c (peek-char t stream nil nil)))
+                     collect (read-char stream) into letters
+                     finally (return (coerce letters 'string)))))
+            t *readtable*))
      (setf (readtable-case *readtable*) :preserve)
      (progn
        ,@body)))
