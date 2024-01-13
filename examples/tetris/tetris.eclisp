@@ -4,9 +4,7 @@
 (%define BOARD_WIDTH  10)
 (%define BOARD_HEIGHT 20)
 
-;; bug: (def (struct point (x y int))))
-;; should be allowed
-(def (struct point (x int) (y int)))
+(def (struct point (x y int)))
 
 (def (enum rotation LEFT RIGHT UP DOWN))
 (def (enum tm_type TM_NONE TM_I TM_J TM_L TM_O TM_S TM_T TM_Z TM_LAST))
