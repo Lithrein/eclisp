@@ -1,3 +1,5 @@
+;; -*- Mode: Lisp; Syntax: Common-Lisp; -*-
+
 (in-package #:eclisp)
 
 (defvar macro-tbl (make-hash-table)
@@ -14,9 +16,9 @@ or in angle-brackets."
   (loop for filename in include-forms do
         (format to-stream "~v@{~C~:*~}" indent #\Space)
         (format to-stream
-	        (cond ((symbolp filename) "#include ~a~%")
-		      (t "#include \"~a\"~%"))
-	        filename)))
+                (cond ((symbolp filename) "#include ~a~%")
+                      (t "#include \"~a\"~%"))
+                filename)))
 
 (defun compile-cpp-define (form indent to-stream)
   "Compile a define directive: %(define name substitution) and write it
