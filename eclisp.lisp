@@ -133,6 +133,12 @@ and if, and write it on TO-STREAM."
     "return" "short" "signed" "sizeof" "static" "struct" "switch" "typedef"
     "union" "unsigned" "void" "volatile" "while") )
 
+(defun group-bitfield (lst)
+  (unless (null lst)
+    (if (symbolp (cadr lst))
+        (cons (list (car lst)) (group-bitfield (cdr lst)))
+        (cons (list (car lst) (cadr lst)) (group-bitfield (cddr lst))))))
+
 (defun print-c-type (name type acc)
   "Create a nested list which represents the variable NAME of TYPE.
 ACC should be NIL at first."
@@ -215,24 +221,52 @@ ACC should be NIL at first."
                              (list "{" #\Newline
                                    (loop for tt in (cdr type)
                                          collect (list "  "
-                                                       (if (symbolp (car tt))
-                                                           (list
-                                                            (when (and (cddr tt) (stringp (caddr tt)))
-                                                              (with-output-to-string (s) (format s "/* ~a */~%" (caddr tt))))
-                                                            (print-c-type (car tt) (cadr tt) nil))
-                                                           (print-c-type "" (car tt) nil)) ";" #\Newline))
+                                                       (cond ((and (symbolp (car tt)) (not (member (string (car tt)) c-keywords :test #'string=)))
+                                                              (let* ((rev-tt (reverse tt))
+                                                                     (documentation (when (stringp (car rev-tt)) (car rev-tt)))
+                                                                     (typ (if documentation (cadr rev-tt) (car rev-tt)))
+                                                                     (ntt (if documentation (reverse (cddr rev-tt)) (reverse (cdr rev-tt)))))
+                                                                (list
+                                                                 (when documentation (with-output-to-string (s) (format s "/* ~a */~%" documentation)))
+                                                                 ((lambda (l) (cons (cddar l) (cdr l)))
+                                                                  (loop for var in (group-bitfield ntt)
+                                                                        collect (list ";" #\Newline
+                                                                                      (print-c-type (if (cadr var) (format nil "~a : ~a" (car var) (with-output-to-string (s) (compile-form (cadr var) nil 0 s))) (car var)) typ nil)))))))
+                                                             ((and (symbolp (car tt)) (member (string (car tt)) c-keywords :test #'string=))
+                                                              (let* ((rev-tt (reverse tt))
+                                                                     (documentation (when (stringp (car rev-tt)) (car rev-tt)))
+                                                                     (ntt (if documentation (reverse (cdr rev-tt)))))
+                                                                (list
+                                                                 (when documentation (with-output-to-string (s) (format s "/* ~a */~%" documentation)))
+                                                                 (print-c-type "" ntt nil))))
+                                                             (t
+                                                              (print-c-type "" (car tt) nil))) ";" #\Newline))
                                    "}")
                              (list (cadr type)
                                    (when (consp (caddr type))
                                      (list " {" #\Newline
                                            (loop for tt in (cddr type)
                                                  collect (list "  "
-                                                               (if (symbolp (car tt))
-                                                                   (list
-                                                                    (when (and (cddr tt) (stringp (caddr tt)))
-                                                                      (with-output-to-string (s) (format s "/* ~a */~%" (caddr tt))))
-                                                                    (print-c-type (car tt) (cadr tt) nil))
-                                                                   (print-c-type "" (car tt) nil)) ";" #\Newline))
+                                                               (cond ((and (symbolp (car tt)) (not (member (string (car tt)) c-keywords :test #'string=)))
+                                                                      (let* ((rev-tt (reverse tt))
+                                                                             (documentation (when (stringp (car rev-tt)) (car rev-tt)))
+                                                                             (typ (if documentation (cadr rev-tt) (car rev-tt)))
+                                                                             (ntt (if documentation (reverse (cddr rev-tt)) (reverse (cdr rev-tt)))))
+                                                                        (list
+                                                                         (when documentation (with-output-to-string (s) (format s "/* ~a */~%" documentation)))
+                                                                         ((lambda (l) (cons (cddar l) (cdr l)))
+                                                                          (loop for var in (group-bitfield ntt)
+                                                                                collect (list ";" #\Newline
+                                                                                              (print-c-type (if (cadr var) (format nil "~a : ~a" (car var) (with-output-to-string (s) (compile-form (cadr var) nil 0 s))) (car var)) typ nil)))))))
+                                                                     ((and (symbolp (car tt)) (member (string (car tt)) c-keywords :test #'string=))
+                                                                      (let* ((rev-tt (reverse tt))
+                                                                             (documentation (when (stringp (car rev-tt)) (car rev-tt)))
+                                                                             (ntt (if documentation (reverse (cdr rev-tt)))))
+                                                                        (list
+                                                                         (when documentation (with-output-to-string (s) (format s "/* ~a */~%" documentation)))
+                                                                         (print-c-type "" ntt nil))))
+                                                                     (t
+                                                                      (print-c-type "" (car tt) nil))) ";" #\Newline))
                                            "}")))) acc)))
     ((string= "union" (car type))
      (print-c-type name "union "
@@ -240,24 +274,52 @@ ACC should be NIL at first."
                              (list "{" #\Newline
                                    (loop for tt in (cdr type)
                                          collect (list "  "
-                                                       (if (symbolp (car tt))
-                                                           (list
-                                                            (when (and (cddr tt) (stringp (caddr tt)))
-                                                              (with-output-to-string (s) (format s "/* ~a */~%" (caddr tt))))
-                                                            (print-c-type (car tt) (cadr tt) nil))
-                                                           (print-c-type "" (car tt) nil)) ";" #\Newline))
+                                                       (cond ((and (symbolp (car tt)) (not (member (string (car tt)) c-keywords :test #'string=)))
+                                                              (let* ((rev-tt (reverse tt))
+                                                                     (documentation (when (stringp (car rev-tt)) (car rev-tt)))
+                                                                     (typ (if documentation (cadr rev-tt) (car rev-tt)))
+                                                                     (ntt (if documentation (reverse (cddr rev-tt)) (reverse (cdr rev-tt)))))
+                                                                (list
+                                                                 (when documentation (with-output-to-string (s) (format s "/* ~a */~%" documentation)))
+                                                                 ((lambda (l) (cons (cddar l) (cdr l)))
+                                                                  (loop for var in (group-bitfield ntt)
+                                                                        collect (list ";" #\Newline
+                                                                                      (print-c-type (if (cadr var) (format nil "~a : ~a" (car var) (with-output-to-string (s) (compile-form (cadr var) nil 0 s))) (car var)) typ nil)))))))
+                                                             ((and (symbolp (car tt)) (member (string (car tt)) c-keywords :test #'string=))
+                                                              (let* ((rev-tt (reverse tt))
+                                                                     (documentation (when (stringp (car rev-tt)) (car rev-tt)))
+                                                                     (ntt (if documentation (reverse (cdr rev-tt)))))
+                                                                (list
+                                                                 (when documentation (with-output-to-string (s) (format s "/* ~a */~%" documentation)))
+                                                                 (print-c-type "" ntt nil))))
+                                                             (t
+                                                              (print-c-type "" (car tt) nil))) ";" #\Newline))
                                    "}")
                              (list (cadr type)
                                    (when (consp (caddr type))
                                      (list " {" #\Newline
                                            (loop for tt in (cddr type)
                                                  collect (list "  "
-                                                               (if (symbolp (car tt))
-                                                                   (list
-                                                                    (when (and (cddr tt) (stringp (caddr tt)))
-                                                                      (with-output-to-string (s) (format s "/* ~a */~%" (caddr tt))))
-                                                                    (print-c-type (car tt) (cadr tt) nil))
-                                                                   (print-c-type "" (car tt) nil)) ";" #\Newline))
+                                                               (cond ((and (symbolp (car tt)) (not (member (string (car tt)) c-keywords :test #'string=)))
+                                                                      (let* ((rev-tt (reverse tt))
+                                                                             (documentation (when (stringp (car rev-tt)) (car rev-tt)))
+                                                                             (typ (if documentation (cadr rev-tt) (car rev-tt)))
+                                                                             (ntt (if documentation (reverse (cddr rev-tt)) (reverse (cdr rev-tt)))))
+                                                                        (list
+                                                                         (when documentation (with-output-to-string (s) (format s "/* ~a */~%" documentation)))
+                                                                         ((lambda (l) (cons (cddar l) (cdr l)))
+                                                                          (loop for var in (group-bitfield ntt)
+                                                                                collect (list ";" #\Newline
+                                                                                              (print-c-type (if (cadr var) (format nil "~a : ~a" (car var) (with-output-to-string (s) (compile-form (cadr var) nil 0 s))) (car var)) typ nil)))))))
+                                                                     ((and (symbolp (car tt)) (member (string (car tt)) c-keywords :test #'string=))
+                                                                      (let* ((rev-tt (reverse tt))
+                                                                             (documentation (when (stringp (car rev-tt)) (car rev-tt)))
+                                                                             (ntt (if documentation (reverse (cdr rev-tt)))))
+                                                                        (list
+                                                                         (when documentation (with-output-to-string (s) (format s "/* ~a */~%" documentation)))
+                                                                         (print-c-type "" ntt nil))))
+                                                                     (t
+                                                                      (print-c-type "" (car tt) nil))) ";" #\Newline))
                                            "}")))) acc)))
     ((string= "volatile" (car type))
      (print-c-type ""
