@@ -12,17 +12,17 @@
   (return (?: (> a b) a b)))
 
 (def degrees_to_radians (-> double (degrees double))
-    (return (/ (* degrees 3.14) 180.0)))
+  (return (/ (* degrees 3.14) 180.0)))
 
 ;; end utils
 
 ;; vec3
 
 (def (union vec3
-  (e (array 3 double))
-  ((struct (x double)
-           (y double)
-           (z double)))))
+  (e (array 3 double)
+  "Coordinates as an array.")
+  (struct (x y z double)
+  "Direct accessors to each coordinate.")))
 
 (macro mkvec3 (x y z)
   `(cast (union vec3) (list ,x ,y ,z)))
