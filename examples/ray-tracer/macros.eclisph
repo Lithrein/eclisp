@@ -20,8 +20,8 @@
        (def ,result (int))
        (macrolet ((return (expr) 
                       `(progn
-                        (= ,result ',expr)
-                        (goto ,cleanup))))
+                        (= ,',result ,expr)
+                        (goto ,',cleanup))))
         ,form)
         (label ,cleanup)
         ,@cleanup-forms
@@ -39,13 +39,3 @@
          ,@body)
        (if ,var
          (fclose ,var))))))
-
-(macro with-sdl2 (args &body body)
-  `(progn
-    (unwind-protect
-     (progn
-      (when (SDL_Init ,@args)
-       (fprintf stderr "Erreur SDL_Init: %s" (SDL_GetError))
-       (return EXIT_FAILURE))
-      ,@body)
-     (SDL_Quit))))

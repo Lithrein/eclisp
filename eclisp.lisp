@@ -646,7 +646,7 @@ BODY is optional. DOCUMENTATION is optional"
   (format to-stream "//~a~%" (car form)))
 
 (defun compile-quote-macro (args ctx)
-  args)
+  (car args))
 
 (defun compile-quote-as-c (args stmtp indent to-stream)
   (when stmtp
@@ -693,30 +693,54 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
       (compile-quote-macro args ctx)
       (compile-quote-as-c args stmtp indent to-stream)))
 
-(defun compile-backquote-macro (args ctx)
-  (if (null args)
-      ()
-      (if (listp (car args))
-          (if (and (or (stringp (caar args)) (symbolp (caar args))))
-              (cond
-                ((string= "unquote" (string (caar args)))
-                 (cons (if (listp (cadar args))
-                           (compile-macro (cadar args) ctx)
-                           (gethash (cadar args) ctx))
-                       (compile-backquote-macro (cdr args) ctx)))
-                ((string= "unquote-splice" (string (caar args)))
-                 (append (if (listp (cadar args))
-                             (compile-macro (cadar args) ctx)
-                             (gethash (cadar args) ctx))
-                         (compile-backquote-macro (cdr args) ctx)))
-                ((string= "quote" (string (caar args)))
-                 (cons (cadar args) (compile-backquote-macro (cdr args) ctx)))
-                (t
-                 (cons (compile-backquote-macro (car args) ctx)
-                       (compile-backquote-macro (cdr args) ctx))))
-              (cons (compile-backquote-macro (car args) ctx)
-                    (compile-backquote-macro (cdr args) ctx)))
-          (cons (car args) (compile-backquote-macro (cdr args) ctx)))))
+;; (defun compile-backquote-macro (args ctx)
+;;   (if (null args)
+;;       ()
+;;       (if (listp (car args))
+;;           (if (and (or (stringp (caar args)) (symbolp (caar args))))
+;;               (cond
+;;                 ((string= "unquote" (string (caar args)))
+;;                  (cons (if (listp (cadar args))
+;;                            (compile-macro (cadar args) ctx)
+;;                            (gethash (cadar args) ctx))
+;;                        (compile-backquote-macro (cdr args) ctx)))
+;;                 ((string= "unquote-splice" (string (caar args)))
+;;                  (append (if (listp (cadar args))
+;;                              (compile-macro (cadar args) ctx)
+;;                              (gethash (cadar args) ctx))
+;;                          (compile-backquote-macro (cdr args) ctx)))
+;;                 ((string= "quote" (string (caar args)))
+;;                  (cons (cadar args) (compile-backquote-macro (cdr args) ctx)))
+;;                 (t
+;;                  (cons (compile-backquote-macro (car args) ctx)
+;;                        (compile-backquote-macro (cdr args) ctx))))
+;;               (cons (compile-backquote-macro (car args) ctx)
+;;                     (compile-backquote-macro (cdr args) ctx)))
+;;           (cons (car args) (compile-backquote-macro (cdr args) ctx)))))
+
+;; cf. The two following functions have been adapted from CLtL2 Appendix C.
+(defun bracket (x)
+  (cond ((atom x)
+         (list '|list| (compile-backquote-macro x)))
+        ((eq (car x) '|unquote|)
+         (list '|list| (cadr x)))
+        ((eq (car x) '|unquote-splice|)
+         (cadr x))
+        (t (list '|list| (compile-backquote-macro x)))))
+
+(defun compile-backquote-macro (args)
+  (cond ((atom args) (list '|quote| args))
+        ((eq (car args) '|backquote|) (compile-backquote-macro (compile-backquote-macro (cadr args))))
+        ((eq (car args) '|unquote|) (cadr args))
+        ((eq (car args) '|unquote-splice|) (error ",@~S after `" (cadr args)))
+        (t (do ((p args (cdr p))
+                (q '() (cons (bracket (car p)) q)))
+               ((atom p) (cons '|append| (nreconc q (list (list '|quote| p)))))
+             (when (eq (car p) '|unquote|)
+               (unless (null (cddr p)) (error "Malformed ,~S" p))
+               (return (cons '|append| (nreconc q (list (cadr p))))))
+             (when (eq (car p) '|unquote-splice|)
+               (error "Dotted ,@~S" p))))))
 
 (defun compile-backquote-as-c (args stmtp indent to-stream)
   (when stmtp
@@ -772,7 +796,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
 it behaves like in other lisps.  However, when from outside macros, it expands
 into the C-ish equivalent. C has something that looks like assoctiation lists"
   (if ctx
-      (compile-backquote-macro (car args) ctx)
+      (compile-macro (compile-backquote-macro (car args)) ctx)
       (compile-backquote-as-c args stmtp indent to-stream)))
 
 (defun ctx-lookup (x ctx)
@@ -919,6 +943,13 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
                               (format nil "_~a_" (get-universal-time))
                               (format nil "~a" (incf *eclisp-gensym-counter*))))))
 
+(defun compile-list-macro (args ctx)
+  (if (null args) '()
+      (cons (ctx-lookup (car args) ctx) (compile-list-macro (cdr args) ctx))))
+
+(defun compile-append (args ctx)
+  (apply #'append (mapcar #'(lambda (x) (ctx-lookup x ctx)) args)))
+
 (defun compile-macro (body ctx)
   (let ((res nil))
     (when (or (not (listp body)) (not (listp (car body))))
@@ -928,6 +959,8 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
                 (if (consp body)
                     (destructuring-bind (op &rest args) form
                       (cond
+                        ((string= "list"      (string op)) (compile-list-macro args ctx))
+                        ((string= "append"    (string op)) (compile-append args ctx))
                         ((string= "backquote" (string op)) (compile-backquote args nil nil nil ctx))
                         ((string= "quote"     (string op)) (compile-quote args nil nil nil ctx))
                         ((string= "symbolp"   (string op)) (compile-symbolp args ctx))

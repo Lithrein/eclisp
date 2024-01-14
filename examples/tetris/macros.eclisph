@@ -20,8 +20,8 @@
        (def ,result (int))
        (macrolet ((return (expr) 
                       `(progn
-                        (= ,result ',expr)
-                        (goto ,cleanup))))
+                        (= ,',result ,expr)
+                        (goto ,',cleanup))))
         ,form)
         (label ,cleanup)
         ,@cleanup-forms
