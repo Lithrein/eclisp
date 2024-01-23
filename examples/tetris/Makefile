@@ -9,3 +9,6 @@ LDFLAGS := $(shell pkg-config --libs sdl2)
 
 tetris: tetris.o
 	gcc $(CLAGS) $< $(LDFLAGS) -o $@
+
+clean:
+	rm tetris tetris.o
