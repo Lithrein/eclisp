@@ -524,9 +524,12 @@ BODY is optional. DOCUMENTATION is optional"
 (defun compile-aref (form indent to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (compile-form (car form) nil indent to-stream)
-  (format to-stream "[")
-  (compile-form (cadr form) nil indent to-stream)
-  (format to-stream "]"))
+  (let ((cur (cdr form)))
+    (loop while cur do
+          (format to-stream "[")
+          (compile-form (car cur) nil 0 to-stream)
+          (format to-stream "]")
+          (setf cur (cdr cur)))))
 
 (defun compile-addr (form indent to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
