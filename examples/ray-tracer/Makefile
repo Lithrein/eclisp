@@ -1,11 +1,14 @@
 ECLISP := ../../eclisp
 QUIET := @
-CFLAGS := -O2 -g3 $(shell pkg-config --cflags sdl2)
-LDFLAGS := -lm $(shell pkg-config --libs sdl2)
+CFLAGS := -O2 -g3
+LDFLAGS := -lm
 .SUFFIXES: .eclisp
 
 .eclisp.c:
 	$(QUIET)cat macros.eclisph $< | $(ECLISP) > $@
 
-rc: rc.o
+rt: rt.o
 	gcc $(CLAGS) $< $(LDFLAGS) -o $@
+
+clean:
+	rm rt rt.o
