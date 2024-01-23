@@ -1,0 +1,1549 @@
+\input texinfo @c -*-texinfo-*- vim:ft=texinfo:
+@setfilename eclisp.texi
+@documentlanguage en
+@settitle eClisp Manual
+
+@set VERSION 0.1.0
+@set UPDATED 2023/12/25
+
+@copying
+@end copying
+
+@titlepage
+@title eClisp Manual
+@author Paul Iannetta
+@page
+@vskip 0pt plus 1filll
+@insertcopying
+@end titlepage
+
+@contents
+
+@node Top
+@top eClisp
+
+This manual is for eClisp
+(version @value{VERSION}, @value{UPDATED}).
+
+@menu
+* Introduction::    General presentation of eClisp
+* Glossary::        Glossary
+* Data and Types::
+* Symbol Dictionary:: A list of all the symbols
+* Equivalence with C grammar::
+* Index::            Complete index.
+@end menu
+
+
+@node Introduction
+@chapter Introduction
+
+@node Glossary
+@chapter Glossary
+
+form
+
+@node Data and Types
+@chapter Data and Types
+
+@verbatim
+function-type: (-> ret-type arg-types)
+@end verbatim
+The return types can never hold a name, however the arg-types can.
+
+@verbatim
+ret-type: typename
+arg-types: typename
+  | (identifier-list typename documentation)
+@end verbatim
+
+@verbatim
+struct-or-union-kwd: struct | union
+struct-or-union: (struct-or-union-kwd identifier-opt struct-field-list)
+struct-field-list:  field
+  | struct-field-list
+
+struct-field: typename
+  | identifier-bitfield-opt-list typename documentation
+
+identifier-bitfield-opt-list: identifier bitfield-opt
+  | identifier-bitfield-opt-list
+@end verbatim
+
+@verbatim
+enum: (enum identifier-opt enum-field-list)
+
+enum-field-list: identifier
+  | (identifier)
+  | (identifier const-expression)
+  | enum-field-list
+@end verbatim
+
+@node Symbol Dictionary
+@chapter Symbol Dictionary
+
+@node Symbols in programs
+@section Symbols in programs
+
+@node %:
+@subsection %:
+
+The @code{%:} allows for inclusion of verbatim C code.  This should be used for
+@code{#define} which defines C macros and for accessing currently unsupported
+features such as inline assembly, or the typedef-ing of vector types.  Line
+endings are always escaped.
+
+@heading Grammar
+
+@verbatim
+(%: C code)
+@end verbatim
+
+@heading Example
+
+@lisp
+(%: #define concat(a, b) a ## b)
+@end lisp
+
+Note: All spaces (tabs, linefeed, carriage return and form feed) directly after
+@code{%:} are ignored.
+
+@node #include
+@subsection #include
+
+The @code{#include} directive works exactly like its C counterpart and share
+the same syntax.  The only difference is that @code{#include} allows for a list
+of headers.
+
+@heading Grammar
+@verbatim
+(#include header-list)
+header-list:
+        < filename >
+        " filename "
+        < filename > header-list
+        " filename " header-list
+@end verbatim
+
+@heading Examples
+@example lisp
+(#include <stdio.h> <stdlib.h> "main.h")
+@end example
+
+@node #define
+@subsection #define
+
+The @code{#define} form only addresses the most basic usage of its
+C-counterpart (@code{#define}), and can only be used to define compile time
+constants.  For anything more complex, you should rely on @code{%:#define}.
+
+@heading Grammar
+
+@verbatim
+(%define cst expr)
+@end verbatim
+
+@heading Examples
+
+@lisp
+(#define WIDTH 720)
+(#define K (+ 7 G))
+@end lisp
+
+Note: This form might be removed in a future revision.
+
+@node #if
+@subsection #if
+
+The @code{#if} directive should be thought as the equivalent of the @code{#if}
+C-preprocessor directive, and accepts a @code{constant-expression}, augmented
+by the @code{defined} builtin function like its C counterpart.  This is the
+only conditional form supported by eClisp, the other ones, such as
+@code{#ifdef}, @code{#ifndef}, @code{#elif} and @code{#endif} are either
+subsummed by @code{#if} or can be expressed as @code{macro}s.
+
+@heading Grammar
+
+@verbatim
+(#if (condition1 body1)
+     (condition2 body2)
+     (condition3 body3))
+@end verbatim
+
+The @code{condition} is a @code{constant-expression}, the @code{body} is a list
+of forms which are executed like if they were into a @code{progn}. If condition
+is @code{t}, then it is equivalent to the @code{#else} directive.
+
+@heading Examples
+
+@lisp
+(#if
+  ((defined __linux)
+   (%include <pty.h>))
+  ((|| (defined __OpenBSD__) (defined __NetBSD__) (defined __APPLE__))
+   (%include <util.h>))
+  ((|| (defined __FreeBSD__) (defined __DragonFly__))
+   (%include <libutils.h>))
+  (t (%error Unsupported system))
+@end lisp
+
+@node %comment
+@subsection  %comment
+
+@code{%comment} is mostly an internal form, and can be used to produce a
+comment in the C code that is emitted.  However, the same effect can be
+achieved by regular comments prefixed by @code{;}.
+
+@heading Grammar
+
+@verbatim
+(%comment "string")
+@end verbatim
+
+@heading Examples
+
+@lisp
+(%comment " This is a comment.")
+@end lisp
+
+@node #line (unimplemented)
+@subsection #line (unimplemented)
+
+@node #pragma (unimplemented)
+@subsection #pragma (unimplemented)
+
+@node #error (unimplemented)
+@subsection #error (unimplemented)
+
+@node #warning (unimplemented)
+@subsection #warning (unimplemented)
+
+@node break
+@subsection break
+
+The @code{break} statement works exactly like its C counterpart and share the
+same syntax.  It can appear in looping constructs (@code{for}, @code{while},
+@code{do-while}) to break out of the loop; or it can appear in @code{switch}
+statements to break out of the @code{switch} and avoid unwanted fall-through.
+
+@heading Grammar
+@verbatim
+(break)
+@end verbatim
+
+@heading Example
+@example
+(while true
+  (if exit (break)))
+@end example
+
+@node continue
+@subsection continue
+
+The @code{continue} statement works exactly like its C counterpart and share the
+same syntax.  It can appear in looping constructs (@code{for}, @code{while},
+@code{do-while}) to skip the rest of the content of the loop, and wind back to
+the first statement of the loop.
+
+@heading Grammar
+@verbatim
+(continue)
+@end verbatim
+
+@heading Example
+@example
+(while true
+  (if skip (continue)))
+@end example
+
+@node cast
+@subsection cast
+
+The @code{cast} form is the equivalent of a C cast.
+
+@heading Grammar
+@verbatim
+(cast type1 ... typen expression)
+@end verbatim
+
+@heading Examples
+@lisp
+(cast (ptr void) var)
+(cast uint64_t uintptr_t (ptr void) var)
+@end lisp
+
+@lisp
+(cast (struct something) '(.field1 val1 .field2 val2))
+@end lisp
+
+@node def
+@subsection def
+
+@code{def} is probably eClisp's most versatile form.  Its syntax, the order of
+its arguments, which arguments are optional and which are not highly depend of
+what you are defining.  This form can produce both C declarations (when no
+initializer are present) or definitions (when an initializer is present).
+
+@heading Grammar
+
+@code{def} usage can be split in two cases. When @code{type} is a function type
+and when it is not, in the following grammar @code{type} is a non-function
+type, and @code{fntype} is a function type. The @code{documentation} is always
+optional.  However, when the initializer is a string, it is not possible to
+guess which is the initializer and which is the documentation and in that case
+only both should always be provided.
+
+@verbatim
+(def name type initializer documentation)
+(def name type documentation)
+(def type documentation)
+
+(def name fntype)
+(def name fntype documentation)
+(def name fntype documentation initializer)
+@end verbatim
+
+Note: The forms @code{(def type documentation)} and
+@code{(def name type documentation)} are ambiguous.  The form with the name
+omitted can only be selected if the type begins with a reserved C keyword.
+
+@heading Examples
+
+@lisp
+;; Define a structure, `name' and `initializer' are absent.
+(def (struct tetromino
+             (center (struct point)
+                     "The center of the tetromino.")
+             (blocks (array 4 (struct point))
+                     "The 4 elements of the tetromino.")
+             (typ    (enum tm_type)
+                     "The shape (and color) of the tetromino."))
+  "This holds the rotation center and the different elements of a
+tetromino.")
+@end lisp
+
+@lisp
+;; Define an array and initialize it.
+(def colors (array TM_LAST SDL_Color) 
+  '(:TM_NONE (150 150 150 255)  :TM_L (255 165 0   255)
+    :TM_J    (0   0   255 255)  :TM_T (170 0   255 255)
+    :TM_I    (0   255 255 255)  :TM_O (255 255 0   255)
+    :TM_S    (0   255 0   255)  :TM_Z (255 0   0   255))
+  "Assocation table between each tetromino and its color.")
+@end lisp
+
+@lisp
+;; A function declaration
+(def foo (-> int int))
+
+;; Another function declaration
+(def add (-> int (a b int))
+
+;; A very simple main function
+(def main (-> int void)
+  (return 0))
+@end lisp
+
+If you want to define a function with nothing in it. You should use the
+@code{seq} form with no parameters.  This will produce an empty statement.
+
+@lisp
+(def main (-> int void) (seq))
+@end lisp
+@node seq
+@subsection seq
+
+@code{seq} is the equivalent of the comma (@code{,}) operator, and allow to chain multiple statements.
+
+@heading Grammar
+
+@verbatim
+(seq statement-list)
+@end verbatim
+
+The statement list may be empty.  In that case, it will produce an empty statement.
+
+@heading Example
+
+@lisp
+(seq)
+
+(seq (= a 1) (= b 1))
+
+(for (seq) (>= i 0) (-= i 1) ...)
+@end lisp
+
+@node list
+@subsection list
+
+@code{list} is used to create C lists.  Special tokens preceded by `:' or `.'
+can be used to produce field-initializers within the list.
+
+@heading Grammar
+
+@verbatim
+(list values)
+@end verbatim
+
+@heading Examples
+
+@lisp
+(list 1 2 3) ;; @{ 1, 2, 3 @}
+(list 1 2 3 (list (+ 4 5))) ;; @{ 1, 2, 3 @{ (4 + 5) @} @}
+(list :A 1 :B 2) ;; @{ [A] = 1, [B] = 2, [C] = 3 @}
+(list :(+ CST_1 CST_2) 1 .field1 val1) ;; @{ [CST_1 + CST2] = 1, .field1 = val1 @}
+@end lisp
+
+Note: When used in a macro, @code{list} behaves like its lisp counterpart and does not allow special tokens.
+
+@node progn
+@subsection progn
+
+@code{progn} is the equivalent of opening a block with a pair of braces
+(@code{@{},@code{@}}).  This form is mostly needed by the @code{if} form, since
+the other loop control constructs such as @code{for}, @code{while} and
+@code{do-while} have an implicit @code{progn} around their bodies.
+
+@code{progn} can also be used even outside functions, which is great for macros
+generating multiple function declarations/definitions.  In that case, it groups
+everything but no curly braces will be outputed to the C file.
+
+Note: Top-level @code{progn} forms are handled a bit differently, and printed without braces.
+A current limitation is that all @code{progn}s will be expanded with braces within functions.
+
+@heading Grammar
+
+@verbatim
+(progn form-1 form-2 ... form-n)
+@end verbatim
+
+@heading Example
+
+@lisp
+(if cond
+  (progn
+    form-1 form-2 ... form-n)
+  (progn
+    form-1' form-2' ... form-m))
+@end lisp
+
+@node addr
+@subsection addr
+
+@code{addr} is used to take the address of a variable, much like the @code{&} operator does in C.
+
+@heading Grammar
+
+@verbatim
+(addr expr)
+@end verbatim
+
+@heading Example
+
+@lisp
+(addr a)
+(addr (aref table i))
+@end lisp
+
+@node deref
+@subsection deref
+
+@code{deref} is used to dereference a variable, much like the @code{*} operator does in C.
+
+@heading Grammar
+
+@verbatim
+(deref expr)
+@end verbatim
+
+@heading Example
+
+@lisp
+(deref a)
+@end lisp
+
+@node arrow (->)
+@subsection arrow (->)
+
+The arrow @code{->} does the same thing as its C counterpart: accessing the
+field from a pointer to structure.  Unlike in C, it acts as an n-ary operator.
+
+@heading Grammar
+
+@verbatim
+(-> field-list)
+@end verbatim
+
+@heading Examples
+
+@lisp
+(-> a b)   ;; a->b
+(-> a b c) ;; a->b->c
+@end lisp
+
+@node dot (.)
+@subsection dot (.)
+
+The dot @code{.} does the same thing as its C counterpart: accessing the
+field from a structure.  Unlike in C, it acts as an n-ary operator.
+
+@heading Grammar
+
+@verbatim
+(. field-list)
+@end verbatim
+
+@heading Examples
+
+@lisp
+(. a b)   ;; a.b
+(. a b c) ;; a.b.c
+@end lisp
+
+@node aref
+@subsection aref
+
+@code{aref} takes the value at some index from an array, much like `@code{[]}'
+does in C.  In fact, as it directly translate to the C `@code{[]}' operator, it
+shares its symetric property.
+
+@heading Grammar
+
+@verbatim
+(aref array idx1 idx2 ... idxn)
+@end verbatim
+
+@heading Example
+
+@lisp
+(aref table (+ i j))
+(aref table i j k)
+@end lisp
+
+@node if
+@subsection if
+
+The @code{if} form is the equivalent of the @code{if}/@code{else} of C.
+
+@heading Grammar
+
+@verbatim
+(if condition then-branch else-branch)
+@end verbatim
+
+@heading Examples
+
+@lisp
+(if (<= 0 i (- size 1))
+    (progn
+      (puts "This is within the bounds")
+      (return 0))
+    (progn 
+      (puts "This is out-of-bounds")
+      (return -1)))
+@end lisp
+
+@node ?:
+@subsection ?:
+
+The @code{?:} form introduce a conditional expression, and is equivalent to a C's ternary expressions.
+
+@heading Grammar
+
+@verbatim
+(?: cond then else)
+@end verbatim
+
+@heading Example
+
+@lisp
+(?: (< x max) max x)
+@end lisp
+
+@node label
+@subsection label
+
+The form @code{label} introduce a label.
+
+@heading Grammar
+
+@verbatim
+(label label-name)
+@end verbatim
+
+@heading Example
+
+@lisp
+(label exit)
+@end lisp
+
+@node goto
+@subsection goto
+
+The form @code{goto} jumps to the designed label.
+
+@heading Grammar
+
+@verbatim
+(goto label-name)
+@end verbatim
+
+@heading Example
+
+@lisp
+(goto exit)
+@end lisp
+
+@node for
+@subsection for
+
+The form @code{for} introduces a `for' loop as its C counter-part.  The `body'
+is implicitely surrounded by a `progn'.
+
+@heading Grammar
+
+@verbatim
+(for init-form cond-form update-form
+  body)
+@end verbatim
+
+@heading Example
+
+@node do-while
+@subsection do-while
+
+@heading Grammar
+
+@verbatim
+(do-while cond
+  body)
+@end verbatim
+
+@heading Example
+
+@node while
+@subsection while
+
+@heading Grammar
+
+@verbatim
+(while cond
+  body)
+@end verbatim
+
+@heading Example
+
+@node switch
+@subsection switch
+
+@heading Grammar
+
+@verbatim
+(switch expression
+   (label0 body0)
+   (label1 body1)
+   ((label2 label3) body23)
+   (((expression)) body))
+   (((expression1) (expression2)) body)
+@end verbatim
+
+@heading Example
+
+@node return
+@subsection return
+
+@heading Grammar
+
+@verbatim
+(return return-value)
+@end verbatim
+
+@heading Example
+
+@node %type
+@subsection %type
+
+Enclosing a form inside @code{%type} informs the printer that it should
+consider the content of the form to be a type.
+
+@heading Grammar
+
+@verbatim
+(%type type)
+@end verbatim
+
+@heading Example
+
+@lisp
+(sizeof (%type (struct file_descriptor)))
+@end lisp
+
+@node %funcall
+@subsection %funcall
+
+The sole purpose of @code{funcall} is to allow the use of function with the
+same name as a recursive macro.  Indeed, if @code{f} is a recursive macro, each
+time it appears in function position it will trigger a macro-expansion pass,
+but @code{(funcall f args)} will not.
+
+@verbatim
+(%funcall 'function-name arg-1 arg-2 ... arg-n)
+@end verbatim
+
+@lisp
+;; Overload the C-macro va_arg with an eClisp macro of the same name,
+;; and force the second argument to be printed as a type.
+;; If we did not use %funcall, the macro would try to expand itself
+;; recursively ad infinitum.
+(macro va_arg (ap type) (%funcall 'va_arg ap (%type type)))
+@end lisp
+
+@node quote
+@subsection quote
+
+The quote (@code{'}) reader macro prevents the evaluation of its argument. When
+used with a list, it creates a C list, with the same enhancements as the
+@code{list} form.
+
+@heading Grammar
+
+@verbatim
+'( ... )
+@end verbatim
+
+@heading Example
+
+The following example draws attention on the fact that integer constants
+preceded by @code{:}, and identifiers preceded by @code{.} may be used
+within a quoted C-list.  However, it is not possible to use constant
+expressions preceded by @code{:}, for this purpose we need to use
+backquote (@xref{backquote}.)
+
+@lisp
+(def configs (array TM_LAST (struct tetromino))
+  '(:TM_I (.center (5 2) .blocks ((5 0) (5 1) (5 2) (5 3)) .typ TM_I)
+    :TM_J (.center (4 1) .blocks ((5 0) (5 1) (5 2) (4 2)) .typ TM_J)
+    :TM_L (.center (6 1) .blocks ((5 0) (5 1) (5 2) (6 2)) .typ TM_L)
+    :TM_O (.center (5 1) .blocks ((5 0) (5 1) (6 0) (6 1)) .typ TM_O)
+    :TM_S (.center (5 1) .blocks ((5 0) (5 1) (6 0) (4 1)) .typ TM_S)
+    :TM_T (.center (5 1) .blocks ((5 0) (5 1) (6 1) (4 1)) .typ TM_T)
+    :TM_Z (.center (5 1) .blocks ((5 0) (5 1) (6 1) (4 0)) .typ TM_Z))
+  "An array with the inital configurations for each tetromino.")
+@end lisp
+
+@node backquote
+@subsection backquote
+
+Backquote works the same as quote (@code{'}) except that it allows the
+operator comma (@code{,}) to enable evaluation in a disabled context.  Within
+C-list, its main purpose is to be able to use the full power of @code{:} or
+to use a constant expression.
+
+@heading Grammar
+
+@verbatim
+`( ... ,(...) ... )
+@end verbatim
+
+@heading Example
+
+@lisp
+;; When eClisp is used as a transpiler a block of characters without spaces
+;; is considered as a single symbol.  Hence, you can directly use C syntax
+;; without the need for the `->', `.' and `aref' forms.  However, as soon as
+;; you need a space, you will need them.
+(def rect (SDL_Rect) `(,(+ 50 (* 20 tetro->blocks[i].x)
+                       ,(+ 40 (* 20 tetro->blocks[i].y)
+                        20 20))
+@end lisp
+
+@lisp
+(def arr (array int) `(:,(+ a (* b c)) 1))
+@end lisp
+
+@node macro
+@subsection macro
+
+@heading Grammar
+
+@verbatim
+(macro name lambda-list body)
+@end verbatim
+
+@heading Example
+
+@node macrofn
+@subsection macrofn
+
+@heading Grammar
+
+@verbatim
+(macrofn name lambda-list body)
+@end verbatim
+
+@heading Example
+
+@node macrolet
+@subsection macrolet
+
+@heading Grammar
+
+@verbatim
+(macrolet ((name-1 lambda-list-1 body-1)
+           (name-2 lambda-list-2 body-2)
+           ...)
+  body)
+@end verbatim
+
+@heading Example
+
+@node Symbols in macros
+@section Symbols in macros
+
+@node quote-macro
+@subsection quote
+
+The reader-macro quote (@code{'}) works exactly like its Common Lisp counterpart.
+
+@node backquote-macro
+@subsection backquote
+
+The reader-macro backquote (@code{`}) works exactly like its Common Lisp counterpart.
+
+@node symbolp
+@subsection symbolp
+
+The @code{symbolp} function is only available in macros and works exactly like its Common Lisp counterpart.
+
+@node listp
+@subsection listp
+
+The @code{symbolp} function is only available in macros and works exactly like its Common Lisp counterpart.
+
+@node car
+@subsection car
+
+The @code{car} function is only available in macros and works exactly like its Common Lisp counterpart.
+
+@node cdr
+@subsection cdr
+
+The @code{cdr} function is only available in macros and works exactly like its Common Lisp counterpart.
+
+@node null
+@subsection null
+
+The @code{null} function is only available in macros and works exactly like its Common Lisp counterpart.
+
+@node consp
+@subsection consp
+
+The @code{consp} function is only available in macros and works exactly like its Common Lisp counterpart.
+
+@node stringp
+@subsection stringp
+
+The @code{stringp} function is only available in macros and works exactly like its Common Lisp counterpart.
+
+@node length
+@subsection length
+
+The @code{length} function is only available in macros and works exactly like its Common Lisp counterpart.
+
+@node aref (unimplemented)
+@subsection aref (unimplemented)
+
+@node numberp
+@subsection numberp
+
+The @code{numberp} function is only available in macros and works exactly like its Common Lisp counterpart.
+
+@node concat
+@subsection concat
+
+The @code{concat} function is only available in macros and can either
+concatenate strings or symbols, into strings or symbols.
+
+@heading Grammar
+
+@verbatim
+(concat 'string arg-1 arg-2 ... arg-n)
+(concat 'symbol arg-1 arg-2 ... arg-n)
+@end verbatim
+
+@node if-quote
+@subsection if
+
+The @code{if} special form is only available in macros and works exactly
+like its Common Lisp counterpart.
+
+@node gensym
+@subsection gensym
+
+The @code{gensym} function is only available in macros and provides unique names.
+
+Nota: Currently the underlying mechanism is not really robust, and you could end
+up with duplicate names if you try hard enough.
+
+@node let
+@subsection let
+
+The @code{let} special form is only available in macros and works exactly
+like its Common Lisp counterpart.
+
+@node Operators
+@subsection Operators
+
+< > <= >= > == != && || + - *  % ^ | & ~ << >>
+
+@node Equivalence with C grammar
+@chapter Equivalence with C grammar
+
+@node Keywords
+@section Keywords
+
+@verbatim
+auto                       extern                    short                      while
+break                      float                     signed                     _Alignas
+case                       for                       sizeof                     _Alignof
+char                       goto                      static                     _Atomic
+const                      if                        struct                     _Bool
+continue                   inline                    switch                     _Complex
+default                    int                       typedef                    _Generic
+do                         long                      union                      _Imaginary
+double                     register                  unsigned                   _Noreturn
+else                       restrict                  void                       _Static_assert
+enum                       return                    volatile                   _Thread_local
+@end verbatim
+
+From this list, the following keywords are currently unsupported:
+
+@itemize @bullet
+@item
+else, as it is implied by the if-form.
+@item
+auto, as it is mostly unused; and will be repurposed in C23.  It will be
+supported with it's C23 semantics in a newer version, but if possible should
+not require a C23 implementation.
+@item
+inline.
+@item
+restrict.
+@item
+_Alignas, _Alignof, _Atomic, _Bool, _Complex, _Generic, _Imaginary, _Noreturn, _Static_assert, _Thread_local.
+Those are currently unsupported.
+@end itemize
+
+@node Constants
+@section Constants
+
+@verbatim
+constant:
+
+    integer-constant
+    floating-constant
+    enumeration-constant
+    character-constant
+@end verbatim
+
+Note: Suffixes, such as f, u, ull are currently unsupported, but can be achieved by using verbatim code.
+
+@lisp
+(def var (float) (%:0.6f))
+@end lisp
+
+@node Preprocessor
+@section Preproccessor
+
+@verbatim
+#include "header"
+#include <header>
+#define
+#ifndef
+#ifdef
+#endif
+defined
+@end verbatim
+
+@node Comments
+@section Comments
+
+@node Expressions
+@section Expressions
+
+@verbatim
+primary-expression:
+
+    identifier
+    constant
+    string-literal
+    ( expression )
+    generic-selection
+
+generic-selection:
+
+    _Generic ( assignment-expression , generic-assoc-list )
+  
+
+generic-assoc-list:
+
+    generic-association
+    generic-assoc-list , generic-association
+  
+
+generic-association:
+
+    type-name : assignment-expression
+    default : assignment-expression
+
+There is no plan to add support for generic-selection.
+
+postfix-expression:
+
+    primary-expression
+    postfix-expression [ expression ]
+    postfix-expression ( argument-expression-listopt )
+    postfix-expression . identifier
+    postfix-expression -> identifier
+    postfix-expression ++
+    postfix-expression -
+    ( type-name ) @{ initializer-list @}
+    ( type-name ) @{ initializer-list , @}
+  
+
+argument-expression-list:
+
+    assignment-expression
+    argument-expression-list , assignment-expression
+
+unary-expression:
+
+    postfix-expression
+    ++ unary-expression
+    - unary-expression
+    unary-operator cast-expression
+    sizeof unary-expression
+    sizeof ( type-name )
+    _Alignof ( type-name )
+  
+
+unary-operator: one of
+
+    &    *   +    - ˜ !
+
+cast-expression:
+
+    unary-expression
+    ( type-name ) cast-expression
+
+multiplicative-expression:
+
+    cast-expression
+    multiplicative-expression * cast-expression
+    multiplicative-expression / cast-expression
+    multiplicative-expression % cast-expression
+
+additive-expression:
+
+    multiplicative-expression
+    additive-expression + multiplicative-expression
+    additive-expression - multiplicative-expression
+
+shift-expression:
+
+    additive-expression
+    shift-expression « additive-expression
+    shift-expression » additive-expression
+
+relational-expression:
+
+    shift-expression
+    relational-expression < shift-expression
+    relational-expression > shift-expression
+    relational-expression <= shift-expression
+    relational-expression >= shift-expression
+
+equality-expression:
+
+    relational-expression
+    equality-expression == relational-expression
+    equality-expression != relational-expression
+
+AND-expression:
+
+    equality-expression
+    AND-expression & equality-expression
+
+exclusive-OR-expression:
+
+    AND-expression
+    exclusive-OR-expression ^ AND-expression
+
+inclusive-OR-expression:
+
+    exclusive-OR-expression
+    inclusive-OR-expression | exclusive-OR-expression
+
+logical-AND-expression:
+
+    inclusive-OR-expression
+    logical-AND-expression && inclusive-OR-expression
+
+logical-OR-expression:
+
+    logical-AND-expression
+    logical-OR-expression || logical-AND-expression
+
+conditional-expression:
+
+    logical-OR-expression
+    logical-OR-expression ? expression : conditional-expression
+
+assignment-expression:
+
+    conditional-expression
+    unary-expression assignment-operator assignment-expression
+  
+
+assignment-operator: one of
+
+    =    *=    /=     %=    +=    -=     <<=     >>=     &=     ^=    |=
+
+expression:
+
+    assignment-expression
+    expression , assignment-expression
+
+constant-expression:
+
+    conditional-expression
+
+declaration:
+
+    declaration-specifiers init-declarator-listopt ;
+    static_assert-declaration
+  
+
+declaration-specifiers:
+
+    storage-class-specifier declaration-specifiersopt
+    type-specifier declaration-specifiersopt
+    type-qualifier declaration-specifiersopt
+    function-specifier declaration-specifiersopt
+    alignment-specifier declaration-specifiersopt
+  
+
+init-declarator-list:
+
+    init-declarator
+    init-declarator-list , init-declarator
+  
+
+init-declarator:
+
+    declarator
+    declarator = initializer
+
+storage-class-specifier:
+
+    typedef
+    extern
+    static
+    _Thread_local
+    auto
+    register
+
+type-specifier:
+
+    void
+    char
+    short
+    int
+    long
+    float
+    double
+    signed
+    unsigned
+    _Bool
+    _Complex
+    atomic-type-specifier
+    struct-or-union-specifier
+    enum-specifier
+    typedef-name
+
+struct-or-union-specifier:
+
+    struct-or-union identifieropt @{ struct-declaration-list @}
+    struct-or-union identifier
+  
+
+struct-or-union:
+
+    struct
+    union
+  
+
+struct-declaration-list:
+
+    struct-declaration
+    struct-declaration-list struct-declaration
+  
+
+struct-declaration:
+
+    specifier-qualifier-list struct-declarator-listopt ;
+    static_assert-declaration
+  
+
+specifier-qualifier-list:
+
+    type-specifier specifier-qualifier-listopt
+    type-qualifier specifier-qualifier-listopt
+    alignment-specifier specifier-qualifier-listopt
+  
+
+struct-declarator-list:
+
+    struct-declarator
+    struct-declarator-list , struct-declarator
+  
+
+struct-declarator:
+
+    declarator
+    declaratoropt : constant-expression
+
+Note, the second form, which describes bitfield is currently not supported.
+
+enum-specifier:
+
+    enum identifieropt @{ enumerator-list @}
+    enum identifieropt @{ enumerator-list , @}
+    enum identifier
+  
+
+enumerator-list:
+
+    enumerator
+    enumerator-list , enumerator
+  
+
+enumerator:
+
+    enumeration-constant
+    enumeration-constant = constant-expression
+
+atomic-type-specifier:
+
+    _Atomic ( type-name )
+
+type-qualifier:
+
+    const
+    restrict
+    volatile
+    _Atomic
+
+function-specifier:
+
+    inline
+    _Noreturn
+
+alignment-specifier:
+
+    _Alignas ( type-name )
+    _Alignas ( constant-expression )
+
+declarator:
+
+    pointeropt direct-declarator
+  
+
+direct-declarator:
+
+    identifier
+    ( declarator )
+    direct-declarator [ type-qualifier-listopt assignment-expressionopt ]
+    direct-declarator [ static type-qualifier-listopt assignment-expression ]
+    direct-declarator [ type-qualifier-list static assignment-expression ]
+    direct-declarator [ type-qualifier-listopt * ]
+    direct-declarator ( parameter-type-list )
+    direct-declarator ( identifier-listopt )
+  
+
+pointer:
+
+    * type-qualifier-listopt
+    * type-qualifier-listopt pointer
+  
+
+type-qualifier-list:
+
+    type-qualifier
+    type-qualifier-list type-qualifier
+  
+
+parameter-type-list:
+
+    parameter-list
+    parameter-list , ...
+  
+
+parameter-list:
+
+    parameter-declaration
+    parameter-list , parameter-declaration
+  
+
+parameter-declaration:
+
+    declaration-specifiers declarator
+    declaration-specifiers abstract-declaratoropt
+  
+
+identifier-list:
+
+    identifier
+    identifier-list , identifier
+
+type-name:
+
+    specifier-qualifier-list abstract-declaratoropt
+  
+
+abstract-declarator:
+
+    pointer
+    pointeropt direct-abstract-declarator
+  
+
+direct-abstract-declarator:
+
+    ( abstract-declarator )
+    direct-abstract-declaratoropt [ type-qualifier-listopt
+                          assignment-expressionopt ]
+    direct-abstract-declaratoropt [ static type-qualifier-listopt
+                          assignment-expression ]
+    direct-abstract-declaratoropt [ type-qualifier-list static
+                          assignment-expression ]
+    direct-abstract-declaratoropt [ * ]
+    direct-abstract-declaratoropt ( parameter-type-listopt )
+
+typedef-name:
+
+    identifier
+
+initializer:
+
+    assignment-expression
+    @{ initializer-list @}
+    @{ initializer-list , @}
+  
+
+initializer-list:
+
+    designationopt initializer
+    initializer-list , designationopt initializer
+  
+
+designation:
+
+    designator-list =
+  
+
+designator-list:
+
+    designator
+    designator-list designator
+  
+
+designator:
+
+    [ constant-expression ]
+    . identifier
+
+static_assert-declaration:
+
+    _Static_assert ( constant-expression , string-literal ) ;
+
+statement:
+
+    labeled-statement
+    compound-statement
+    expression-statement
+    selection-statement
+    iteration-statement
+    jump-statement
+
+labeled-statement:
+
+    identifier : statement
+    case constant-expression : statement
+    default : statement
+
+compound-statement:
+
+    @{ block-item-listopt @}
+  
+
+block-item-list:
+
+    block-item
+    block-item-list block-item
+  
+
+block-item:
+
+    declaration
+    statement
+
+expression-statement:
+
+    expressionopt ;
+
+selection-statement:
+
+    if ( expression ) statement
+    if ( expression ) statement else statement
+    switch ( expression ) statement
+
+iteration-statement:
+
+    while ( expression ) statement
+    do statement while ( expression ) ;
+    for ( expressionopt ; expressionopt ; expressionopt ) statement
+    for ( declaration expressionopt ; expressionopt ) statement
+
+jump-statement:
+
+    goto identifier ;
+    continue ;
+    break ;
+    return expressionopt ;
+
+translation-unit:
+
+    external-declaration
+    translation-unit external-declaration
+  
+
+external-declaration:
+
+    function-definition
+    declaration
+
+function-definition:
+
+    declaration-specifiers declarator declaration-listopt compound-statement
+  
+
+declaration-list:
+
+    declaration
+    declaration-list declaration
+
+preprocessing-file:
+
+    groupopt
+  
+
+group:
+
+    group-part
+    group group-part
+  
+
+group-part:
+
+    if-section
+    control-line
+    text-line
+    # non-directive
+  
+
+if-section:
+
+    if-group elif-groupsopt else-groupopt endif-line
+  
+
+if-group:
+
+    # if constant-expression new-line groupopt
+    # ifdef identifier new-line groupopt
+    # ifndef identifier new-line groupopt
+  
+
+elif-groups:
+
+    elif-group
+    elif-groups elif-group
+  
+
+elif-group:
+
+    # elif constant-expression new-line groupopt
+  
+
+else-group:
+
+    # else new-line groupopt
+  
+
+endif-line:
+
+    # endif new-line
+  
+
+control-line:
+
+    # include pp-tokens new-line
+    # define identifier replacement-list new-line
+    # define identifier lparen identifier-listopt )
+                                                       replacement-list new-line
+    # define identifier lparen ... ) replacement-list new-line
+    # define identifier lparen identifier-list , ... )
+                                                       replacement-list new-line
+    # undef identifier new-line
+    # line pp-tokens new-line
+    # error pp-tokensopt new-line
+    # pragma pp-tokensopt new-line
+    # new-line
+  
+
+text-line:
+
+    pp-tokensopt new-line
+  
+
+non-directive:
+
+    pp-tokens new-line
+  
+
+lparen:
+
+    a ( character not immediately preceded by white-space
+  
+
+replacement-list:
+
+    pp-tokensopt
+  
+
+pp-tokens:
+
+    preprocessing-token
+    pp-tokens preprocessing-token
+  
+
+new-line:
+
+    the new-line character
+@end verbatim
+
+@node Index
+@unnumbered Index
+
+@printindex cp
+
+@bye
