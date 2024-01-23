@@ -18,6 +18,11 @@ switch (a)
     {
       return getchar ();
     }
+  case 6:
+    {
+      i = 1;
+      break;
+    }
   default:
     {
       return (getchar () + getchar ());

@@ -3,4 +3,5 @@
   ((2 3) (return 5))
   (4 (return (+ 4 3)))
   ((5 default) (return (getchar)))
+  (6 (= i 1) (break))
   (default (return (+ (getchar) (getchar)))))

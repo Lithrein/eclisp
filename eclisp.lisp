@@ -9,10 +9,12 @@
   "A global variable with the currently defined macrofns, this are functions
 which operates directly on the AST.")
 
-(defun compile-cpp-include (include-forms indent to-stream)
+(defun print-cpp-include (include-forms stmtp indent to-stream)
   "Compile an include directive: (%include header-list)
 where header-list is a list of header names either enclosed in double-quotes
 or in angle-brackets."
+  (declare (ignore stmtp))
+  (pop include-forms)
   (loop for filename in include-forms do
         (format to-stream "~v@{~C~:*~}" indent #\Space)
         (format to-stream
@@ -20,59 +22,67 @@ or in angle-brackets."
                       (t "#include \"~a\"~%"))
                 filename)))
 
-(defun compile-cpp-define (form indent to-stream)
+(defun print-cpp-define (form stmtp indent to-stream)
   "Compile a define directive: %(define name substitution) and write it
 to TO-STREAM. FORM is a cons made of NAME and SUBSTITUTION.
 NAME and SUBSTITUTION are both strings and should enclosed in double-quotes.
 NAME can contain parenthesis just like a C macro does, i.e., no spaces before
 the parenthesis.  SUBSTITUTION should be valid C code."
+  (declare (ignore stmtp))
+  (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "#define ~{~a~^ ~}~%" form))
 
-(defun compile-verbatim (form stmtp to-stream)
+(defun print-verbatim (form stmtp indent to-stream)
+  (declare (ignore indent))
+  (pop form)
   (format to-stream "~a" (car form))
   (when stmtp (format to-stream "~%")))
 
-(defun compile-arith-binop (form indent to-stream &optional (cpp nil))
+(defun compile-verbatim (form) form)
+
+(defun print-arith-binop (form stmtp indent to-stream &optional (cpp nil))
   "Compile a FORM beginning with an arithmetic operator (+ - * / % ^ | || & &&
 ~ << >>) into a valid C expression and write it on TO-STREAM.
 The CPP parameter enable C Preprocessor mode, restricting what can appear in
 the expression."
-  (let ((compile-proxy (if cpp #'compile-cpp-cond-expr #'compile-form)))
+  (let ((print-proxy (if cpp #'print-cpp-cond-expr #'print-form)))
     (destructuring-bind (op &rest args) form
       (format to-stream "~v@{~C~:*~}" indent #\Space)
       (format to-stream "(")
       (if (cdr args)
           (do ((cur args (cdr cur)))
               ((not cur))
-            (funcall compile-proxy (car cur) nil 0 to-stream)
+            (funcall print-proxy (car cur) nil 0 to-stream)
             (when (cdr cur)
               (format to-stream " ~a " op)))
           (progn
             (format to-stream "~a " op)
-            (funcall compile-proxy (car args) nil 0 to-stream)))
-      (format to-stream ")"))))
+            (funcall print-proxy (car args) nil 0 to-stream)))
+      (format to-stream ")")))
+  (when stmtp (format to-stream ";~%")))
 
-(defun compile-cmp-op (form indent to-stream &optional (cpp nil))
+(defun print-cmp-op (form stmtp indent to-stream &optional (cpp nil))
   "Compile a FORM beginning with a compare operator (< > <= >= > ==) into a valid
 C expression and write it on TO-STREAM.
 The CPP parameter enable C Preprocessor mode, restricting what can appear in
 the expression."
-  (let ((compile-proxy (if cpp #'compile-cpp-cond-expr #'compile-form)))
+  (declare (ignore stmtp))
+  (let ((print-proxy (if cpp #'print-cpp-cond-expr #'print-form)))
     (destructuring-bind (op &rest args) form
       (format to-stream "(")
       (do ((cur args (cdr cur)))
           ((not (cdr cur)))
         (format to-stream "(")
-        (funcall compile-proxy (car cur) nil indent to-stream)
+        (funcall print-proxy (car cur) nil indent to-stream)
         (format to-stream " ~a " op)
-        (funcall compile-proxy (cadr cur) nil indent to-stream)
+        (funcall print-proxy (cadr cur) nil indent to-stream)
         (format to-stream ")")
         (when (cddr cur)
           (format to-stream " && ")))
       (format to-stream ")"))))
 
-(defun compile-cpp-cond-expr (form stmtp indent to-stream)
+(defun print-cpp-cond-expr (form stmtp indent to-stream)
   "Compile a preprocessor condition FORM, i.e.,  one that may appear after
 #if and #elif, and write it on TO-STREAM."
   (declare (ignore indent))
@@ -83,13 +93,13 @@ the expression."
           ((string= "defined" op)
            (format to-stream "defined~a" args))
           ((member (string op) '("<" ">" "<=" ">=" ">" "==") :test #'equal)
-           (compile-cmp-op form indent to-stream t))
+           (print-cmp-op form stmtp indent to-stream t))
           ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "||" "&" "&&" "~" "<<" ">>")
                    :test #'equal)
-           (compile-arith-binop form 0 to-stream t))))
+           (print-arith-binop form stmtp 0 to-stream t))))
       (format to-stream "~a" form)))
 
-(defun compile-cond-expr (form indent to-stream)
+(defun print-cond-expr (form stmtp indent to-stream)
   "Compile a condition FORM, i.e.,  one that may appear after
 and if, and write it on TO-STREAM."
   (declare (ignore indent))
@@ -97,14 +107,15 @@ and if, and write it on TO-STREAM."
       (destructuring-bind (op &rest args) form
         (cond
           ((member (string op) '("<" ">" "<=" ">=" ">" "==" "!=") :test #'equal)
-           (compile-cmp-op form indent to-stream))
+           (print-cmp-op form stmtp indent to-stream))
           ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "||" "&" "&&" "~" "<<" ">>")
                    :test #'equal)
-           (compile-arith-binop form 0 to-stream))))
+           (print-arith-binop form stmtp 0 to-stream))))
       (format to-stream "~a" form)))
 
-(defun compile-cpp-if (form indent to-stream)
+(defun print-cpp-if (form stmtp indent to-stream)
   "Compile a if preprocessor directive FORM and write it on TO-STREAM"
+  (pop form)
   (do ((cur form (cdr cur))
        (first t nil))
       ((not cur))
@@ -115,11 +126,21 @@ and if, and write it on TO-STREAM."
           (format to-stream (if (and (symbolp cond) (string= cond "t"))
                                 "~%~v@{~C~:*~}#else" "~%~v@{~C~:*~}#elif ")
                   indent #\Space))
-      (unless (and (symbolp cond) (string= cond "t")) (compile-cpp-cond-expr cond nil 0 to-stream))
+      (unless (and (symbolp cond) (string= cond "t")) (print-cpp-cond-expr cond nil 0 to-stream))
       (format to-stream "~%")
       (loop for b in body do
-            (compile-form b nil (+ 2 indent) to-stream))))
+            (print-form b nil (+ 2 indent) to-stream))))
   (format to-stream "~%~v@{~C~:*~}#endif~%" indent #\Space))
+
+(defun compile-cpp-if (form)
+  "Compile a if preprocessor directive FORM and write it on TO-STREAM"
+  (let ((res))
+    (do ((cur form (cdr cur)) (first t nil))
+        ((not cur))
+      (destructuring-bind (cond &rest body) (car cur)
+        (push (list* (compile-form cond)
+                    (loop for b in body collect (compile-form b))) res)))
+    (reverse res)))
 
 (defun print-ll (l to-stream)
   "Flatten and print to TO-STREAM the list produced by PRINT-C-TYPE."
@@ -133,7 +154,7 @@ and if, and write it on TO-STREAM."
   '("auto" "break" "case" "char" "const" "continue" "default" "do" "double"
     "else" "enum" "extern" "float" "for" "goto" "if" "int" "long" "register"
     "return" "short" "signed" "sizeof" "static" "struct" "switch" "typedef"
-    "union" "unsigned" "void" "volatile" "while") )
+    "union" "unsigned" "void" "volatile" "while"))
 
 (defun group-bitfield (lst)
   (unless (null lst)
@@ -163,16 +184,16 @@ ACC should be NIL at first."
                                  ""
                                  (with-output-to-string
                                      (s)
-                                   ;; c89: (compile-cpp-cond-expr (cadr type) nil 0 s)))
-                                   (compile-form (cadr type) nil 0 s)))
+                                   ;; c89: (print-cpp-cond-expr (cadr type) nil 0 s)))
+                                   (print-form (cadr type) nil 0 s)))
                              "]")
                        (list "(" acc name ")["
                              (if (null (caddr type))
                                  ""
                                  (with-output-to-string
                                      (s)
-                                   ;; c89: (compile-cpp-cond-expr (cadr type) nil 0 s)))
-                                   (compile-form (cadr type) nil 0 s)))
+                                   ;; c89: (print-cpp-cond-expr (cadr type) nil 0 s)))
+                                   (print-form (cadr type) nil 0 s)))
                              "]"))))
     ((string= "->" (car type))
      (print-c-type ""
@@ -233,7 +254,7 @@ ACC should be NIL at first."
                                                                  ((lambda (l) (cons (cddar l) (cdr l)))
                                                                   (loop for var in (group-bitfield ntt)
                                                                         collect (list ";" #\Newline
-                                                                                      (print-c-type (if (cadr var) (format nil "~a : ~a" (car var) (with-output-to-string (s) (compile-form (cadr var) nil 0 s))) (car var)) typ nil)))))))
+                                                                                      (print-c-type (if (cadr var) (format nil "~a : ~a" (car var) (with-output-to-string (s) (print-form (cadr var) nil 0 s))) (car var)) typ nil)))))))
                                                              ((and (symbolp (car tt)) (member (string (car tt)) c-keywords :test #'string=))
                                                               (let* ((rev-tt (reverse tt))
                                                                      (documentation (when (stringp (car rev-tt)) (car rev-tt)))
@@ -259,7 +280,7 @@ ACC should be NIL at first."
                                                                          ((lambda (l) (cons (cddar l) (cdr l)))
                                                                           (loop for var in (group-bitfield ntt)
                                                                                 collect (list ";" #\Newline
-                                                                                              (print-c-type (if (cadr var) (format nil "~a : ~a" (car var) (with-output-to-string (s) (compile-form (cadr var) nil 0 s))) (car var)) typ nil)))))))
+                                                                                              (print-c-type (if (cadr var) (format nil "~a : ~a" (car var) (with-output-to-string (s) (print-form (cadr var) nil 0 s))) (car var)) typ nil)))))))
                                                                      ((and (symbolp (car tt)) (member (string (car tt)) c-keywords :test #'string=))
                                                                       (let* ((rev-tt (reverse tt))
                                                                              (documentation (when (stringp (car rev-tt)) (car rev-tt)))
@@ -286,7 +307,7 @@ ACC should be NIL at first."
                                                                  ((lambda (l) (cons (cddar l) (cdr l)))
                                                                   (loop for var in (group-bitfield ntt)
                                                                         collect (list ";" #\Newline
-                                                                                      (print-c-type (if (cadr var) (format nil "~a : ~a" (car var) (with-output-to-string (s) (compile-form (cadr var) nil 0 s))) (car var)) typ nil)))))))
+                                                                                      (print-c-type (if (cadr var) (format nil "~a : ~a" (car var) (with-output-to-string (s) (print-form (cadr var) nil 0 s))) (car var)) typ nil)))))))
                                                              ((and (symbolp (car tt)) (member (string (car tt)) c-keywords :test #'string=))
                                                               (let* ((rev-tt (reverse tt))
                                                                      (documentation (when (stringp (car rev-tt)) (car rev-tt)))
@@ -312,7 +333,7 @@ ACC should be NIL at first."
                                                                          ((lambda (l) (cons (cddar l) (cdr l)))
                                                                           (loop for var in (group-bitfield ntt)
                                                                                 collect (list ";" #\Newline
-                                                                                              (print-c-type (if (cadr var) (format nil "~a : ~a" (car var) (with-output-to-string (s) (compile-form (cadr var) nil 0 s))) (car var)) typ nil)))))))
+                                                                                              (print-c-type (if (cadr var) (format nil "~a : ~a" (car var) (with-output-to-string (s) (print-form (cadr var) nil 0 s))) (car var)) typ nil)))))))
                                                                      ((and (symbolp (car tt)) (member (string (car tt)) c-keywords :test #'string=))
                                                                       (let* ((rev-tt (reverse tt))
                                                                              (documentation (when (stringp (car rev-tt)) (car rev-tt)))
@@ -328,53 +349,36 @@ ACC should be NIL at first."
                    (if (consp (cadr type)) (cadr type) (cdr type))
                    (list "volatile " acc name)))
     ((string= "typedef" (car type))
-     (list "typedef " (print-c-type name
-                                    (if (consp (cadr type)) (cadr type) (cdr type))
-                                    acc)))
+     (list "typedef " (print-c-type name (if (consp (cadr type)) (cadr type) (cdr type)) acc)))
     ((string= "static" (car type))
-     (list "static " (print-c-type name
-                                   (if (consp (cadr type)) (cadr type) (cdr type))
-                                   acc)))
+     (list "static " (print-c-type name (if (consp (cadr type)) (cadr type) (cdr type)) acc)))
     ((string= "register" (car type))
-     (list "register " (print-c-type name
-                                     (if (consp (cadr type)) (cadr type) (cdr type))
-                                     acc)))
+     (list "register " (print-c-type name (if (consp (cadr type)) (cadr type) (cdr type)) acc)))
     ((string= "extern" (car type))
-     (list "extern " (print-c-type name
-                                   (if (consp (cadr type)) (cadr type) (cdr type))
-                                   acc)))
+     (list "extern " (print-c-type name (if (consp (cadr type)) (cadr type) (cdr type)) acc)))
     ((string= "long" (car type))
-     (list "long " (print-c-type name
-                                 (if (consp (cadr type)) (cadr type) (cdr type))
-                                 acc)))
+     (list "long " (print-c-type name (if (consp (cadr type)) (cadr type) (cdr type)) acc)))
     ((string= "short" (car type))
-     (list "short " (print-c-type name
-                                  (if (consp (cadr type)) (cadr type) (cdr type))
-                                  acc)))
+     (list "short " (print-c-type name (if (consp (cadr type)) (cadr type) (cdr type)) acc)))
     ((string= "signed" (car type))
-     (list "signed " (print-c-type name
-                                   (if (consp (cadr type)) (cadr type) (cdr type))
-                                   acc)))
+     (list "signed " (print-c-type name (if (consp (cadr type)) (cadr type) (cdr type)) acc)))
     ((string= "unsigned" (car type))
-     (list "unsigned " (print-c-type name
-                                     (if (consp (cadr type)) (cadr type) (cdr type))
-                                     acc)))
+     (list "unsigned " (print-c-type name (if (consp (cadr type)) (cadr type) (cdr type)) acc)))
     ((string= "const" (car type))
-     (print-c-type ""
-                   (if (consp (cadr type)) (cadr type) (cdr type))
-                   (list "const " acc name)))
+     (print-c-type "" (if (consp (cadr type)) (cadr type) (cdr type)) (list "const " acc name)))
     (t (list (car type) (if (null acc) nil " ") acc (if (string= name "") nil " ") name))))
 
-(defun compile-type (name type to-stream)
+(defun print-type (name type to-stream)
   "Compile TYPE and write it on TO-STREAM."
   (print-ll (print-c-type name type nil) to-stream))
 
-(defun compile-progn (form indent to-stream)
+(defun print-progn (form stmtp indent to-stream)
+  (pop form)
   (format to-stream "~v@{~C~:*~}{~%" indent #\Space)
-  (loop for f in form do (compile-form f t (+ 2 indent) to-stream))
+  (loop for f in form do (print-form f t (+ 2 indent) to-stream))
   (format to-stream "~v@{~C~:*~}}~%" indent #\Space))
 
-(defun compile-defvar (form stmtp indent to-stream)
+(defun print-defvar (form stmtp indent to-stream)
   "Compile a form which declares a global variable.
                   (def var type value documentation)"
   (let ((var nil) (type nil) (value nil) (documentation nil))
@@ -403,12 +407,61 @@ ACC should be NIL at first."
                                    (concatenate 'string '(#\Newline) "   "
                                                 (format nil "~v@{~C~:*~}" indent #\Space))))))
     (format to-stream "~v@{~C~:*~}" indent #\Space)
-    (compile-type var (if (null type) '(|int|) type) to-stream)
+    (print-type var (if (null type) '(|int|) type) to-stream)
     (when value (format to-stream " = ~a"
-                        (with-output-to-string (s) (compile-form value nil 0 s))))
+                        (with-output-to-string (s) (print-form value nil 0 s))))
     (when stmtp (format to-stream ";~%"))))
 
-(defun compile-defun (form indent to-stream)
+(defun compile-defvar (form)
+  "Compile a form which declares a global variable.
+                  (def var type value documentation)"
+  (let ((var nil) (type nil) (value nil) (documentation nil))
+    (if (consp (car form))
+        ;; no name, hence no value
+        (progn
+          (setf type (car form))
+          (setf documentation (cadr form)))
+        ;; name is present
+        (progn
+          (setf var (car form))
+          (if (consp (cadr form))
+              (progn
+                (setf type (cadr form))
+                (setf value (caddr form))
+                (setf documentation (cadddr form)))
+              (progn
+                (setf value (cadr form))
+                (setf documentation (caddr form))))))
+    (list var
+          (if (null type) '(|int|) type)
+          (when value (compile-form value))
+          documentation)))
+
+(defun print-defun (form stmtp indent to-stream)
+  "Compile a form which declares a global variable.
+                  (def f (-> rettype params) documentation body)
+BODY is optional. DOCUMENTATION is optional"
+  (let ((var nil) (type nil) (body nil) (documentation nil))
+    (setf var (car form))
+    (setf type (cadr form))
+    (setf documentation (caddr form))
+    (setf body (cdddr form))
+    (unless (null documentation)
+      (progn
+        (format to-stream "~v@{~C~:*~}" indent #\Space)
+        (format to-stream "/* ~a  */~%"
+                (regex-replace-all "\\n" documentation
+                                   (concatenate 'string '(#\Newline) "   "
+                                                (format nil "~v@{~C~:*~}" indent #\Space))))))
+    (format to-stream "~v@{~C~:*~}" indent #\Space)
+    (print-type var (if (null type) '(void) type) to-stream)
+    (when body
+      (format to-stream "~%")
+      (print-progn (list* '|progn| body) stmtp indent to-stream))
+    (when (not body)
+      (format to-stream ";~%"))))
+
+(defun compile-defun (form)
   "Compile a form which declares a global variable.
                   (def f (-> rettype params) documentation body)
 BODY is optional. DOCUMENTATION is optional"
@@ -420,22 +473,12 @@ BODY is optional. DOCUMENTATION is optional"
           (setf documentation (caddr form))
           (setf body (cdddr form)))
         (setf body (cddr form)))
-    (unless (null documentation)
-      (progn
-        (format to-stream "~v@{~C~:*~}" indent #\Space)
-        (format to-stream "/* ~a  */~%"
-                (regex-replace-all "\\n" documentation
-                                   (concatenate 'string '(#\Newline) "   "
-                                                (format nil "~v@{~C~:*~}" indent #\Space))))))
-    (format to-stream "~v@{~C~:*~}" indent #\Space)
-    (compile-type var (if (null type) '(void) type) to-stream)
-    (when body
-      (format to-stream "~%")
-      (compile-progn body indent to-stream))
-    (when (not body)
-      (format to-stream ";~%"))))
+    (list* var type documentation
+           (when body
+             (mapcar (lambda (form) (compile-form form)) body)))))
 
-(defun compile-def (form stmtp indent to-stream)
+(defun print-def (form stmtp indent to-stream)
+  (pop form)
   (let ((category nil) (var nil) (type nil))
     (if (consp (car form))
         (setf type (car form))
@@ -444,43 +487,59 @@ BODY is optional. DOCUMENTATION is optional"
           (setf var (car form))
           (when (consp (cadr form)) (setf type (cadr form)))))
     (cond ((and type (string= (car type) "->"))
-           (compile-defun form indent to-stream))
-          (t (compile-defvar form stmtp indent to-stream)))))
+           (print-defun form stmtp indent to-stream))
+          (t (print-defvar form stmtp indent to-stream)))))
 
-(defun compile-if (form indent to-stream)
+(defun compile-def (form)
+  (let ((var nil) (type nil))
+    (if (consp (car form))
+        (setf type (car form))
+        ;; name is present
+        (progn
+          (setf var (car form))
+          (when (consp (cadr form)) (setf type (cadr form)))))
+    (cond ((and type (string= (car type) "->"))
+           (compile-defun form))
+          (t (compile-defvar form)))))
+
+(defun print-if (form stmtp indent to-stream)
+  (pop form)
   (format to-stream "~v@{~C~:*~}if (" indent #\Space)
-  (compile-form (car form) nil 0 to-stream)
+  (print-form (car form) nil 0 to-stream)
   (format to-stream ")~%")
-  (compile-form (cadr form) t (+ 2 indent) to-stream)
+  (print-form (cadr form) t (+ 2 indent) to-stream)
   (unless (null (caddr form))
     (format to-stream "~v@{~C~:*~}else ~%" indent #\Space)
-    (compile-form (caddr form) t (+ 2 indent) to-stream)))
+    (print-form (caddr form) t (+ 2 indent) to-stream)))
 
-(defun compile-set (form stmtp op indent to-stream)
-  (cond
-    (stmtp (format to-stream "~v@{~C~:*~}" indent #\Space))
-    ((not stmtp) (format to-stream "(")))
-  (let ((cur form))
-    (loop while cur do
-          (compile-form (car cur) nil 0 to-stream)
-          (if (cdr cur) (format to-stream " ~a " op))
-          (setf cur (cdr cur))))
-  (cond
-    (stmtp (format to-stream ";~%"))
-    ((not stmtp) (format to-stream ")"))))
+(defun print-set (form stmtp indent to-stream)
+  (destructuring-bind (op &rest args) form
+    (cond
+      (stmtp (format to-stream "~v@{~C~:*~}" indent #\Space))
+      ((not stmtp) (format to-stream "(")))
+    (let ((cur args))
+      (loop while cur do
+            (print-form (car cur) nil 0 to-stream)
+            (if (cdr cur) (format to-stream " ~a " op))
+            (setf cur (cdr cur))))
+    (cond
+      (stmtp (format to-stream ";~%"))
+      ((not stmtp) (format to-stream ")")))))
 
-(defun compile-seq (form stmtp indent to-stream)
+(defun print-seq (form stmtp indent to-stream)
+  (pop form)
   (if stmtp
       (format to-stream "~v@{~C~:*~}" indent #\Space))
   (let ((cur form))
     (loop while cur do
-          (compile-form (car cur) nil 0 to-stream)
+          (print-form (car cur) nil 0 to-stream)
           (if (cdr cur) (format to-stream ", "))
           (setf cur (cdr cur))))
   (if stmtp
       (format to-stream ";~%")))
 
-(defun compile-list (form stmtp indent to-stream)
+(defun print-list (form stmtp indent to-stream)
+  (pop form)
   (if (and stmtp)
       (format to-stream "~v@{~C~:*~}" indent #\Space))
   (format to-stream "{")
@@ -490,129 +549,146 @@ BODY is optional. DOCUMENTATION is optional"
                      (or (stringp (caar cur)) (symbolp (caar cur)))
                      (string= (caar cur) "%key"))
             (format to-stream (if (eql (cadar cur) 'num) "[~a] = " ".~a = ")
-                    (with-output-to-string (s) (compile-form (caddar cur) nil 0 s)))
+                    (with-output-to-string (s) (print-form (caddar cur) nil 0 s)))
             (setf cur (cdr cur)))
-          (compile-form (car cur) nil 0 to-stream)
+          (print-form (car cur) nil 0 to-stream)
           (if (cdr cur) (format to-stream ", "))
           (setf cur (cdr cur))))
   (format to-stream " }")
   (if (and stmtp)
       (format to-stream ";~%")))
 
-(defun compile-dot (form stmtp indent to-stream)
+(defun print-dot (form stmtp indent to-stream)
+  (pop form)
   (if stmtp
       (format to-stream "~v@{~C~:*~}" indent #\Space))
   (let ((cur form))
     (loop while cur do
-          (compile-form (car cur) nil 0 to-stream)
+          (print-form (car cur) nil 0 to-stream)
           (if (cdr cur) (format to-stream "."))
           (setf cur (cdr cur))))
   (if stmtp
       (format to-stream ";~%")))
 
-(defun compile-arrow (form stmtp indent to-stream)
+(defun print-arrow (form stmtp indent to-stream)
+  (pop form)
   (if stmtp
       (format to-stream "~v@{~C~:*~}" indent #\Space))
   (let ((cur form))
     (loop while cur do
-          (compile-form (car cur) nil 0 to-stream)
+          (print-form (car cur) nil 0 to-stream)
           (if (cdr cur) (format to-stream "->"))
           (setf cur (cdr cur))))
   (if stmtp
       (format to-stream ";~%")))
 
-(defun compile-aref (form indent to-stream)
+(defun print-aref (form stmtp indent to-stream)
+  (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
-  (compile-form (car form) nil indent to-stream)
+  (print-form (car form) nil indent to-stream)
   (let ((cur (cdr form)))
     (loop while cur do
           (format to-stream "[")
-          (compile-form (car cur) nil 0 to-stream)
+          (print-form (car cur) nil 0 to-stream)
           (format to-stream "]")
           (setf cur (cdr cur)))))
 
-(defun compile-addr (form indent to-stream)
+(defun print-addr (form stmtp indent to-stream)
+  (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "&")
-  (compile-form (car form) nil indent to-stream))
+  (print-form (car form) nil indent to-stream))
 
-(defun compile-deref (form indent to-stream)
+(defun print-deref (form stmtp indent to-stream)
+  (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "*")
-  (compile-form (car form) nil indent to-stream))
+  (print-form (car form) nil indent to-stream))
 
-(defun compile-while (form indent to-stream)
+(defun print-while (form stmtp indent to-stream)
+  (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "while (")
-  (compile-form (car form) nil 0 to-stream)
+  (print-form (car form) nil 0 to-stream)
   (format to-stream ")~%")
   (if (cadr form)
-      (compile-form `(|progn| ,@(cdr form)) t (+ 2 indent) to-stream)
+      (print-form `(|progn| ,@(cdr form)) t (+ 2 indent) to-stream)
       (format to-stream ";~%")))
 
-(defun compile-do-while (form indent to-stream)
+(defun print-do-while (form stmtp indent to-stream)
+  (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "do")
   (format to-stream "~%")
-  (compile-form `(|progn| ,(cadr form)) t (+ 2 indent) to-stream)
+  (print-form `(|progn| ,(cadr form)) t (+ 2 indent) to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "while ")
-  (compile-cond-expr (car form) 0 to-stream)
+  (print-cond-expr (car form) stmtp 0 to-stream)
   (format to-stream ";~%"))
 
-(defun compile-ite (form stmtp indent to-stream)
+(defun print-ite (form stmtp indent to-stream)
+  (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
-  (compile-cond-expr (car form) 0 to-stream)
+  (print-cond-expr (car form) stmtp 0 to-stream)
   (format to-stream " ? ")
-  (compile-form (cadr form) nil 0 to-stream)
+  (print-form (cadr form) nil 0 to-stream)
   (format to-stream " : ")
-  (compile-form (caddr form) nil 0 to-stream)
+  (print-form (caddr form) nil 0 to-stream)
   (when stmtp (format to-stream ";~%")))
 
-(defun compile-for (form indent to-stream)
+(defun print-for (form stmtp indent to-stream)
+  (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "for (")
-  (compile-form (car form) nil 0 to-stream)
+  (print-form (car form) nil 0 to-stream)
   (format to-stream "; ")
-  (compile-cond-expr (cadr form) 0 to-stream)
+  (print-cond-expr (cadr form) nil 0 to-stream)
   (format to-stream "; ")
-  (compile-form (caddr form) nil 0 to-stream)
+  (print-form (caddr form) nil 0 to-stream)
   (format to-stream ")~%")
   (if (cadddr form)
-      (compile-form `(|progn| ,@(cdddr form)) t (+ 2 indent) to-stream)
+      (print-form `(|progn| ,@(cdddr form)) t (+ 2 indent) to-stream)
       (format to-stream ";~%")))
 
-(defun compile-return (form indent to-stream)
+(defun print-return (form stmtp indent to-stream)
+  (declare (ignore stmtp))
+  (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "return ")
-  (compile-form (car form) nil 0 to-stream)
+  (print-form (car form) nil 0 to-stream)
   (format to-stream ";~%"))
 
-(defun compile-break (form indent to-stream)
+(defun print-break (form stmtp indent to-stream)
+  (declare (ignore stmtp))
+  (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "break;~%"))
 
-(defun compile-continue (form indent to-stream)
+(defun print-continue (form stmtp indent to-stream)
+  (declare (ignore stmtp))
+  (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "continue;~%"))
 
-(defun compile-cast (form stmtp indent to-stream)
+(defun print-cast (form stmtp indent to-stream)
+  (pop form)
   (if stmtp
       (format to-stream "~v@{~C~:*~}" indent #\Space)
       (format to-stream "("))
   (do ((cur form (cdr cur)))
       ((not (cdr cur)))
     (format to-stream "(")
-    (compile-type "" (car cur) to-stream)
+    (print-type "" (car cur) to-stream)
     (format to-stream ")"))
-  (compile-form (car (reverse form)) nil 0 to-stream)
+  (print-form (car (reverse form)) nil 0 to-stream)
   (if stmtp
       (format to-stream ";~%")
       (format to-stream ")")))
 
-(defun compile-switch (form indent to-stream)
+(defun print-switch (form stmtp indent to-stream)
+  (pop form)
   (format to-stream "~v@{~C~:*~}switch (" indent #\Space)
-  (compile-form (car form) nil 0 to-stream)
+  (print-form (car form) nil 0 to-stream)
   (format to-stream ")~%")
   (format to-stream "~v@{~C~:*~}  {~%" indent #\Space)
   (loop for label-clauses in (cdr form) do
@@ -624,34 +700,62 @@ BODY is optional. DOCUMENTATION is optional"
                         (format to-stream "~v@{~C~:*~}default:~%" (+ 2 indent) #\Space)
                         (progn
                           (format to-stream "~v@{~C~:*~}case " (+ 2 indent) #\Space)
-                          (compile-form l nil 0 to-stream)
+                          (print-form l nil 0 to-stream)
                           (format to-stream ":~%"))))
               (progn
                 (if (string= (format nil "~a" label) "default")
                     (format to-stream "~v@{~C~:*~}default:~%" (+ 2 indent) #\Space)
                     (progn
                       (format to-stream "~v@{~C~:*~}case " (+ 2 indent) #\Space)
-                      (compile-form label nil 0 to-stream)
+                      (print-form label nil 0 to-stream)
                       (format to-stream ":~%")))))
-          (compile-form `(|progn| ,@clauses) t (+ indent 4) to-stream)))
+          (print-form `(|progn| ,@clauses) t (+ indent 4) to-stream)))
   (format to-stream "~v@{~C~:*~}  }~%" indent #\Space))
 
-(defun compile-label (form indent to-stream)
+(defun compile-switch (form)
+  (list* (car form)
+         (loop for label-clauses in (cdr form) collect
+               (destructuring-bind
+                     (label &rest clauses) label-clauses
+                 (list* (if (consp label)
+                           (loop for l in label collect
+                                 (if (string= (format nil "~a" l) "default")
+                                     '|default|
+                                     (compile-form l)))
+                           (progn
+                             (if (string= (format nil "~a" label) "default")
+                                 '|default|
+                                 (compile-form label))))
+                       (mapcar (lambda (form) (compile-form form)) clauses))))))
+
+(defun print-label (form stmtp indent to-stream)
+  (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "~a:~%" (car form)))
 
-(defun compile-goto (form indent to-stream)
+(defun print-goto (form stmtp indent to-stream)
+  (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "goto ~a;~%" (car form)))
 
-(defun compile-comment (form indent to-stream)
+(defun print-comment (form stmtp indent to-stream)
+  (declare (ignore stmtp))
+  (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "//~a~%" (car form)))
 
-(defun compile-quote-macro (args ctx)
+(defun compile-quote (args ctx)
+  (declare (ignore ctx))
   (car args))
 
-(defun compile-quote-as-c (args stmtp indent to-stream)
+(defun compile-quote-c (args)
+  args)
+
+(defun print-quote (args stmtp indent to-stream)
+  (pop args)
+  (print-quote-aux args stmtp indent to-stream))
+
+(defun print-quote-aux (args stmtp indent to-stream)
   (when stmtp
     (format to-stream "~v@{~C~:*~}" indent #\Space))
   (if (consp args)
@@ -670,13 +774,13 @@ BODY is optional. DOCUMENTATION is optional"
                           ((string= (car el) "quote") (format to-stream "~a" el))
                           (t
                            (format to-stream "{")
-                           (compile-quote-as-c el nil (+ 2 indent) to-stream)
+                           (print-quote-aux el nil (+ 2 indent) to-stream)
                            (format to-stream "}")
                            (when (cdr cur)
                              (format to-stream ", "))))
                     (progn
                       (format to-stream "{")
-                      (compile-quote-as-c el nil (+ 2 indent) to-stream)
+                      (print-quote-aux el nil (+ 2 indent) to-stream)
                       (format to-stream "}")
                       (when (cdr cur)
                         (format to-stream ", ")))))
@@ -688,52 +792,19 @@ BODY is optional. DOCUMENTATION is optional"
   (when stmtp
     (format to-stream ";~%")))
 
-(defun compile-quote (args stmtp indent to-stream ctx)
-  "This function is pretty different when operating from within macros where
-it behaves like in other lisps.  However, when from outside macros, it expands
-into the C-ish equivalent. C has something that looks like assoctiation lists"
-  (if ctx
-      (compile-quote-macro args ctx)
-      (compile-quote-as-c args stmtp indent to-stream)))
-
-;; (defun compile-backquote-macro (args ctx)
-;;   (if (null args)
-;;       ()
-;;       (if (listp (car args))
-;;           (if (and (or (stringp (caar args)) (symbolp (caar args))))
-;;               (cond
-;;                 ((string= "unquote" (string (caar args)))
-;;                  (cons (if (listp (cadar args))
-;;                            (compile-macro (cadar args) ctx)
-;;                            (gethash (cadar args) ctx))
-;;                        (compile-backquote-macro (cdr args) ctx)))
-;;                 ((string= "unquote-splice" (string (caar args)))
-;;                  (append (if (listp (cadar args))
-;;                              (compile-macro (cadar args) ctx)
-;;                              (gethash (cadar args) ctx))
-;;                          (compile-backquote-macro (cdr args) ctx)))
-;;                 ((string= "quote" (string (caar args)))
-;;                  (cons (cadar args) (compile-backquote-macro (cdr args) ctx)))
-;;                 (t
-;;                  (cons (compile-backquote-macro (car args) ctx)
-;;                        (compile-backquote-macro (cdr args) ctx))))
-;;               (cons (compile-backquote-macro (car args) ctx)
-;;                     (compile-backquote-macro (cdr args) ctx)))
-;;           (cons (car args) (compile-backquote-macro (cdr args) ctx)))))
-
 ;; cf. The two following functions have been adapted from CLtL2 Appendix C.
 (defun bracket (x)
   (cond ((atom x)
-         (list '|list| (compile-backquote-macro x)))
+         (list '|list| (compile-backquote-aux x)))
         ((eq (car x) '|unquote|)
          (list '|list| (cadr x)))
         ((eq (car x) '|unquote-splice|)
          (cadr x))
-        (t (list '|list| (compile-backquote-macro x)))))
+        (t (list '|list| (compile-backquote-aux x)))))
 
-(defun compile-backquote-macro (args)
+(defun compile-backquote-aux (args)
   (cond ((atom args) (list '|quote| args))
-        ((eq (car args) '|backquote|) (compile-backquote-macro (compile-backquote-macro (cadr args))))
+        ((eq (car args) '|backquote|) (compile-backquote-aux (compile-backquote-aux (cadr args))))
         ((eq (car args) '|unquote|) (cadr args))
         ((eq (car args) '|unquote-splice|) (error ",@~S after `" (cadr args)))
         (t (do ((p args (cdr p))
@@ -745,7 +816,15 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
              (when (eq (car p) '|unquote-splice|)
                (error "Dotted ,@~S" p))))))
 
-(defun compile-backquote-as-c (args stmtp indent to-stream)
+(defun compile-backquote (args ctx)
+  ;; todo: investigate why the need for car here
+  (car (compile-macro (compile-backquote-aux args) ctx)))
+
+(defun print-backquote (args stmtp indent to-stream)
+  (pop args)
+  (print-backquote-aux args stmtp indent to-stream))
+
+(defun print-backquote-aux (args stmtp indent to-stream)
   (when stmtp
     (format to-stream "~v@{~C~:*~}" indent #\Space))
   (if (consp args)
@@ -761,9 +840,9 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
                                     (string= (caaddr el) "unquote"))
                                (if (eql (cadr el) 'num)
                                    (format to-stream "[~a] = " (with-output-to-string (s)
-                                                                 (compile-form (car (cdaddr el)) nil 0 s)))
+                                                                 (print-form (car (cdaddr el)) nil 0 s)))
                                    (format to-stream ".~a = " (with-output-to-string (s)
-                                                                (compile-form (car (cdaddr el)) nil 0 s))))
+                                                                (print-form (car (cdaddr el)) nil 0 s))))
                                (if (eql (cadr el) 'num)
                                    (format to-stream "[~a] = " (caddr el))
                                    (format to-stream ".~a = " (caddr el)))))
@@ -771,18 +850,18 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
                           ;; but you can still try
                           ((string= (car el) "quote") (format to-stream "~a" el))
                           ((string= (car el) "unquote")
-                           (compile-form (cadr el) nil 0 to-stream)
+                           (print-form (cadr el) nil 0 to-stream)
                            (when (cdr cur)
                              (format to-stream ", ")))
                           (t
                            (format to-stream "{")
-                           (compile-backquote-as-c el nil (+ 2 indent) to-stream)
+                           (print-backquote-aux el nil (+ 2 indent) to-stream)
                            (format to-stream "}")
                            (when (cdr cur)
                              (format to-stream ", "))))
                     (progn
                       (format to-stream "{")
-                      (compile-backquote-as-c el nil (+ 2 indent) to-stream)
+                      (print-backquote-aux el nil (+ 2 indent) to-stream)
                       (format to-stream "}")
                       (when (cdr cur)
                         (format to-stream ", ")))))
@@ -794,23 +873,51 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
   (when stmtp
     (format to-stream ";~%")))
 
-(defun compile-backquote (args stmtp indent to-stream ctx)
-  "This function is pretty different when operating from within macros where
-it behaves like in other lisps.  However, when from outside macros, it expands
-into the C-ish equivalent. C has something that looks like assoctiation lists"
-  (if ctx
-      (compile-macro (compile-backquote-macro (car args)) ctx)
-      (compile-backquote-as-c args stmtp indent to-stream)))
+
+(defun compile-backquote-c (args)
+  (compile-backquote-c-aux args))
+
+(defun compile-backquote-c-aux (args)
+  (let ((res nil))
+    (if (consp args)
+        (progn
+          (do* ((cur args (cdr cur)) (el (car cur) (car cur)))
+               ((not cur))
+            (if (consp el)
+                (progn
+                  (if (and (or (stringp (car el)) (symbolp (car el))))
+                      (cond ((string= (car el) "%key")
+                             (if (and (consp (caddr el))
+                                      (or (stringp (caaddr el)) (symbolp (caaddr el)))
+                                      (string= (caaddr el) "unquote"))
+                                 (if (eql (cadr el) 'num)
+                                     (push `(|%key| num ,(compile-form (car (cdaddr el)))) res)
+                                     (push `(|%key| id ,(compile-form (car (cdaddr el)))) res))
+                                 (if (eql (cadr el) 'num)
+                                     (push `(|%key| num ,(caddr el)) res)
+                                     (push `(|%key| id ,(caddr el)) res))))
+                            ;; quote within quote should not happen in this mode,
+                            ;; but you can still try
+                            ((string= (car el) "quote") (push el res))
+                            ((string= (car el) "unquote")
+                             (push `(|unquote| ,(compile-form (cadr el))) res))
+                            (t (push (compile-backquote-c-aux el) res)))
+                      (push (compile-backquote-c-aux el) res)))
+                (push el res)))))
+    (reverse res)))
+
 
 (defun ctx-lookup (x ctx)
   (cond ((symbolp x) (gethash x ctx))
         ((listp x) (compile-macro x ctx))
         (t x)))
 
-(defun compile-concat (typ args ctx)
-  (let ((res
-         (apply #'concatenate 'string
-                (mapcar #'(lambda (x) (format nil "~a" (ctx-lookup x ctx))) args))))
+(defun compile-concat (args ctx)
+  (let* ((typ (car args))
+         (cargs (cdr args))
+         (res
+          (apply #'concatenate 'string
+                 (mapcar #'(lambda (x) (format nil "~a" (ctx-lookup x ctx))) cargs))))
     (if (string= typ "string") res (intern res))))
 
 (defun compile-car (args ctx)
@@ -822,7 +929,12 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
 (defun compile-null (args ctx)
   (null (gethash (car args) ctx)))
 
+(defun compile-aref-macro (args ctx)
+  (declare (ignore args))
+  (declare (ignore ctx)))
+
 (defun compile-if-macro (args ctx)
+  ;; (format t "~a~%" args)
   (let ((condition (ctx-lookup (car args) ctx))
         (then-branch (cadr args))
         (else-branch (caddr args)))
@@ -867,7 +979,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
        (setf res (apply #'/ (mapcar #'(lambda (x) (ctx-lookup x ctx)) args)))
        (if (not (integerp res)) (coerce res 'float) res)))
     ((string= op "%")
-     (let ((res) (cur)
+     (let ((res)
            (arg0 (ctx-lookup (car args) ctx))
            (arg1 (ctx-lookup (cadr args) ctx))
            (arg2+ (cddr args)))
@@ -875,7 +987,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
            (setf res arg0)
            (progn
              (setf res (mod arg0 arg1))
-             (do (cur arg2+ (cdr cur))
+             (do ((cur arg2+ (cdr cur)))
                  ((not cur))
                (setf res (mod res (ctx-lookup (car cur) ctx))))))
        (if (not (integerp res)) (coerce res 'float) res)))
@@ -889,22 +1001,22 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
     ((string= op ">=")
      (apply #'> (mapcar #'(lambda (x) (ctx-lookup x ctx)) args)))
     ((string= op "&&")
-     (let ((res t) (cur)
+     (let ((res t)
            (arg0 (ctx-lookup (car args) ctx))
            (arg1 (ctx-lookup (cadr args) ctx))
            (arg2+ (cddr args)))
        (setf res (and arg0 arg1))
-       (do (cur arg2+ (cdr cur))
+       (do ((cur arg2+ (cdr cur)))
            ((or (not cur) (not res)))
          (setf res (and res (ctx-lookup (car cur) ctx))))
        res))
     ((string= op "||")
-     (let ((res nil) (cur)
+     (let ((res nil)
            (arg0 (ctx-lookup (car args) ctx))
            (arg1 (ctx-lookup (cadr args) ctx))
            (arg2+ (cddr args)))
        (setf res (or arg0 arg1))
-       (do (cur arg2+ (cdr cur))
+       (do ((cur arg2+ (cdr cur)))
            ((or (not cur) res))
          (setf res (or res (ctx-lookup (car cur) ctx))))
        res))
@@ -927,7 +1039,8 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
           ((not bcur))
         (setf tmp-bindings (cons (list (caar bcur) (gethash (caar bcur) ctx)) tmp-bindings))
         (setf (gethash (caar bcur) ctx) (ctx-lookup (cadar bcur) ctx)))
-      (setf res (compile-macro body ctx))
+      (loop for bodyform in body do
+            (setf res (compile-macro bodyform ctx)))
       ;; remove the bindings
       (do ((bcur tmp-bindings (cdr bcur)))
           ((not bcur))
@@ -940,6 +1053,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
 
 (defun compile-gensym (args ctx)
   ;; todo: make something more robust
+  (declare (ignore ctx))
   (let ((prefix (car args)))
     (if (null prefix) (setf prefix "_G"))
     (make-symbol (concatenate 'string prefix
@@ -953,42 +1067,40 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
 (defun compile-append (args ctx)
   (apply #'append (mapcar #'(lambda (x) (ctx-lookup x ctx)) args)))
 
-(defun compile-macro (body ctx)
+(defun compile-macro (form ctx)
   (let ((res nil))
-    (when (or (not (listp body)) (not (listp (car body))))
-      (setf body (list body)))
-    (loop for form in body do
-          (setf res
-                (if (consp body)
-                    (destructuring-bind (op &rest args) form
-                      (cond
-                        ((string= "list"      (string op)) (compile-list-macro args ctx))
-                        ((string= "append"    (string op)) (compile-append args ctx))
-                        ((string= "backquote" (string op)) (compile-backquote args nil nil nil ctx))
-                        ((string= "quote"     (string op)) (compile-quote args nil nil nil ctx))
-                        ((string= "symbolp"   (string op)) (compile-symbolp args ctx))
-                        ((string= "listp"     (string op)) (compile-listp args))
-                        ((string= "car"       (string op)) (compile-car args ctx))
-                        ((string= "cdr"       (string op)) (compile-cdr args ctx))
-                        ((string= "null"      (string op)) (compile-null args ctx))
-                        ((string= "consp"     (string op)) (compile-consp args ctx))
-                        ((string= "stringp"   (string op)) (compile-stringp args ctx))
-                        ((string= "length"    (string op)) (compile-length args ctx))
-                        ((string= "numberp"   (string op)) (compile-numberp args ctx))
-                        ((string= "concat"    (string op)) (compile-concat (car args) (cdr args) ctx))
-                        ((string= "if"        (string op)) (compile-if-macro args ctx))
-                        ((string= "gensym"    (string op)) (compile-gensym args ctx))
-                        ((string= "let"       (string op)) (compile-let-macro args ctx))
-                        ((member (string op) '("<" ">" "<=" ">=" ">" "==" "!=" "&&" "||") :test #'equal)
-                         (compile-op-macro op args ctx))
-                        ;; not implemented ^ | & ~ << >>
-                        ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
-                                 :test #'equal)
-                         (compile-op-macro op args ctx))
-                        (t (if (gethash op macrofn-tbl)
-                               (eval-macrofn op args ctx)
-                               (error (format nil "call to a C function (here, ~a) through the ffi is not yet unsupported.~%" op))))))
-                    (format t "unsupported: ~a~%" form))))
+    (setf res
+          (if (consp form)
+              (destructuring-bind (op &rest args) form
+                (cond
+                  ((string= "list"      (string op)) (compile-list-macro args ctx))
+                  ((string= "append"    (string op)) (compile-append     args ctx))
+                  ((string= "backquote" (string op)) (compile-backquote  args ctx))
+                  ((string= "quote"     (string op)) (compile-quote      args ctx))
+                  ((string= "symbolp"   (string op)) (compile-symbolp    args ctx))
+                  ((string= "listp"     (string op)) (compile-listp      args ctx))
+                  ((string= "car"       (string op)) (compile-car        args ctx))
+                  ((string= "cdr"       (string op)) (compile-cdr        args ctx))
+                  ((string= "null"      (string op)) (compile-null       args ctx))
+                  ((string= "consp"     (string op)) (compile-consp      args ctx))
+                  ((string= "stringp"   (string op)) (compile-stringp    args ctx))
+                  ((string= "length"    (string op)) (compile-length     args ctx))
+                  ((string= "aref"      (string op)) (compile-aref-macro args ctx))
+                  ((string= "numberp"   (string op)) (compile-numberp    args ctx))
+                  ((string= "concat"    (string op)) (compile-concat     args ctx))
+                  ((string= "if"        (string op)) (compile-if-macro   args ctx))
+                  ((string= "gensym"    (string op)) (compile-gensym     args ctx))
+                  ((string= "let"       (string op)) (compile-let-macro  args ctx))
+                  ((member (string op) '("<" ">" "<=" ">=" ">" "==" "!=" "&&" "||") :test #'equal)
+                   (compile-op-macro op args ctx))
+                  ;; not implemented ^ | & ~ << >>
+                  ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
+                           :test #'equal)
+                   (compile-op-macro op args ctx))
+                  (t (if (gethash op macrofn-tbl)
+                         (eval-macrofn op args ctx)
+                         (error (format nil "call to a C function (here, ~a) through the ffi is not yet unsupported.~%" op))))))
+              (format t "unsupported: ~a~%" form)))
     res))
 
 (defun register-macro (args)
@@ -1003,7 +1115,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
     (setf (gethash name macro-tbl) (list macro-args body))))
 
 (defun register-macrofn (args)
-  (let ((name nil) (macro-args nil) (documentation nil) (body nil))
+  (let ((name nil) (macrofn-args nil) (documentation nil) (body nil))
     (setf name (car args))
     (setf macrofn-args (cadr args))
     (if (stringp (caddr args))
@@ -1016,7 +1128,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
 (defun expand-macro (macro args)
   (let ((ctx (make-hash-table))
         (tmpl (car (gethash macro macro-tbl)))
-        (macro-body (cdr (gethash macro macro-tbl))))
+        (macro-body (cadr (gethash macro macro-tbl))))
     (do ((acur args (cdr acur))
          (tcur tmpl (cdr tcur)))
         ((not tcur))
@@ -1031,7 +1143,7 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
 (defun eval-macrofn (fn args ctx-ref)
   (let ((ctx (make-hash-table))
         (tmpl (car (gethash fn macrofn-tbl)))
-        (fn-body (cdr (gethash fn macrofn-tbl))))
+        (fn-body (cadr (gethash fn macrofn-tbl))))
     (do ((acur args (cdr acur))
          (tcur tmpl (cdr tcur)))
         ((not tcur))
@@ -1043,7 +1155,8 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
           (setf (gethash (car tcur) ctx) (ctx-lookup (car acur) ctx-ref))))
     (compile-macro fn-body ctx)))
 
-(defun compile-macrolet (args stmtp indent to-stream)
+;; todo: remove
+(defun print-macrolet (args stmtp indent to-stream)
   (let ((res nil) (tmp-bindings nil))
     (destructuring-bind (bindings &rest body) args
       ;; augment the ctx with the let bindings
@@ -1059,7 +1172,8 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
               (setf ml-body (caddar bcur)))
           (setf tmp-bindings (cons (list name (gethash name macro-tbl)) tmp-bindings))
           (setf (gethash name macro-tbl) (list tmpl ml-body))))
-      (setf res (compile-form body stmtp indent to-stream))
+      (loop for bodyform in body do
+            (setf res (print-form bodyform stmtp indent to-stream)))
       ;; remove the bindings
       (do ((bcur tmp-bindings (cdr bcur)))
           ((not bcur))
@@ -1068,7 +1182,100 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
           (setf (gethash (caar bcur) macro-tbl) (cadar bcur)))))
     res))
 
-(defun compile-form (form stmtp indent to-stream)
+(defun compile-macrolet (args)
+  (let ((res nil) (tmp-bindings nil))
+    (destructuring-bind (bindings &rest body) args
+      ;; augment the ctx with the let bindings
+      (do ((bcur bindings (cdr bcur)))
+          ((not bcur))
+        (let ((name nil) (tmpl nil) (documentation nil) (ml-body nil))
+          (setf name (caar bcur))
+          (setf tmpl (cadar bcur))
+          (if (stringp (caddar bcur))
+              (progn
+                (setf documentation (caddar bcur))
+                (setf ml-body (car (cdddar bcur))))
+              (setf ml-body (caddar bcur)))
+          (setf tmp-bindings (cons (list name (gethash name macro-tbl)) tmp-bindings))
+          (setf (gethash name macro-tbl) (list tmpl ml-body))))
+      (setf res
+            (list* '|progn|
+                   (loop for bodyform in body collect (compile-form bodyform))))
+      ;; remove the bindings
+      (do ((bcur tmp-bindings (cdr bcur)))
+          ((not bcur))
+        (remhash (caar bcur) macro-tbl)
+        (when (cadar bcur)
+          (setf (gethash (caar bcur) macro-tbl) (cadar bcur)))))
+    res))
+
+(defvar kwd-behavior
+  '(("%include"  . (compile-call     . print-cpp-include))
+    ("%define"   . (compile-call     . print-cpp-define))
+    ("%if"       . (compile-cpp-if   . print-cpp-if))
+    ("%:"        . (compile-verbatim . print-verbatim))
+    ("%comment"  . (compile-call     . print-comment))
+    ("break"     . (compile-call     . print-break))
+    ("continue"  . (compile-call     . print-continue))
+    ("cast"      . (compile-call     . print-cast))
+    ("def"       . (compile-def      . print-def))
+    ("seq"       . (compile-call     . print-seq))
+    ("list"      . (compile-call     . print-list))
+    ("progn"     . (compile-call     . print-progn))
+    ("addr"      . (compile-call     . print-addr))
+    ("deref"     . (compile-call     . print-deref))
+    ("."         . (compile-call     . print-dot))
+    ("->"        . (compile-call     . print-arrow))
+    ("aref"      . (compile-call     . print-aref))
+    ("if"        . (compile-call     . print-if))
+    ("label"     . (compile-call     . print-label))
+    ("goto"      . (compile-call     . print-goto))
+    ("?:"        . (compile-call     . print-ite))
+    ("for"       . (compile-call     . print-for))
+    ("do-while"  . (compile-call     . print-do-while))
+    ("while"     . (compile-call     . print-while))
+    ("switch"    . (compile-switch   . print-switch))
+    ("return"    . (compile-call     . print-return))
+    ("quote"     . (compile-quote-c  . print-quote))
+    ("backquote" . (compile-backquote-c  . print-backquote))
+    ("="         . (compile-call     . print-set))
+    ("+="        . (compile-call     . print-set))
+    ("-="        . (compile-call     . print-set))
+    ("*="        . (compile-call     . print-set))
+    ("/="        . (compile-call     . print-set))
+    ("%="        . (compile-call     . print-set))
+    ("&="        . (compile-call     . print-set))
+    ("^="        . (compile-call     . print-set))
+    ("|="        . (compile-call     . print-set))
+    ("<<="       . (compile-call     . print-set))
+    (">>="       . (compile-call     . print-set))
+    ("<"         . (compile-call     . print-cmp-op))
+    (">"         . (compile-call     . print-cmp-op))
+    ("<="        . (compile-call     . print-cmp-op))
+    (">="        . (compile-call     . print-cmp-op))
+    ("=="        . (compile-call     . print-cmp-op))
+    ("!="        . (compile-call     . print-cmp-op))
+    ("&&"        . (compile-call     . print-cmp-op))
+    ("||"        . (compile-call     . print-cmp-op))
+    ("+"         . (compile-call     . print-arith-binop))
+    ("-"         . (compile-call     . print-arith-binop))
+    ("*"         . (compile-call     . print-arith-binop))
+    ("/"         . (compile-call     . print-arith-binop))
+    ("%"         . (compile-call     . print-arith-binop))
+    ("^"         . (compile-call     . print-arith-binop))
+    ("|"         . (compile-call     . print-arith-binop))
+    ("&"         . (compile-call     . print-arith-binop))
+    ("~"         . (compile-call     . print-arith-binop))
+    ("<<"        . (compile-call     . print-arith-binop))
+    (">>"        . (compile-call     . print-arith-binop))
+    ("macro"     . (register-macro   . nil))
+    ("macrofn"   . (register-macrofn . nil))
+    ("macrolet"  . (compile-macrolet . nil))))
+
+(defun compile-call (form)
+  (list* (car form) (mapcar (lambda (x) (compile-form x)) (cdr form))))
+
+(defun compile-form (form)
   "Compile an eclisp FROM and write it on TO-STREAM"
   (if (consp form)
       (destructuring-bind (op &rest args) form
@@ -1076,70 +1283,61 @@ into the C-ish equivalent. C has something that looks like assoctiation lists"
           (setf form (expand-macro op args))))
       (when (gethash form macro-tbl)
         (setf form (expand-macro form nil))))
-  (when (or (not (listp form)) (not (listp (car form))))
-    (setf form (list form)))
-  (loop for f in form do
-        (if (consp f)
-            (destructuring-bind (op &rest args) f
-              (cond
-                ((string= "%include"  (string op)) (compile-cpp-include args indent to-stream))
-                ((string= "%define"   (string op)) (compile-cpp-define args indent to-stream))
-                ((string= "%if"       (string op)) (compile-cpp-if args indent to-stream))
-                ((string= "%:"        (string op)) (compile-verbatim args stmtp to-stream))
-                ((string= "%comment"  (string op)) (compile-comment args indent to-stream))
-                ((string= "break"     (string op)) (compile-break args indent to-stream))
-                ((string= "continue"  (string op)) (compile-continue args indent to-stream))
-                ((string= "cast"      (string op)) (compile-cast args stmtp indent to-stream))
-                ((string= "def"       (string op)) (compile-def args stmtp indent to-stream))
-                ((string= "seq"       (string op)) (compile-seq args stmtp indent to-stream))
-                ((string= "list"      (string op)) (compile-list args stmtp indent to-stream))
-                ((string= "progn"     (string op)) (compile-progn args indent to-stream))
-                ((string= "addr"      (string op)) (compile-addr args indent to-stream))
-                ((string= "deref"     (string op)) (compile-deref args indent to-stream))
-                ((string= "."         (string op)) (compile-dot args stmtp indent to-stream))
-                ((string= "->"        (string op)) (compile-arrow args stmtp indent to-stream))
-                ((string= "aref"      (string op)) (compile-aref args indent to-stream))
-                ((string= "if"        (string op)) (compile-if args indent to-stream))
-                ((string= "label"     (string op)) (compile-label args indent to-stream))
-                ((string= "goto"      (string op)) (compile-goto args indent to-stream))
-                ((string= "?:"        (string op)) (compile-ite args stmtp indent to-stream))
-                ((string= "for"       (string op)) (compile-for args indent to-stream))
-                ((string= "do-while"  (string op)) (compile-do-while args indent to-stream))
-                ((string= "while"     (string op)) (compile-while args indent to-stream))
-                ((string= "switch"    (string op)) (compile-switch args indent to-stream))
-                ((string= "return"    (string op)) (compile-return args indent to-stream))
-                ((string= "quote"     (string op)) (compile-quote args stmtp indent to-stream nil))
-                ((string= "backquote" (string op)) (compile-backquote args stmtp indent to-stream nil))
-                ((string= "macro"     (string op)) (register-macro args))
-                ((string= "macrofn"   (string op)) (register-macrofn args))
-                ((string= "macrolet"  (string op)) (compile-macrolet args stmtp indent to-stream))
-                ((member (string op) '("=" "+=" "-=" "*=" "/=" "%=" "&=" "^=" "|=" "<<=" ">>=")
-                         :test #'equal)
-                 (compile-set args stmtp op indent to-stream))
-                ((member (string op) '("<" ">" "<=" ">=" ">" "==" "!=" "&&" "||") :test #'equal)
-                 (compile-cmp-op f indent to-stream))
-                ((member (string op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
-                         :test #'equal)
-                 (compile-arith-binop f indent to-stream)
-                 (when stmtp (format to-stream ";~%")))
-                (t
-                 (format to-stream "~v@{~C~:*~}" indent #\Space)
-                 (format to-stream "~a (~{~a~^, ~})"
-                         (car f)
-                         (mapcar (lambda (x) (if (stringp x) (format nil "\"~a\"" x)
-                                                 (with-output-to-string (s) (compile-form x nil 0 s))))
-                                 (cdr f)))
-                 (when stmtp (format to-stream ";~%")))))
-            (progn
-              (format to-stream "~v@{~C~:*~}" indent #\Space)
-              (format to-stream "~a" f)))))
+  (if (consp form)
+      (destructuring-bind (op &rest args) form
+        (let ((fn (cadr (assoc (string op) kwd-behavior :test #'string=))))
+          (if fn
+              (cond ((eql fn 'compile-call)
+                     (funcall fn form))
+                    ((or (member fn '(register-macro register-macrofn)))
+                     (funcall fn args)
+                     nil)
+                    ((eql fn 'compile-macrolet) (funcall fn args))
+                    (t
+                     (list* op (funcall fn args))))
+              (compile-call form))))
+      form))
 
-(defun compile-eclisp (from-stream to-stream)
+(defun print-form (form stmtp indent to-stream)
+  "Compile an eclisp FROM and write it on TO-STREAM"
+  (loop
+   (if (consp form)
+       (destructuring-bind (op &rest args) form
+         (if (gethash op macro-tbl)
+             (setf form (expand-macro op args))
+             (return)))
+       (if (gethash form macro-tbl)
+           (setf form (expand-macro form nil))
+           (return))))
+  (if (consp form)
+      (destructuring-bind (op &rest args) form
+        (cond
+          ((string= "macro"     (string op)) (register-macro args))
+          ((string= "macrofn"   (string op)) (register-macrofn args))
+          ((string= "macrolet"  (string op)) (print-macrolet args stmtp indent to-stream))
+          (t
+           (let ((fn (cddr (assoc (string op) kwd-behavior :test #'string=))))
+             (if fn
+                 (funcall fn form stmtp indent to-stream)
+                 (progn
+                   (format to-stream "~v@{~C~:*~}" indent #\Space)
+                   (format to-stream "~a (~{~a~^, ~})"
+                           (car form)
+                           (mapcar (lambda (x) (if (stringp x) (format nil "\"~a\"" x)
+                                                   (with-output-to-string (s) (print-form x nil 0 s))))
+                                   (cdr form)))
+                   (when stmtp (format to-stream ";~%"))))))))
+      (progn
+        (unless (eql form nil)
+          (format to-stream "~v@{~C~:*~}" indent #\Space)
+          (format to-stream "~a" form)))))
+
+(defun print-eclisp (from-stream to-stream)
   "Write the result of the compilation of the content of FROM-STREAM into
 TO-STREAM."
   (loop for form = (parse from-stream)
-        while form do (compile-form form t 0 to-stream)))
+        while form do (print-form (compile-form form) t 0 to-stream)))
 
 (defun main ()
   "The entry point."
-  (compile-eclisp *standard-input* *standard-output*))
+  (print-eclisp *standard-input* *standard-output*))

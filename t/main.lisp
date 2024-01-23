@@ -32,7 +32,7 @@ At the end the RESULT file is deleted."
   "Lower CLISP-FILE to a RES-FILE (a C file)"
   (with-open-file (res-stream res-file :direction :output)
     (with-open-file (eclisp-stream eclisp-file)
-      (eclisp::compile-eclisp eclisp-stream res-stream)))
+      (eclisp::print-eclisp eclisp-stream res-stream)))
   res-file)
 
 (test
