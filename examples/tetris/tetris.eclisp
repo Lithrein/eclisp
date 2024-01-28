@@ -36,7 +36,7 @@ tetromino.")
     :TM_S    (0   255 0   255)  :TM_Z (255 0   0   255))
   "Assocation table between each tetromino and its color.")
 
-(def access (-> int (board (ptr int)) (x y int))
+(def board_access (-> int (board (ptr int)) (x y int))
   "Retrieve the value (i.e., the color) from the BOARD of the cell at X, Y.
 Returns -1 when the access is out of the BOARD."
   (if (&& (<= 0 y (- BOARD_HEIGHT 1)) (<= 0 x (- BOARD_WIDTH 1)))
@@ -60,7 +60,7 @@ Returns -1 when the access is out of the BOARD."
     (def dy (int) (- (. (aref (-> tm blocks) i) y) (. (-> tm center) y)))
 
     (&= res
-        (! (access board (+ (. (-> tm center) x) (* (aref (aref dirs dir) 0) dy))
+        (! (board_access board (+ (. (-> tm center) x) (* (aref (aref dirs dir) 0) dy))
                          (+ (. (-> tm center) y) (* (aref (aref dirs dir) 1) dx))))))
   (when res
     (for (def i (int) 0) (< i 4) (+= i 1)
@@ -80,7 +80,7 @@ successful, 0 otherwise."
   (def dy (array int) '(:LEFT  0 :RIGHT 0 :UP -1 :DOWN 1))
 
   (for (def i (int) 0) (< i 4) (+= i 1)
-    (if (access board (+ (. (aref (-> tm blocks) i) x) (aref dx dir))
+    (if (board_access board (+ (. (aref (-> tm blocks) i) x) (aref dx dir))
                       (+ (. (aref (-> tm blocks) i) y) (aref dy dir)))
       (return 0)))
 
@@ -102,7 +102,7 @@ onto TM."
 
   (for (def i (int) 0) (< i 4) (+= i 1)
     (&= res
-        (! (access board (. (aref configs new_id) (aref blocks i) x)
+        (! (board_access board (. (aref configs new_id) (aref blocks i) x)
                          (. (aref configs new_id) (aref blocks i) y)))))
 
   (when res
@@ -121,11 +121,11 @@ onto TM."
   (for (def y (int) (- BOARD_HEIGHT 1)) (>= y 0) (-= y 1)
     (def should_clear (int) true)
     (for (def x (int) 0) (&& should_clear (< x BOARD_WIDTH)) (+= x 1)
-      (= should_clear (&& should_clear (access board x y))))
+      (= should_clear (&& should_clear (board_access board x y))))
     (when should_clear (+= res 1))
     (when (! should_clear)
      (for (def x (int) 0) (< x BOARD_WIDTH) (+= x 1)
-      (set_color board x cursor (access board x y)))
+      (set_color board x cursor (board_access board x y)))
      (-= cursor 1)))
   (for (def y (int) cursor) (>= y 0) (-= y 1)
     (for (def x (int) 0) (< x BOARD_WIDTH) (+= x 1)
@@ -152,7 +152,7 @@ onto TM."
   ;; board blocks
   (for (def x 0) (< x BOARD_WIDTH) (+= x 1)
     (for (def y 0) (< y BOARD_HEIGHT) (+= y 1)
-      (def cid (int) (access board x y))
+      (def cid (int) (board_access board x y))
       (when cid
           (def rect (SDL_Rect) `(,(+ 50 (* 20 x)) ,(+ 40 (* 20 y)) 20 20))
           (SDL_SetRenderColorDrawColorStruct renderer cid)
