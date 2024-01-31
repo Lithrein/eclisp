@@ -204,6 +204,24 @@
   (return (vec3+ (vec3_smul (mkvec3 1.0 1.0 1.0) (- 1.0 a))
                  (vec3_smul (mkvec3 0.5 0.7 1.0) a))))
 
+(def pixel_sample_square (-> (union vec3) (pixel_delta_u pixel_delta_v (union vec3)))
+ (def px (double) (+ -0.5 (random_double)))
+ (def py (double) (+ -0.5 (random_double)))
+ (return (vec3+ (vec3_smul pixel_delta_u px) (vec3_smul pixel_delta_v py))))
+
+(def get_ray (-> (struct ray) (i j int) (pixel00_loc pixel_delta_u pixel_delta_v camera_center (union vec3)))
+  (def pixel_center (union vec3)
+       (vec3+ pixel00_loc
+              (vec3_smul pixel_delta_u i)
+              (vec3_smul pixel_delta_v j)))
+  (def pixel_sample (union vec3)
+    (vec3+ pixel_center (pixel_sample_square pixel_delta_u pixel_delta_v)))
+
+  (def ray_origin (union vec3) camera_center)
+  (def ray_direction (union vec3) (vec3- pixel_sample ray_origin))
+
+  (return (mkray ray_origin ray_direction)))
+
 (def main (-> int void)
   "The entry point."
 
@@ -251,23 +269,6 @@
        (vec3+ viewport_upper_left
               (vec3_sdiv (vec3+ pixel_delta_u pixel_delta_v) 2)))
 
-  (def pixel_sample_square (-> (union vec3) void)
-    (def px (double) (+ -0.5 (random_double)))
-    (def py (double) (+ -0.5 (random_double)))
-    (return (vec3+ (vec3_smul pixel_delta_u px) (vec3_smul pixel_delta_v py))))
-
-  (def get_ray (-> (struct ray) (i j int))
-    (def pixel_center (union vec3)
-         (vec3+ pixel00_loc
-                (vec3_smul pixel_delta_u i)
-                (vec3_smul pixel_delta_v j)))
-    (def pixel_sample (union vec3) (vec3+ pixel_center (pixel_sample_square)))
-
-    (def ray_origin (union vec3) camera_center)
-    (def ray_direction (union vec3) (vec3- pixel_sample ray_origin))
-
-    (return (mkray ray_origin ray_direction)))
-
   (printf "P3\n%d %d\n255\n" image_width image_height)
 
   (for (def j (int) 0) (< j image_height) ++j
@@ -283,7 +284,7 @@
       (def pixel_color (union vec3) '(0 0 0))
 
       (for (def sample (int) 0) (< sample samples_per_pixel) ++sample
-        (def r (struct ray) (get_ray i j))
+        (def r (struct ray) (get_ray i j pixel00_loc pixel_delta_u pixel_delta_v camera_center))
         (= pixel_color (vec3+ pixel_color (ray_color &r max_depth))))
 
       (write_color stdout pixel_color samples_per_pixel)))
