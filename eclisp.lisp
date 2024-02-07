@@ -1300,7 +1300,9 @@ BODY is optional. DOCUMENTATION is optional"
       (progn
         (unless (eql form nil)
           (format to-stream "~v@{~C~:*~}" indent #\Space)
-          (format to-stream "~a" form)))))
+          (if (stringp form)
+              (format to-stream "\"~a\"" form)
+              (format to-stream "~a" form))))))
 
 (defun print-eclisp (from-stream to-stream)
   "Write the result of the compilation of the content of FROM-STREAM into

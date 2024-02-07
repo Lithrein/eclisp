@@ -10,7 +10,7 @@
 (def x (ptr (-> (array 3 (ptr (char))) ((void)))))
 (def x (-> (ptr (array 3 (int))) ((void))))
 (def x (ptr (-> (void) ((void)))))
-(def x (-> (ptr (array "" (ptr (-> (void) ((char)))))) ((void))))
+(def x (-> (ptr (array (ptr (-> (void) ((char)))))) ((void))))
 (def x (array 3 (volatile (ptr (-> (const (ptr (array 5 (char)))) ((void)))))))
 
 (def main (-> (int) (argc int) (argv (ptr ptr (array 3 int))))
