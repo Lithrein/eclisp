@@ -785,10 +785,10 @@ BODY is optional. DOCUMENTATION is optional"
                       (when (cdr cur)
                         (format to-stream ", ")))))
               (progn
-                (format to-stream "~a" el)
+                (format to-stream (if (stringp el) "\"~a\"" "~a") el)
                 (when (cdr cur)
                   (format to-stream ", "))))))
-      (format to-stream "~a" args))
+      (format to-stream (if (stringp args) "\"~a\"" "~a") args))
   (when stmtp
     (format to-stream ";~%")))
 
@@ -866,10 +866,10 @@ BODY is optional. DOCUMENTATION is optional"
                       (when (cdr cur)
                         (format to-stream ", ")))))
               (progn
-                (format to-stream "~a" el)
+                (format to-stream (if (stringp el) "\"~a\"" "~a") el)
                 (when (cdr cur)
                   (format to-stream ", "))))))
-      (format to-stream "~a" args))
+      (format to-stream (if (stringp args) "\"~a\"" "~a") args))
   (when stmtp
     (format to-stream ";~%")))
 
