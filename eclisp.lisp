@@ -129,7 +129,7 @@ and if, and write it on TO-STREAM."
       (unless (and (symbolp cond) (string= cond "t")) (print-cpp-cond-expr cond nil 0 to-stream))
       (format to-stream "~%")
       (loop for b in body do
-            (print-form b nil (+ 2 indent) to-stream))))
+            (print-form b t (+ 2 indent) to-stream))))
   (format to-stream "~%~v@{~C~:*~}#endif~%" indent #\Space))
 
 (defun compile-cpp-if (form)
