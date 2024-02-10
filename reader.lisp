@@ -119,11 +119,13 @@ characters in the IGNORE-CHARS string while performing READ."
   ;; skip the . character
   (read-char stream nil)
   (let ((c (peek-char nil stream nil nil nil)))
-    (if (or (char= #\Space c)
-            (char= #\Newline c)
-            (char= #\Tab c))
-        '|.|
-        `(|%key| id ,(parse stream)))))
+    (cond ((or (char= #\Space c)
+               (char= #\Newline c)
+               (char= #\Tab c))
+           '|.|)
+          ((char= #\. c) (intern (concatenate 'string "." (parse-symbol stream))))
+          (t
+           `(|%key| id ,(parse stream))))))
 
 (defun parse-verbatim (stream)
   (let ((level 1))
