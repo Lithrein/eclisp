@@ -766,7 +766,7 @@ BODY is optional. DOCUMENTATION is optional"
   (car args))
 
 (defun compile-quote-c (args)
-  args)
+  (car args))
 
 (defun print-quote (args stmtp indent to-stream)
   (pop args)
@@ -892,7 +892,7 @@ BODY is optional. DOCUMENTATION is optional"
 
 
 (defun compile-backquote-c (args)
-  (compile-backquote-c-aux args))
+  (compile-backquote-c-aux (car args)))
 
 (defun compile-backquote-c-aux (args)
   (let ((res nil))
@@ -903,16 +903,7 @@ BODY is optional. DOCUMENTATION is optional"
             (if (consp el)
                 (progn
                   (if (and (or (stringp (car el)) (symbolp (car el))))
-                      (cond ((string= (car el) "%key")
-                             (if (and (consp (caddr el))
-                                      (or (stringp (caaddr el)) (symbolp (caaddr el)))
-                                      (string= (caaddr el) "unquote"))
-                                 (if (eql (cadr el) 'num)
-                                     (push `(|%key| num ,(compile-form (car (cdaddr el)))) res)
-                                     (push `(|%key| id ,(compile-form (car (cdaddr el)))) res))
-                                 (if (eql (cadr el) 'num)
-                                     (push `(|%key| num ,(caddr el)) res)
-                                     (push `(|%key| id ,(caddr el)) res))))
+                      (cond
                             ;; quote within quote should not happen in this mode,
                             ;; but you can still try
                             ((string= (car el) "quote") (push el res))
@@ -920,8 +911,9 @@ BODY is optional. DOCUMENTATION is optional"
                              (push `(|unquote| ,(compile-form (cadr el))) res))
                             (t (push (compile-backquote-c-aux el) res)))
                       (push (compile-backquote-c-aux el) res)))
-                (push el res)))))
-    (reverse res)))
+                (push el res))))
+        (setf res args))
+    (if (listp res) (reverse res) res)))
 
 
 (defun ctx-lookup (x ctx)
@@ -1286,6 +1278,12 @@ BODY is optional. DOCUMENTATION is optional"
                      (funcall fn args)
                      nil)
                     ((eql fn 'compile-macrolet) (funcall fn args))
+                    ((eql fn 'compile-quote-c)
+                     (let ((res (funcall fn args)))
+                       (if (listp res) `(|quote| ,res) res)))
+                    ((eql fn 'compile-backquote-c)
+                     (let ((res (funcall fn args)))
+                       (if (listp res) `(|backquote| ,res) res)))
                     (t
                      (list* op (funcall fn args))))
               (compile-call form))))
