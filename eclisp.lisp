@@ -385,6 +385,16 @@ ACC should be NIL at first."
   (loop for f in form do (print-form f t (+ 2 indent) to-stream))
   (format to-stream "~v@{~C~:*~}}~%" indent #\Space))
 
+(defun print-funcall (form stmtp indent to-stream)
+  (pop form)
+  (format to-stream "~v@{~C~:*~}" indent #\Space)
+  (format to-stream "~a (~{~a~^, ~})"
+          (car form)
+          (mapcar (lambda (x) (if (stringp x) (format nil "\"~a\"" x)
+                                  (with-output-to-string (s) (print-form x nil 0 s))))
+                  (cdr form)))
+  (when stmtp (format to-stream ";~%")))
+
 (defun print-defvar (form stmtp indent to-stream)
   "Compile a form which declares a global variable.
                   (def var type value documentation)"
@@ -1198,6 +1208,7 @@ BODY is optional. DOCUMENTATION is optional"
     ("%comment"  . (compile-call     . print-comment))
     ("break"     . (compile-call     . print-break))
     ("continue"  . (compile-call     . print-continue))
+    ("%funcall"  . (compile-call     . print-funcall))
     ("cast"      . (compile-call     . print-cast))
     ("def"       . (compile-def      . print-def))
     ("seq"       . (compile-call     . print-seq))
