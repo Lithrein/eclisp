@@ -372,6 +372,13 @@ ACC should be NIL at first."
   "Compile TYPE and write it on TO-STREAM."
   (print-ll (print-c-type name type nil) to-stream))
 
+(defun print-as-type (form stmtp indent to-stream)
+  (when stmtp
+    (format to-stream "~v@{~C~:*~}{~%" indent #\Space))
+  (format to-stream "~a" (with-output-to-string (s) (print-type "" (cadr form) s)))
+  (when stmtp
+    (format to-stream ";~%")))
+
 (defun print-progn (form stmtp indent to-stream)
   (pop form)
   (format to-stream "~v@{~C~:*~}{~%" indent #\Space)
@@ -1186,6 +1193,7 @@ BODY is optional. DOCUMENTATION is optional"
   '(("%include"  . (compile-call     . print-cpp-include))
     ("%define"   . (compile-call     . print-cpp-define))
     ("%if"       . (compile-cpp-if   . print-cpp-if))
+    ("%type"     . (compile-call     . print-as-type))
     ("%:"        . (compile-verbatim . print-verbatim))
     ("%comment"  . (compile-call     . print-comment))
     ("break"     . (compile-call     . print-break))
