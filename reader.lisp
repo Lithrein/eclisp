@@ -1,11 +1,17 @@
 (in-package #:eclisp)
 
+(defun handle-verbatim (lst)
+  (unless (null lst)
+    (if (and (listp (car lst)) (= 1 (length lst)) (stringp (caar lst)) (string= "%:" (caar lst)))
+        (list* "%:" (cadar lst) (handle-verbatim (cdr lst)))
+        (cons (car lst) (handle-verbatim (cdr lst))))))
+
 (defun parse-list (stream)
   ;; skip the opening parenthesis (
   (read-char stream nil)
   (loop for c = (parse stream)
         while c collect c into terms
-        finally (return terms)))
+        finally (return (handle-verbatim terms))))
 
 (defun parse-string (stream)
   (let ((escape nil)
