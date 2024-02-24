@@ -43,7 +43,7 @@ At the end the RESULT file is deleted."
                     "while" "do-while" "return" "hello" "arrow" "aref"
                     "function" "set" "types" "defvar" "include" "includes"
                     "cpp-define" "cpp-if")))
- (loop for test-name in test-names do 
+ (loop for test-name in test-names do
        (is (compare-to-ref (compile-to-file (format nil "t/~a.eclisp" test-name)
                                             (format nil "t/~a.c.tmp" test-name))
                            (format nil "t/~a.c" test-name))))))

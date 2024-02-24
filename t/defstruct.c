@@ -1,36 +1,38 @@
-struct  tag0 {
+struct tag0
+{
   int a;
   long long  b;
 } sa;
-typedef struct  tag1 {
+typedef struct tag1
+{
   int a;
-  struct  {
-  int bla;
-  float blo;
-} b;
-  struct  tag0 c;
+  struct {
+    int bla;
+    float blo;
+  } b;
+  struct tag0 c;
 } sb;
-typedef struct  {
+typedef struct {
   int a;
-  struct  {
-  int bla;
-  float blo;
-} b;
-  struct  tag0 c;
+  struct {
+    int bla;
+    float blo;
+  } b;
+  struct tag0 c;
 } sc;
-typedef struct  {
+typedef struct {
   int a;
-  struct  {
-  int bla;
-  float blo;
-} b;
-  struct  tag0 c;
-} ;
-struct  {
+  struct {
+    int bla;
+    float blo;
+  } b;
+  struct tag0 c;
+};
+struct {
   int a;
-  struct  {
-  int bla;
-  float blo;
-} b;
-  struct  tag0 c;
-} ;
+  struct {
+    int bla;
+    float blo;
+  } b;
+  struct tag0 c;
+};
