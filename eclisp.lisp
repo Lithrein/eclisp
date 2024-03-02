@@ -309,9 +309,11 @@ ACC should be NIL at first."
 
 (defun print-progn (form stmtp indent to-stream)
   (pop form)
-  (format to-stream "~v@{~C~:*~}{~%" indent #\Space)
-  (loop for f in form do (print-form f t (+ 2 indent) to-stream))
-  (format to-stream "~v@{~C~:*~}}~%" indent #\Space))
+  (cond ((>= indent 0)
+         (format to-stream "~v@{~C~:*~}{~%" indent #\Space)
+         (loop for f in form do (print-form f t (+ 2 indent) to-stream))
+         (format to-stream "~v@{~C~:*~}}~%" indent #\Space))
+        (t (loop for f in form do (print-form f t indent to-stream)))))
 
 (defun print-funcall (form stmtp indent to-stream)
   (pop form)
@@ -1252,7 +1254,7 @@ BODY is optional. DOCUMENTATION is optional"
 TO-STREAM."
   (loop for form = (parse from-stream)
         while form do
-        (print-form (compile-form form) t 0 to-stream)))
+        (print-form (compile-form form) t -1 to-stream)))
 
 (defun main ()
   "The entry point."

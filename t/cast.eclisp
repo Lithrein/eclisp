@@ -1,4 +1,3 @@
-(progn
-  (= a (cast (ptr (int)) b))
-  (cast (int) (+ 1 a)))
+(= a (cast (ptr (int)) b))
+(cast (int) (+ 1 a))
 
