@@ -60,15 +60,15 @@ Returns -1 when the access is out of the BOARD."
     (def dy (int) (- (. (aref (-> tm blocks) i) y) (. (-> tm center) y)))
 
     (&= res
-        (! (access board (+ (. (-> tm center) x) (* (aref (aref dirs dir) 0) dy))
-                         (+ (. (-> tm center) y) (* (aref (aref dirs dir) 1) dx))))))
+        (! (access board (+ (. (-> tm center) x) (* (aref dirs dir 0) dy))
+                         (+ (. (-> tm center) y) (* (aref dirs dir 1) dx))))))
   (when res
     (for (def i (int) 0) (< i 4) (+= i 1)
       (def dx (int) (- (. (aref (-> tm blocks) i) x) (. (-> tm center) x)))
       (def dy (int) (- (. (aref (-> tm blocks) i) y) (. (-> tm center) y)))
 
-      (= (. (aref (-> tm blocks) i) x) (+ (. (-> tm center) x) (* (aref (aref dirs dir) 0) dy)))
-      (= (. (aref (-> tm blocks) i) y) (+ (. (-> tm center) y) (* (aref (aref dirs dir) 1) dx)))))
+      (= (. (aref (-> tm blocks) i) x) (+ (. (-> tm center) x) (* (aref dirs dir 0) dy)))
+      (= (. (aref (-> tm blocks) i) y) (+ (. (-> tm center) y) (* (aref dirs dir 1) dx)))))
 
   (return res))
 
