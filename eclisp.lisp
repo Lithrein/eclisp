@@ -162,7 +162,7 @@ and if, and write it on TO-STREAM."
                       (t (format to-stream "~a" (car l))))))
          (print-ll (cdr l) shift to-stream))))
 
-(defvar c-keywords
+(defvar +c-keywords+
   '("auto" "break" "case" "char" "const" "continue" "default" "do" "double"
     "else" "enum" "extern" "float" "for" "goto" "if" "int" "long" "register"
     "return" "short" "signed" "sizeof" "static" "struct" "switch" "typedef"
@@ -214,7 +214,7 @@ ACC should be NIL at first."
                                       collect (list ", "
                                                     (cond
                                                       ((symbolp tt) (print-c-type nil tt nil))
-                                                      ((and (symbolp (car tt)) (not (member (string (car tt)) c-keywords
+                                                      ((and (symbolp (car tt)) (not (member (string (car tt)) +c-keywords+
                                                                                             :test #'string=)))
                                                        (let ((rev-tt (reverse tt)) (names nil) (typ nil))
                                                          (setf typ (car rev-tt))
@@ -222,7 +222,7 @@ ACC should be NIL at first."
                                                          ((lambda (l) (cons (cdar l) (cdr l)))
                                                           (loop for n in names
                                                                 collect (list ", " (print-c-type n typ nil))))))
-                                                      ((and (symbolp (car tt)) (member (string (car tt)) c-keywords
+                                                      ((and (symbolp (car tt)) (member (string (car tt)) +c-keywords+
                                                                                        :test #'string=))
                                                        (print-c-type nil tt nil))
                                                       (t (print-c-type nil (car tt) nil))))))
@@ -258,7 +258,7 @@ ACC should be NIL at first."
                                       ((lambda (l) (append (cons (cdar l) (cdr l)) (list ";")))
                                        (loop for tt in struct-contents
                                              collect (list ";" #\Newline
-                                                           (cond ((and (symbolp (car tt)) (not (member (string (car tt)) c-keywords :test #'string=)))
+                                                           (cond ((and (symbolp (car tt)) (not (member (string (car tt)) +c-keywords+ :test #'string=)))
                                                                   (let* ((rev-tt (reverse tt))
                                                                          (documentation (when (stringp (car rev-tt)) (car rev-tt)))
                                                                          (typ (if documentation (cadr rev-tt) (car rev-tt)))
@@ -276,7 +276,7 @@ ACC should be NIL at first."
                                                                                                                       (print-form (cadr var) nil 0 s)))
                                                                                                             (car var))
                                                                                                         typ nil)))))))
-                                                                 ((and (symbolp (car tt)) (member (string (car tt)) c-keywords :test #'string=))
+                                                                 ((and (symbolp (car tt)) (member (string (car tt)) +c-keywords+ :test #'string=))
                                                                   (let* ((rev-tt (reverse tt))
                                                                          (documentation (when (stringp (car rev-tt)) (car rev-tt)))
                                                                          (ntt (if documentation (reverse (cdr rev-tt)))))
@@ -361,22 +361,21 @@ ACC should be NIL at first."
   "Compile a form which declares a global variable.
                   (def var type value documentation)"
   (let ((var nil) (type nil) (value nil) (documentation nil))
-    (if (consp (car form))
-        ;; no name, hence no value
-        (progn
-          (setf type (car form))
-          (setf documentation (cadr form)))
-        ;; name is present
-        (progn
-          (setf var (car form))
-          (if (consp (cadr form))
-              (progn
-                (setf type (cadr form))
-                (setf value (caddr form))
-                (setf documentation (cadddr form)))
-              (progn
-                (setf value (cadr form))
-                (setf documentation (caddr form))))))
+    (cond ((and (consp (car form)) (member (caar form) +c-keywords+ :test #'string=))
+           ;; no name, hence no value
+           (setf type (car form))
+           (setf documentation (cadr form)))
+          ;; name is present
+          (t
+           (setf var (car form))
+           (if (consp (cadr form))
+               (progn
+                 (setf type (cadr form))
+                 (setf value (caddr form))
+                 (setf documentation (cadddr form)))
+               (progn
+                 (setf value (cadr form))
+                 (setf documentation (caddr form))))))
     (list var
           (if (null type) '(|int|) type)
           (when value (compile-form value))
@@ -435,17 +434,15 @@ BODY is optional. DOCUMENTATION is optional"
            (print-defun form stmtp indent to-stream))
           (t (print-defvar form stmtp indent to-stream)))))
 
-(defun compile-def (form)
-  (let ((var nil) (type nil))
-    (if (consp (car form))
-        (setf type (car form))
-        ;; name is present
-        (progn
-          (setf var (car form))
-          (when (consp (cadr form)) (setf type (cadr form)))))
-    (cond ((and type (string= (car type) "->"))
-           (compile-defun form))
-          (t (compile-defvar form)))))
+ (defun compile-def (form)
+   (let ((var nil) (type nil))
+     (cond ((and (consp (car form)) (member (caar form) +c-keywords+ :test #'string=))
+            (setf type (car form)))
+           (t (setf name (car form)
+                    type (when (consp (cadr form)) (cadr form)))))
+     (cond ((and type (string= (car type) "->"))
+            (compile-defun form))
+           (t (compile-defvar form)))))
 
 (defun print-if (form stmtp indent to-stream)
   (pop form)
