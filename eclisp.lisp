@@ -1061,34 +1061,44 @@ BODY is optional. DOCUMENTATION is optional"
         (setf body (caddr args)))
     (setf (gethash name macrofn-tbl) (list macrofn-args body))))
 
+(defun expand-macro-args (args tmpl ctx)
+  (when args
+    (if (listp (car tmpl))
+        (progn
+          (expand-macro-args (car args) (car tmpl) ctx)
+          (expand-macro-args (cdr args) (cdr tmpl) ctx))
+        (if (string= (string (car tmpl)) "&body")
+            (setf (gethash (cadr tmpl) ctx) args)
+            (progn
+              (setf (gethash (car tmpl) ctx) (car args))
+              (expand-macro-args (cdr args) (cdr tmpl) ctx))))))
+
 (defun expand-macro (macro args)
   (let ((ctx (make-hash-table))
         (tmpl (car (gethash macro macro-tbl)))
         (macro-body (cadr (gethash macro macro-tbl))))
-    (do ((acur args (cdr acur))
-         (tcur tmpl (cdr tcur)))
-        ((not tcur))
-      (if (string= (string (car tcur)) "&body")
-          (progn
-            (setf (gethash (cadr tcur) ctx) acur)
-            (setf tcur (cdr tcur))
-            (setf acur nil))
-          (setf (gethash (car tcur) ctx) (car acur))))
+    (expand-macro-args args tmpl ctx)
     (compile-macro macro-body ctx)))
+
+(defun expand-macrofn-args (args tmpl ctx ctx-ref)
+  (when args
+    (if (listp (car tmpl))
+        (progn
+          (expand-macrofn-args (car args) (car tmpl) ctx ctx-ref)
+          (expand-macrofn-args (cdr args) (cdr tmpl) ctx ctx-ref))
+        (if (string= (string (car tmpl)) "&body")
+            ;; we should clarify where the evaluation of macrofn takes place
+            ;; because this may raise issues in the $body case.
+            (setf (gethash (cadr tmpl) ctx) (ctx-lookup (car args) ctx-ref))
+            (progn
+              (setf (gethash (car tmpl) ctx) (ctx-lookup (car args) ctx-ref))
+              (expand-macrofn-args (cdr args) (cdr tmpl) ctx ctx-ref))))))
 
 (defun eval-macrofn (fn args ctx-ref)
   (let ((ctx (make-hash-table))
         (tmpl (car (gethash fn macrofn-tbl)))
         (fn-body (cadr (gethash fn macrofn-tbl))))
-    (do ((acur args (cdr acur))
-         (tcur tmpl (cdr tcur)))
-        ((not tcur))
-      (if (string= (string (car tcur)) "&body")
-          (progn
-            (setf (gethash (cadr tcur) ctx) (ctx-lookup (car acur) ctx-ref))
-            (setf tcur (cdr tcur))
-            (setf acur nil))
-          (setf (gethash (car tcur) ctx) (ctx-lookup (car acur) ctx-ref))))
+    (expand-macrofn-args args tmpl ctx ctx-ref)
     (compile-macro fn-body ctx)))
 
 (defun compile-macrolet (args)
