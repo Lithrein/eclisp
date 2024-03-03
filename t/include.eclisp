@@ -1,1 +1,1 @@
-(%include <stdio.h> <stdlib.> "header.h")
+(#include <stdio.h> <stdlib.> "header.h")

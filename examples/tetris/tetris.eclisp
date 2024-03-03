@@ -1,8 +1,8 @@
-(%include <stdbool.h> <stdio.h> <stdlib.h> <time.h>)
-(%include <SDL2/SDL.h>)
+(#include <stdbool.h> <stdio.h> <stdlib.h> <time.h>)
+(#include <SDL2/SDL.h>)
 
-(%define BOARD_WIDTH  10)
-(%define BOARD_HEIGHT 20)
+(#define BOARD_WIDTH  10)
+(#define BOARD_HEIGHT 20)
 
 (def (struct point (x y int)))
 

@@ -38,12 +38,8 @@
 (defconst eclisp-builtins
   '("=" "&=" "+=" "&&" "||" "<=" "->" "+" "-" "*" "/" "."))
 
-(defconst eclisp-preprocessor-keywords
-  '("%define" "%include"))
-
 (defconst eclisp-keywords-regexp (regexp-opt eclisp-keywords 'words))
 (defconst eclisp-typ-keywords-regexp (regexp-opt eclisp-typ-keywords 'words))
-(defconst eclisp-preprocessor-keywords-regexp (regexp-opt eclisp-preprocessor-keywords 'words))
 (defconst eclisp-builtins-regexp (regexp-opt eclisp-builtins 'symbols))
 
 (defconst eclisp-font-lock-keywords
@@ -51,6 +47,9 @@
     (,eclisp-keywords-regexp              . font-lock-keyword-face)
     (,eclisp-typ-keywords-regexp          . font-lock-type-face)
     (,eclisp-preprocessor-keywords-regexp . font-lock-preprocessor-face)
+    (,"#include"                          . font-lock-preprocessor-face)
+    (,"#define"                           . font-lock-preprocessor-face)
+    (,"#if"                               . font-lock-preprocessor-face)
     (,eclisp-builtins-regexp              . font-lock-builtin-face)
     (,"\\<[0-9]+\\>"                      . font-lock-constant-face)
     (,"\<[^ ]+\>"                         . font-lock-string-face)

@@ -1119,9 +1119,9 @@ BODY is optional. DOCUMENTATION is optional"
     res))
 
 (defvar kwd-behavior
-  '(("%include"  . (compile-call     . print-cpp-include))
-    ("%define"   . (compile-call     . print-cpp-define))
-    ("%if"       . (compile-cpp-if   . print-cpp-if))
+  '(("#include"  . (compile-call     . print-cpp-include))
+    ("#define"   . (compile-call     . print-cpp-define))
+    ("#if"       . (compile-cpp-if   . print-cpp-if))
     ("%type"     . (compile-call     . print-as-type))
     ("%:"        . (compile-verbatim . print-verbatim))
     ("%comment"  . (compile-call     . print-comment))

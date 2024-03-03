@@ -65,21 +65,26 @@
 (defun parse-character (stream)
   ;; skip the #
   (read-char stream nil)
-  ;; skip the \
-  (read-char stream nil)
-  (let ((c (loop for c = (peek-char nil stream nil nil)
-                 while (and c (eql c (peek-char t stream nil nil))
-                            (not (char= c #\))))
-                 collect (read-char stream) into letters
-                 finally (return (coerce letters 'string)))))
-    (cond
-      ((string= c "Newline") (intern "'\\n'"))
-      ((string= c "Tab") (intern "'\\t'"))
-      ((string= c "Backspace") (intern "'\\b'"))
-      ((string= c "Linefeed") (intern "'\\r'"))
-      ((string= c "Page") (intern "'\\f'"))
-      ((string= c "Space") (intern "' '"))
-      (t (intern (concatenate 'string "'" c "'"))))))
+  (cond
+    ;; this is a character
+    ((char= #\\ (peek-char nil stream nil nil nil))
+     (read-char stream nil)
+     (let ((c (loop for c = (peek-char nil stream nil nil)
+                    while (and c (eql c (peek-char t stream nil nil))
+                               (not (char= c #\))))
+                    collect (read-char stream) into letters
+                    finally (return (coerce letters 'string)))))
+       (cond
+         ((string= c "Newline") (intern "'\\n'"))
+         ((string= c "Tab") (intern "'\\t'"))
+         ((string= c "Backspace") (intern "'\\b'"))
+         ((string= c "Linefeed") (intern "'\\r'"))
+         ((string= c "Page") (intern "'\\f'"))
+         ((string= c "Space") (intern "' '"))
+         (t (intern (concatenate 'string "'" c "'"))))))
+    ;; this is a regular symbol
+    (t
+     (intern (concatenate 'string "#" (parse-symbol stream))))))
 
 (defun parse-quote (stream)
   ;; skip the ' character
