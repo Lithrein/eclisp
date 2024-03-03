@@ -45,6 +45,7 @@
 (defconst eclisp-font-lock-keywords
   `((,";.*$"                              . font-lock-comment-face)
     (,eclisp-keywords-regexp              . font-lock-keyword-face)
+    (,"$body"                             . font-lock-keyword-face)
     (,eclisp-typ-keywords-regexp          . font-lock-type-face)
     (,eclisp-preprocessor-keywords-regexp . font-lock-preprocessor-face)
     (,"#include"                          . font-lock-preprocessor-face)
