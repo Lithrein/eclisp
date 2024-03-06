@@ -1155,33 +1155,6 @@ BODY is optional. DOCUMENTATION is optional"
           (setf (gethash (car tcur) ctx) (ctx-lookup (car acur) ctx-ref))))
     (compile-macro fn-body ctx)))
 
-;; todo: remove
-(defun print-macrolet (args stmtp indent to-stream)
-  (let ((res nil) (tmp-bindings nil))
-    (destructuring-bind (bindings &rest body) args
-      ;; augment the ctx with the let bindings
-      (do ((bcur bindings (cdr bcur)))
-          ((not bcur))
-        (let ((name nil) (tmpl nil) (documentation nil) (ml-body nil))
-          (setf name (caar bcur))
-          (setf tmpl (cadar bcur))
-          (if (stringp (caddar bcur))
-              (progn
-                (setf documentation (caddar bcur))
-                (setf ml-body (car (cdddar bcur))))
-              (setf ml-body (caddar bcur)))
-          (setf tmp-bindings (cons (list name (gethash name macro-tbl)) tmp-bindings))
-          (setf (gethash name macro-tbl) (list tmpl ml-body))))
-      (loop for bodyform in body do
-            (setf res (print-form bodyform stmtp indent to-stream)))
-      ;; remove the bindings
-      (do ((bcur tmp-bindings (cdr bcur)))
-          ((not bcur))
-        (remhash (caar bcur) macro-tbl)
-        (when (cadar bcur)
-          (setf (gethash (caar bcur) macro-tbl) (cadar bcur)))))
-    res))
-
 (defun compile-macrolet (args)
   (let ((res nil) (tmp-bindings nil))
     (destructuring-bind (bindings &rest body) args
@@ -1311,22 +1284,19 @@ BODY is optional. DOCUMENTATION is optional"
            (return))))
   (if (consp form)
       (destructuring-bind (op &rest args) form
-        (cond
-          ((string= "macro"     (string op)) (register-macro args))
-          ((string= "macrofn"   (string op)) (register-macrofn args))
-          ((string= "macrolet"  (string op)) (print-macrolet args stmtp indent to-stream))
-          (t
-           (let ((fn (cddr (assoc (string op) kwd-behavior :test #'string=))))
-             (if fn
-                 (funcall fn form stmtp indent to-stream)
-                 (progn
-                   (format to-stream "~v@{~C~:*~}" indent #\Space)
-                   (format to-stream "~a (~{~a~^, ~})"
-                           (car form)
-                           (mapcar (lambda (x) (if (stringp x) (format nil "\"~a\"" x)
-                                                   (with-output-to-string (s) (print-form x nil 0 s))))
-                                   (cdr form)))
-                   (when stmtp (format to-stream ";~%"))))))))
+        (let ((fn (cddr (assoc (string op) kwd-behavior :test #'string=))))
+          (unless (eql fn 'print-progn)
+            (setf indent (max 0 indent)))
+          (if fn
+              (funcall fn form stmtp indent to-stream)
+              (progn
+                (format to-stream "~v@{~C~:*~}" indent #\Space)
+                (format to-stream "~a (~{~a~^, ~})"
+                        (car form)
+                        (mapcar (lambda (x) (if (stringp x) (format nil "\"~a\"" x)
+                                                (with-output-to-string (s) (print-form x nil 0 s))))
+                                (cdr form)))
+                (when stmtp (format to-stream ";~%"))))))
       (progn
         (unless (eql form nil)
           (format to-stream "~v@{~C~:*~}" indent #\Space)
