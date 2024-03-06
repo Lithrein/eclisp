@@ -328,23 +328,7 @@ ACC should be NIL at first."
 (defun print-defvar (form stmtp indent to-stream)
   "Compile a form which declares a global variable.
                   (def var type value documentation)"
-  (let ((var nil) (type nil) (value nil) (documentation nil))
-    (if (consp (car form))
-        ;; no name, hence no value
-        (progn
-          (setf type (car form))
-          (setf documentation (cadr form)))
-        ;; name is present
-        (progn
-          (setf var (car form))
-          (if (consp (cadr form))
-              (progn
-                (setf type (cadr form))
-                (setf value (caddr form))
-                (setf documentation (cadddr form)))
-              (progn
-                (setf value (cadr form))
-                (setf documentation (caddr form))))))
+  (destructuring-bind (var type value documentation) form
     (when (and (symbolp value) (string= (string value) "%nothing")) (setf value nil))
     (unless (null documentation)
       (progn
@@ -354,7 +338,7 @@ ACC should be NIL at first."
                                    (concatenate 'string '(#\Newline) "   "
                                                 (format nil "~v@{~C~:*~}" indent #\Space))))))
     (format to-stream "~v@{~C~:*~}" indent #\Space)
-    (print-type var (if (null type) '(|int|) type) to-stream)
+    (print-type var type to-stream)
     (when value (format to-stream " = ~a"
                         (with-output-to-string (s) (print-form value nil 0 s))))
     (when stmtp (format to-stream ";~%"))))
@@ -363,23 +347,22 @@ ACC should be NIL at first."
   "Compile a form which declares a global variable.
                   (def var type value documentation)"
   (let ((var nil) (type nil) (value nil) (documentation nil))
-    (cond ((and (consp (car form)) (member (caar form) +c-keywords+ :test #'string=))
-           ;; no name, hence no value
+    (cond ((or (and (atom (car form))
+                    (member (car form) +c-keywords+ :test #'string=))
+               (and (listp (car form))
+                    (member (caar form) +c-keywords+ :test #'string=)))
+           ;; The name would have been a reserved keyword.
+           ;; Hence we guess that we're in the case "no name"
            (setf type (car form))
            (setf documentation (cadr form)))
           ;; name is present
           (t
            (setf var (car form))
-           (if (consp (cadr form))
-               (progn
-                 (setf type (cadr form))
-                 (setf value (caddr form))
-                 (setf documentation (cadddr form)))
-               (progn
-                 (setf value (cadr form))
-                 (setf documentation (caddr form))))))
+           (setf type (cadr form))
+           (setf value (caddr form))
+           (setf documentation (cadddr form))))
     (list var
-          (if (null type) '(|int|) type)
+          type
           (when value (compile-form value))
           documentation)))
 
@@ -387,11 +370,7 @@ ACC should be NIL at first."
   "Compile a form which declares a global variable.
                   (def f (-> rettype params) documentation body)
 BODY is optional. DOCUMENTATION is optional"
-  (let ((var nil) (type nil) (body nil) (documentation nil))
-    (setf var (car form))
-    (setf type (cadr form))
-    (setf documentation (caddr form))
-    (setf body (cdddr form))
+  (destructuring-bind (var type documentation body) form
     (unless (null documentation)
       (progn
         (format to-stream "~v@{~C~:*~}" indent #\Space)
@@ -400,7 +379,7 @@ BODY is optional. DOCUMENTATION is optional"
                                    (concatenate 'string '(#\Newline) "   "
                                                 (format nil "~v@{~C~:*~}" indent #\Space))))))
     (format to-stream "~v@{~C~:*~}" indent #\Space)
-    (print-type var (if (null type) '(void) type) to-stream)
+    (print-type var type to-stream)
     (when body
       (format to-stream "~%")
       (print-progn (list* '|progn| body) stmtp indent to-stream))
@@ -419,7 +398,7 @@ BODY is optional. DOCUMENTATION is optional"
           (setf documentation (caddr form))
           (setf body (cdddr form)))
         (setf body (cddr form)))
-    (list* var type documentation
+    (list var type documentation
            (when body
              (mapcar (lambda (form) (compile-form form)) body)))))
 

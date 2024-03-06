@@ -1,12 +1,12 @@
-(def nb_events 0
+(def nb_events int 0
   "This is the number of events received since the start of the program across
 all threads.")
 
-(def pi (const (float)) 3.14
+(def pi (const float) 3.14
   "Very well know constant.")
 
-(def a)
+(def a int)
 
-(def e (float) 2.718)
+(def e float 2.718)
 
-(def b (float))
+(def b float)
