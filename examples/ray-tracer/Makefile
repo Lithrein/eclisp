@@ -1,6 +1,6 @@
 ECLISP := ../../eclisp
 QUIET := @
-CFLAGS := -O2 -g3
+CFLAGS := -O2 -g3 -Wall -Wextra
 LDFLAGS := -lm
 .SUFFIXES: .eclisp
 

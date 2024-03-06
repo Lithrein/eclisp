@@ -1,6 +1,6 @@
 ECLISP := ../../eclisp
 QUIET := @
-CFLAGS := -g3 $(shell pkg-config --cflags sdl2)
+CFLAGS := -g3 -Wall -Wextra $(shell pkg-config --cflags sdl2)
 LDFLAGS := $(shell pkg-config --libs sdl2)
 .SUFFIXES: .eclisp
 

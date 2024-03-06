@@ -25,7 +25,7 @@
   "Direct accessors to each coordinate.")))
 
 (macro mkvec3 (x y z)
-  `(cast (union vec3) (list ,x ,y ,z)))
+  `(cast (union vec3) (list (list ,x ,y ,z))))
 
 (macro mk-naryop (name binop)
   `(macro ,name (arg1 arg2 $body rest)
@@ -119,10 +119,10 @@
     (return (sqrt linear_component)))
 
 (def write_color (-> void (f (ptr FILE)) (color (union vec3)) (samples_per_pixel int))
-  (def scale (double) (/ 1.0 samples_per_pixel))
-  (def r     (double) (linear_to_gamma (* scale color.x)))
-  (def g     (double) (linear_to_gamma (* scale color.y)))
-  (def b     (double) (linear_to_gamma (* scale color.z)))
+  (def scale double (/ 1.0 samples_per_pixel))
+  (def r     double (linear_to_gamma (* scale color.x)))
+  (def g     double (linear_to_gamma (* scale color.y)))
+  (def b     double (linear_to_gamma (* scale color.z)))
 
   (fprintf f "%d %d %d\n" (cast int (* 256 (clamp 0.0 0.999 r)))
                           (cast int (* 256 (clamp 0.0 0.999 g)))
@@ -156,11 +156,11 @@
 
 (def hit_sphere (-> double (center (ptr union vec3)) (radius double) (r (ptr struct ray)) (ht (ptr struct hit_record)))
     (def oc (union vec3) (vec3_sub r->orig *center))
-    (def a  (double)     (vec3_len2 r->dir))
-    (def hb (double)     (vec3_dot oc r->dir))
-    (def c  (double)     (- (vec3_len2 oc) (* radius radius)))
-    (def discriminant (double) (- (* hb hb) (* a c)))
-    (def root (double) (/ (- (+ hb (sqrt discriminant))) a))
+    (def a  double     (vec3_len2 r->dir))
+    (def hb double     (vec3_dot oc r->dir))
+    (def c  double     (- (vec3_len2 oc) (* radius radius)))
+    (def discriminant double (- (* hb hb) (* a c)))
+    (def root double (/ (- (+ hb (sqrt discriminant))) a))
 
     (= ht->t      root)
     (= ht->p      (ray_at *r ht->t))
@@ -173,13 +173,13 @@
 (def ray_color (-> (union vec3) (r (ptr struct ray)) (depth int))
   (def rec      (struct hit_record))
   (def unit_dir (union vec3) (vec3_unit r->dir))
-  (def a        (double)     (/ (+ unit_dir.y 1.0) 2))
+  (def a        double     (/ (+ unit_dir.y 1.0) 2))
 
   (if (< depth 0)
     (return (mkvec3 0 0 0)))
 
   ;; sphere
-  (def t (double) (hit_sphere (addr (mkvec3 0 0.25 -1)) 0.75 r &rec))
+  (def t double (hit_sphere (addr (mkvec3 0 0.25 -1)) 0.75 r &rec))
   (when (> t 0.0)
     (def direction (union vec3) (vec3+ rec.normal (random_unit_vector)))
     (return (vec3_mul (mkvec3 0 0.9 0.9) (vec3_smul (ray_color (addr (mkray rec.p direction)) (- depth 1)) 0.5))))
@@ -205,8 +205,8 @@
                  (vec3_smul (mkvec3 0.5 0.7 1.0) a))))
 
 (def pixel_sample_square (-> (union vec3) (pixel_delta_u pixel_delta_v (union vec3)))
- (def px (double) (+ -0.5 (random_double)))
- (def py (double) (+ -0.5 (random_double)))
+ (def px double (+ -0.5 (random_double)))
+ (def py double (+ -0.5 (random_double)))
  (return (vec3+ (vec3_smul pixel_delta_u px) (vec3_smul pixel_delta_v py))))
 
 (def get_ray (-> (struct ray) (i j int) (pixel00_loc pixel_delta_u pixel_delta_v camera_center (union vec3)))
@@ -225,25 +225,25 @@
 (def main (-> int void)
   "The entry point."
 
-  (def samples_per_pixel (int) 500)
-  (def max_depth (int) 50)
+  (def samples_per_pixel int 500)
+  (def max_depth int 50)
   (srand (time NULL))
 
   ;; image
-  (def aspect_ratio (double) (/ 16.0 9.0))
-  (def image_width (int) 1024)
-  (def image_height (int) (max_i 1 (cast int (/ image_width aspect_ratio))))
+  (def aspect_ratio double (/ 16.0 9.0))
+  (def image_width int 1024)
+  (def image_height int (max_i 1 (cast int (/ image_width aspect_ratio))))
 
   ;; camera
-  (def camera_center (union vec3) '(-8 3 1))
-  (def lookat (union vec3) '(0 0 -1))
+  (def camera_center (union vec3) (mkvec3 -8 3 1))
+  (def lookat (union vec3) (mkvec3 0 0 -1))
   (def vup (union vec3) (mkvec3 0 1 0))
-  (def vfov (double) 30.0)
-  (def theta (double) (degrees_to_radians vfov))
-  (def h (double) (tan (/ theta 2)))
-  (def focal_length (double) (vec3_len (vec3- camera_center lookat)))
-  (def viewport_height (double) (* 2 h focal_length))
-  (def viewport_width (double) (* viewport_height
+  (def vfov double 30.0)
+  (def theta double (degrees_to_radians vfov))
+  (def h double (tan (/ theta 2)))
+  (def focal_length double (vec3_len (vec3- camera_center lookat)))
+  (def viewport_height double (* 2 h focal_length))
+  (def viewport_width double (* viewport_height
                                   (/ (cast double image_width) image_height)))
   (def u (union vec3))
   (def v (union vec3))
@@ -271,19 +271,12 @@
 
   (printf "P3\n%d %d\n255\n" image_width image_height)
 
-  (for (def j (int) 0) (< j image_height) ++j
-    (for (def i (int) 0) (< i image_width) ++i
+  (for (def j int 0) (< j image_height) ++j
+    (for (def i int 0) (< i image_width) ++i
       (fprintf stderr "\rScanlines remaining: %d.    " (- image_width j))
 
-      (def pixel_center (union vec3)
-           (vec3+ pixel00_loc
-                  (vec3_smul pixel_delta_u i)
-                  (vec3_smul pixel_delta_v j)))
-      (def ray_direction (union vec3) (vec3_sub pixel_center camera_center))
-      (def r (struct ray) '(camera_center ray_direction))
-      (def pixel_color (union vec3) '(0 0 0))
-
-      (for (def sample (int) 0) (< sample samples_per_pixel) ++sample
+      (def pixel_color (union vec3) (mkvec3 0 0 0))
+      (for (def sample int 0) (< sample samples_per_pixel) ++sample
         (def r (struct ray) (get_ray i j pixel00_loc pixel_delta_u pixel_delta_v camera_center))
         (= pixel_color (vec3+ pixel_color (ray_color &r max_depth))))
 

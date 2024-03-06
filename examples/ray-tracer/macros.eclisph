@@ -27,15 +27,12 @@
         ,@cleanup-forms
        (return ,result))))
 
-(macro with-open-file (args $body body)
-  (let ((var (car args))
-        (filename (car (cdr args)))
-        (mode (car (cdr (cdr args)))))
-   `(progn
-     (def ,var (ptr FILE) NULL)
-     (unwind-protect
-      (progn
-         (= ,var (fopen ,filename ,mode))
-         ,@body)
-       (if ,var
-         (fclose ,var))))))
+(macro with-open-file ((var filename mode) $body body)
+  `(progn
+    (def ,var (ptr FILE) NULL)
+    (unwind-protect
+     (progn
+        (= ,var (fopen ,filename ,mode))
+        ,@body)
+      (if ,var
+        (fclose ,var)))))

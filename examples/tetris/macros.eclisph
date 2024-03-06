@@ -10,14 +10,14 @@
 
 (macro awhen (condition $body body)
   `(progn
-     (def it (int) ,condition)
+     (def it int ,condition)
      (when it ,@body)))
 
 (macro unwind-protect (form $body cleanup-forms)
   (let ((cleanup (gensym "cleanup"))
         (result  (gensym "result")))
     `(progn
-       (def ,result (int))
+       (def ,result int)
        (macrolet ((return (expr) 
                       `(progn
                         (= ,',result ,expr)
@@ -27,18 +27,15 @@
         ,@cleanup-forms
        (return ,result))))
 
-(macro with-open-file (args $body body)
-  (let ((var (car args))
-        (filename (car (cdr args)))
-        (mode (car (cdr (cdr args)))))
-   `(progn
-     (def ,var (ptr FILE) NULL)
-     (unwind-protect
-      (progn
-         (= ,var (fopen ,filename ,mode))
-         ,@body)
-       (if ,var
-         (fclose ,var))))))
+(macro with-open-file ((var filename mode) $body body)
+  `(progn
+    (def ,var (ptr FILE) NULL)
+    (unwind-protect
+     (progn
+        (= ,var (fopen ,filename ,mode))
+        ,@body)
+      (if ,var
+        (fclose ,var)))))
 
 (macro with-sdl2 (args $body body)
   `(progn
