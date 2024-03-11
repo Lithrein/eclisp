@@ -715,7 +715,7 @@ BODY is optional. DOCUMENTATION is optional"
   (when stmtp
     (format to-stream ";~%")))
 
-;; cf. The two following functions have been adapted from CLtL2 Appendix C.
+;; cf. The following functions have been adapted from CLtL2 Appendix C.
 (defun bracket (x)
   (cond ((atom x)
          (list '|list| (compile-backquote-aux x)))
@@ -739,9 +739,116 @@ BODY is optional. DOCUMENTATION is optional"
              (when (eq (car p) '|unquote-splice|)
                (error "Dotted ,@~S" p))))))
 
+
+(defun maptree (fn x)
+  "Auxiliary function like MAPCAR but has two extra
+purposes: (1) it handles dotted lists; (2) it tries to make
+the result share with the argument x as much as possible."
+  (if (atom x)
+      (funcall fn x)
+      (let ((a (funcall fn (car x)))
+            (d (maptree fn (cdr x))))
+        (if (and (eql a (car x)) (eql d (cdr x)))
+            x
+            (cons a d)))))
+
+(defun bq-splicing-frob (x)
+  "This predicate is true if X looks like ,@foo"
+  (and (consp x)
+       (eq (car x) '|unquote-splice|)))
+
+(defun bq-frob (x)
+  "This predicate is true if X looks like ,@foo or ,foo."
+  (and (consp x)
+       (or (eq (car x) '|unquote|)
+           (eq (car x) '|unquote-splice|))))
+
+(defun bq-simplify (x)
+  (if (atom x)
+      x
+      (let ((x (if (eq (car x) '|quote|)
+                   x
+                   (maptree #'bq-simplify x))))
+        (if (not (eq (car x) '|append|))
+            x
+            (bq-simplify-args x)))))
+
+(defun bq-simplify-args (x)
+  (do ((args (reverse (cdr x)) (cdr args))
+       (result
+         nil
+         (cond ((atom (car args))
+                (bq-attach-append '|append| (car args) result))
+               ((and (eq (caar args) '|list|)
+                     (notany #'bq-splicing-frob (cdar args)))
+                (bq-attach-conses (cdar args) result))
+               ((and (eq (caar args) '|list*|)
+                     (notany #'bq-splicing-frob (cdar args)))
+                (bq-attach-conses
+                  (reverse (cdr (reverse (cdar args))))
+                  (bq-attach-append '|append|
+                                    (car (last (car args)))
+                                    result)))
+               ((and (eq (caar args) '|quote|)
+                     (consp (cadar args))
+                     (not (bq-frob (cadar args)))
+                     (null (cddar args)))
+                (bq-attach-conses (list (list '|quote|
+                                              (caadar args)))
+                                  result))
+               (t (bq-attach-append '|append|
+                                    (car args)
+                                    result)))))
+      ((null args) result)))
+
+(defun null-or-quoted (x)
+  (or (null x) (and (consp x) (eq (car x) '|quote|))))
+
+;;; When BQ-ATTACH-APPEND is called, the OP should be #:BQ-APPEND
+;;; or #:BQ-NCONC.  This produces a form (op item result) but
+;;; some simplifications are done on the fly:
+;;;
+;;;  (op '(a b c) '(d e f g)) => '(a b c d e f g)
+;;;  (op item 'nil) => item, provided item is not a splicable frob
+;;;  (op item 'nil) => (op item), if item is a splicable frob
+;;;  (op item (op a b c)) => (op item a b c)
+
+(defun bq-attach-append (op item result)
+  (cond ((and (null-or-quoted item) (null-or-quoted result))
+         (list '|quote| (append (cadr item) (cadr result))))
+        ((or (null result) (equal result (list '|quote| nil)))
+         (if (bq-splicing-frob item) (list op item) item))
+        ((and (consp result) (eq (car result) op))
+         (list* (car result) item (cdr result)))
+        (t (list op item result))))
+
+;;; The effect of BQ-ATTACH-CONSES is to produce a form as if by
+;;; `(LIST* ,@items ,result) but some simplifications are done
+;;; on the fly.
+;;;
+;;;  (LIST* 'a 'b 'c 'd) => '(a b c . d)
+;;;  (LIST* a b c 'nil) => (LIST a b c)
+;;;  (LIST* a b c (LIST* d e f g)) => (LIST* a b c d e f g)
+;;;  (LIST* a b c (LIST d e f g)) => (LIST a b c d e f g)
+
+(defun bq-attach-conses (items result)
+  (cond ((and (every #'null-or-quoted items)
+              (null-or-quoted result))
+         (list '|quote|
+               (append (mapcar #'cadr items) (cadr result))))
+        ((or (null result) (equal result (list '|quote| nil)))
+         (cons '|list| items))
+        ((and (consp result)
+              (or (eq (car result) '|list|)
+                  (eq (car result) '|list*|)))
+         (cons (car result) (append items (cdr result))))
+        (t (cons '|list*| (append items (list result))))))
+
 (defun compile-backquote (args ctx)
+  ;; The simplifications are needed so that all the append and list* are
+  ;; reduced and can be safely passed to the C pretty-printing machinery.
   ;; todo: investigate why the need for car here
-  (car (compile-macro (compile-backquote-aux args) ctx)))
+  (bq-simplify (car (compile-macro (bq-simplify (compile-backquote-aux args)) ctx))))
 
 (defun print-backquote (args stmtp indent to-stream)
   (pop args)
@@ -982,6 +1089,9 @@ BODY is optional. DOCUMENTATION is optional"
 (defun compile-append (args ctx)
   (apply #'append (mapcar #'(lambda (x) (ctx-lookup x ctx)) args)))
 
+(defun compile-list* (args ctx)
+  (apply #'list* (mapcar #'(lambda (x) (ctx-lookup x ctx)) args)))
+
 (defun compile-macro (form ctx)
   (let ((res nil))
     (setf res
@@ -989,6 +1099,7 @@ BODY is optional. DOCUMENTATION is optional"
               (destructuring-bind (op &rest args) form
                 (cond
                   ((string= "list"      (string op)) (compile-list-macro args ctx))
+                  ((string= "list*"     (string op)) (compile-list*      args ctx))
                   ((string= "append"    (string op)) (compile-append     args ctx))
                   ((string= "backquote" (string op)) (compile-backquote  args ctx))
                   ((string= "quote"     (string op)) (compile-quote      args ctx))
