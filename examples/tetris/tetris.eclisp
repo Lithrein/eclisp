@@ -275,6 +275,7 @@ onto TM."
           (unless (setup_new_tm pboard (addr tetro) TM_NONE)
             (break))))
       (update_screen pboard (addr tetro) hold renderer))
+    (SDL_DestroyRenderer renderer)
     (SDL_DestroyWindow window)
     (return EXIT_SUCCESS)))
 
