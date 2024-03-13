@@ -1336,12 +1336,15 @@ the result share with the argument x as much as possible."
 
 (defun compile-form (form)
   "Compile an eclisp FROM and write it on TO-STREAM"
-  (if (consp form)
+  (loop
+    (if (consp form)
       (destructuring-bind (op &rest args) form
-        (when (gethash op macro-tbl)
-          (setf form (expand-macro op args))))
-      (when (gethash form macro-tbl)
-        (setf form (expand-macro form nil))))
+        (if (gethash op macro-tbl)
+            (setf form (expand-macro op args))
+            (return)))
+      (if (gethash form macro-tbl)
+          (setf form (expand-macro form nil))
+          (return))))
   (if (consp form)
       (destructuring-bind (op &rest args) form
         (let ((fn (cadr (assoc (string op) kwd-behavior :test #'string=))))
@@ -1365,15 +1368,6 @@ the result share with the argument x as much as possible."
 
 (defun print-form (form stmtp indent to-stream)
   "Compile an eclisp FROM and write it on TO-STREAM"
-  (loop
-   (if (consp form)
-       (destructuring-bind (op &rest args) form
-         (if (gethash op macro-tbl)
-             (setf form (expand-macro op args))
-             (return)))
-       (if (gethash form macro-tbl)
-           (setf form (expand-macro form nil))
-           (return))))
   (if (consp form)
       (destructuring-bind (op &rest args) form
         (let ((fn (cddr (assoc (string op) kwd-behavior :test #'string=))))
