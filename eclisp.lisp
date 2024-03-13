@@ -2,6 +2,30 @@
 
 (in-package #:eclisp)
 
+(defclass eclisp-symbol ()
+  ((name               :initform (error "name: mandatory argument.")
+                       :initarg :name
+                       :accessor es-name
+                       :documentation
+                       "The name of the symbol")
+   (attributes         :initform (make-hash-table :test 'equal)
+                       :initarg :attributes
+                       :accessor es-attrs
+                       :documentation
+                       "The attributes of the symbols stored as a hash-table.")))
+
+(defmethod print-object ((obj eclisp-symbol) stream)
+      (print-unreadable-object (obj stream :type t)
+        (with-accessors ((name es-name)
+                         (attrs es-attrs))
+            obj
+          (format stream "name: ~a, attrs: {~{~{(~a : ~a)~}~^ ~}"
+                  name
+                  (loop for key being the hash-keys of attrs
+                          using (hash-value value)
+                        collect (list key value))))))
+
+
 (defvar macro-tbl (make-hash-table)
   "A global variable with the currently defined macros.")
 
@@ -337,11 +361,31 @@ ACC should be NIL at first."
                 (regex-replace-all "\\n" documentation
                                    (concatenate 'string '(#\Newline) "   "
                                                 (format nil "~v@{~C~:*~}" indent #\Space))))))
+    (when var
+      (when (string= (string (gethash "linkage" (es-attrs var))) "static")
+        (setf type `(|static| ,type))))
     (format to-stream "~v@{~C~:*~}" indent #\Space)
-    (print-type var type to-stream)
+    (print-type (when var (es-name var)) type to-stream)
     (when value (format to-stream " = ~a"
                         (with-output-to-string (s) (print-form value nil 0 s))))
     (when stmtp (format to-stream ";~%"))))
+
+(defun compile-symbol-definition (symdef)
+  "Reads a name and its attributes.
+All this information is returned as an ECLISP-SYMBOL instance"
+  (if (listp symdef)
+      (let* ((sym (make-instance 'eclisp-symbol :name (car symdef)))
+             (cur-key nil))
+        (loop for elt in (cdr symdef) do
+          (cond ((and (consp elt) (eq (car elt) '|%key|))
+                 (setf cur-key (string (caddr elt)))
+                 (setf (gethash cur-key (es-attrs sym)) nil))
+                (t
+                 (if (null cur-key)
+                     (error "cur-key is nil")
+                     (setf (gethash cur-key (es-attrs sym)) elt)))))
+        sym)
+      (make-instance 'eclisp-symbol :name symdef)))
 
 (defun compile-defvar (form)
   "Compile a form which declares a global variable.
@@ -357,7 +401,7 @@ ACC should be NIL at first."
            (setf documentation (cadr form)))
           ;; name is present
           (t
-           (setf var (car form))
+           (setf var (compile-symbol-definition (car form)))
            (setf type (cadr form))
            (setf value (caddr form))
            (setf documentation (cadddr form))))
@@ -379,7 +423,10 @@ BODY is optional. DOCUMENTATION is optional"
                                    (concatenate 'string '(#\Newline) "   "
                                                 (format nil "~v@{~C~:*~}" indent #\Space))))))
     (format to-stream "~v@{~C~:*~}" indent #\Space)
-    (print-type var type to-stream)
+    (when var
+      (when (string= (string (gethash "linkage" (es-attrs var))) "static")
+        (setf type `(|->| (|static| ,(cadr type)) ,@(cddr type)))))
+    (print-type (when var (es-name var)) type to-stream)
     (when body
       (format to-stream "~%")
       (print-progn (list* '|progn| body) stmtp indent to-stream))
@@ -391,7 +438,7 @@ BODY is optional. DOCUMENTATION is optional"
                   (def f (-> rettype params) documentation body)
 BODY is optional. DOCUMENTATION is optional"
   (let ((var nil) (type nil) (body nil) (documentation nil))
-    (setf var (car form))
+    (setf var (compile-symbol-definition (car form)))
     (setf type (cadr form))
     (if (stringp (caddr form))
         (progn

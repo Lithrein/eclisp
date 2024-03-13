@@ -36,7 +36,7 @@ tetromino.")
     :TM_S    (0   255 0   255)  :TM_Z (255 0   0   255))
   "Assocation table between each tetromino and its color.")
 
-(def access (-> (static int) (board (ptr int)) (x y int))
+(def (access :linkage static) (-> int (board (ptr int)) (x y int))
   "Retrieve the value (i.e., the color) from the BOARD of the cell at X, Y.
 Returns -1 when the access is out of the BOARD."
   (if (&& (<= 0 y (- BOARD_HEIGHT 1)) (<= 0 x (- BOARD_WIDTH 1)))
