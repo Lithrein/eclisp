@@ -18,7 +18,7 @@
         (result  (gensym "result")))
     `(progn
        (def ,result int)
-       (macrolet ((return (expr) 
+       (macrolet ((return (expr)
                       `(progn
                         (= ,',result ,expr)
                         (goto ,',cleanup))))
@@ -37,12 +37,36 @@
       (if ,var
         (fclose ,var)))))
 
-(macro with-sdl2 (args $body body)
-  `(progn
-    (unwind-protect
+(macro with-sdl2-init (args $body body)
+  `(unwind-protect
      (progn
-      (when (SDL_Init ,@args)
-       (fprintf stderr "Erreur SDL_Init: %s" (SDL_GetError))
-       (return EXIT_FAILURE))
+       (when (SDL_Init ,@args)
+         (fprintf stderr "Error SDL_Init: %s" (SDL_GetError))
+         (return EXIT_FAILURE))
       ,@body)
-     (SDL_Quit))))
+     (SDL_Quit)))
+
+(macro with-sdl2-window ((window wtitle x y w h flags) $body body)
+  `(progn
+      (def ,window (ptr SDL_Window)
+           (SDL_CreateWindow ,wtitle ,x ,y ,w ,h ,flags))
+      (unwind-protect
+        (progn
+          (unless ,window
+            (fprintf stderr "Error SDL_CreateWindow: %s" (SDL_GetError))
+            (return EXIT_FAILURE))
+         ,@body)
+      (SDL_DestroyWindow ,window))))
+
+(macro with-sdl2-renderer ((renderer window index flags) $body body)
+  `(progn
+      (def ,renderer (ptr SDL_Renderer)
+           (SDL_CreateRenderer ,window ,index ,flags))
+      (unwind-protect
+        (progn
+           (unless ,renderer
+             (fprintf stderr "Error SDL_CreateRenderer: %s" (SDL_GetError))
+             (return EXIT_FAILURE))
+         ,@body)
+      (SDL_DestroyRenderer ,renderer))))
+
