@@ -427,40 +427,46 @@ A current limitation is that all @code{progn}s will be expanded with braces with
     form-1' form-2' ... form-m))
 @end lisp
 
-@node addr
-@subsection addr
+@node &
+@subsection &
 
-@code{addr} is used to take the address of a variable, much like the @code{&} operator does in C.
+@code{&} is used to take the address of a variable, much like the @code{&} operator does in C.
 
 @heading Grammar
 
 @verbatim
-(addr expr)
+(& expr)
 @end verbatim
 
 @heading Example
 
 @lisp
-(addr a)
-(addr (aref table i))
+(& a)
+(& (aref table i))
 @end lisp
 
-@node deref
-@subsection deref
+Nota: This is the behavior of the unary @code{&} operator.  The n-ary
+@code{&} operator behaves like the n-ary bitwise-and operator.
 
-@code{deref} is used to dereference a variable, much like the @code{*} operator does in C.
+@node *
+@subsection *
+
+@code{*} is used to dereference a variable, much like the @code{*} operator does in C.
 
 @heading Grammar
 
 @verbatim
-(deref expr)
+(* expr)
 @end verbatim
 
 @heading Example
 
 @lisp
-(deref a)
+(* a)
 @end lisp
+
+Nota: This is the behavior of the unary @code{*} operator.  The n-ary
+@code{*} operator behaves like the n-ary multiplication.
 
 @node arrow (->)
 @subsection arrow (->)

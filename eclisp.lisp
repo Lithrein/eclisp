@@ -563,18 +563,6 @@ BODY is optional. DOCUMENTATION is optional"
           (format to-stream "]")
           (setf cur (cdr cur)))))
 
-(defun print-addr (form stmtp indent to-stream)
-  (pop form)
-  (format to-stream "~v@{~C~:*~}" indent #\Space)
-  (format to-stream "&")
-  (print-form (car form) nil indent to-stream))
-
-(defun print-deref (form stmtp indent to-stream)
-  (pop form)
-  (format to-stream "~v@{~C~:*~}" indent #\Space)
-  (format to-stream "*")
-  (print-form (car form) nil indent to-stream))
-
 (defun print-while (form stmtp indent to-stream)
   (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
@@ -1280,8 +1268,6 @@ the result share with the argument x as much as possible."
     ("seq"       . (compile-call     . print-seq))
     ("list"      . (compile-call     . print-list))
     ("progn"     . (compile-call     . print-progn))
-    ("addr"      . (compile-call     . print-addr))
-    ("deref"     . (compile-call     . print-deref))
     ("."         . (compile-call     . print-dot))
     ("->"        . (compile-call     . print-arrow))
     ("aref"      . (compile-call     . print-aref))
