@@ -1,19 +1,19 @@
-(macro when (condition $body body)
+(macro when (condition &body body)
   `(if ,condition
     (progn
       ,@body)))
 
-(macro unless (condition $body body)
+(macro unless (condition &body body)
   `(if (! ,condition)
      (progn
        ,@body)))
 
-(macro awhen (condition $body body)
+(macro awhen (condition &body body)
   `(progn
      (def it int ,condition)
      (when it ,@body)))
 
-(macro unwind-protect (form $body cleanup-forms)
+(macro unwind-protect (form &body cleanup-forms)
   (let ((cleanup (gensym "cleanup"))
         (result  (gensym "result")))
     `(progn
@@ -27,7 +27,7 @@
         ,@cleanup-forms
        (return ,result))))
 
-(macro with-open-file ((var filename mode) $body body)
+(macro with-open-file ((var filename mode) &body body)
   `(progn
     (def ,var (ptr FILE) NULL)
     (unwind-protect
@@ -37,7 +37,7 @@
       (if ,var
         (fclose ,var)))))
 
-(macro with-sdl2-init (args $body body)
+(macro with-sdl2-init (args &body body)
   `(unwind-protect
      (progn
        (when (SDL_Init ,@args)
@@ -46,7 +46,7 @@
       ,@body)
      (SDL_Quit)))
 
-(macro with-sdl2-window ((window wtitle x y w h flags) $body body)
+(macro with-sdl2-window ((window wtitle x y w h flags) &body body)
   `(progn
       (def ,window (ptr SDL_Window)
            (SDL_CreateWindow ,wtitle ,x ,y ,w ,h ,flags))
@@ -58,7 +58,7 @@
          ,@body)
       (SDL_DestroyWindow ,window))))
 
-(macro with-sdl2-renderer ((renderer window index flags) $body body)
+(macro with-sdl2-renderer ((renderer window index flags) &body body)
   `(progn
       (def ,renderer (ptr SDL_Renderer)
            (SDL_CreateRenderer ,window ,index ,flags))

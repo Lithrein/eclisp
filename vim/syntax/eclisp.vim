@@ -47,7 +47,7 @@ syntax keyword eclispKwd switch
 syntax keyword eclispKwd short
 syntax keyword eclispKwd while
 
-syntax match eclispKwd "\v\$body"
+syntax match eclispKwd "\v\&body"
 
 syntax match   eclispOpe "\v\."
 syntax match   eclispOpe "\v\+"

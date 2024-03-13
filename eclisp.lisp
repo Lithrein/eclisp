@@ -1192,7 +1192,7 @@ the result share with the argument x as much as possible."
         (progn
           (expand-macro-args (car args) (car tmpl) ctx)
           (expand-macro-args (cdr args) (cdr tmpl) ctx))
-        (if (string= (string (car tmpl)) "$body")
+        (if (string= (string (car tmpl)) "&body")
             (setf (gethash (cadr tmpl) ctx) args)
             (progn
               (setf (gethash (car tmpl) ctx) (car args))
@@ -1211,9 +1211,9 @@ the result share with the argument x as much as possible."
         (progn
           (expand-macrofn-args (car args) (car tmpl) ctx ctx-ref)
           (expand-macrofn-args (cdr args) (cdr tmpl) ctx ctx-ref))
-        (if (string= (string (car tmpl)) "$body")
+        (if (string= (string (car tmpl)) "&body")
             ;; we should clarify where the evaluation of macrofn takes place
-            ;; because this may raise issues in the $body case.
+            ;; because this may raise issues in the &body case.
             (setf (gethash (cadr tmpl) ctx) (ctx-lookup (car args) ctx-ref))
             (progn
               (setf (gethash (car tmpl) ctx) (ctx-lookup (car args) ctx-ref))
