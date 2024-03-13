@@ -408,8 +408,12 @@ the other loop control constructs such as @code{for}, @code{while} and
 generating multiple function declarations/definitions.  In that case, it groups
 everything but no curly braces will be outputed to the C file.
 
-Note: Top-level @code{progn} forms are handled a bit differently, and printed without braces.
-A current limitation is that all @code{progn}s will be expanded with braces within functions.
+When you want to group statements but do not want to start a new scope, you
+should use @code{progn*}.
+
+Note (deprecated): Top-level @code{progn} forms are handled a bit differently,
+and printed without braces.  A current limitation is that all @code{progn}s
+will be expanded with braces within functions. Use @code{progn*} instead.
 
 @heading Grammar
 

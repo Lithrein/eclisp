@@ -339,6 +339,10 @@ ACC should be NIL at first."
          (format to-stream "~v@{~C~:*~}}~%" indent #\Space))
         (t (loop for f in form do (print-form f t indent to-stream)))))
 
+(defun print-progn* (form stmtp indent to-stream)
+  (pop form)
+  (loop for f in form do (print-form f t indent to-stream)))
+
 (defun print-funcall (form stmtp indent to-stream)
   (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
@@ -1243,7 +1247,7 @@ the result share with the argument x as much as possible."
           (setf tmp-bindings (cons (list name (gethash name macro-tbl)) tmp-bindings))
           (setf (gethash name macro-tbl) (list tmpl ml-body))))
       (setf res
-            (list* '|progn|
+            (list* '|progn*|
                    (loop for bodyform in body collect (compile-form bodyform))))
       ;; remove the bindings
       (do ((bcur tmp-bindings (cdr bcur)))
@@ -1268,6 +1272,7 @@ the result share with the argument x as much as possible."
     ("seq"       . (compile-call     . print-seq))
     ("list"      . (compile-call     . print-list))
     ("progn"     . (compile-call     . print-progn))
+    ("progn*"    . (compile-call     . print-progn*))
     ("."         . (compile-call     . print-dot))
     ("->"        . (compile-call     . print-arrow))
     ("aref"      . (compile-call     . print-aref))

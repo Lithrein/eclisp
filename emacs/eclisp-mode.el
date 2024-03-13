@@ -28,7 +28,7 @@
 (defconst eclisp-keywords
   '("aref" "auto" "addr" "break" "cast" "continue" "def" "default"
     "deref" "do" "else" "enum" "extern" "for" "goto" "if" "macro"
-    "progn" "return" "sizeof" "switch" "short" "while"))
+    "progn" "progn*" "return" "sizeof" "switch" "short" "while"))
 
 (defconst eclisp-typ-keywords
   '("array" "char" "const" "double" "float" "int" "long" "ptr"
