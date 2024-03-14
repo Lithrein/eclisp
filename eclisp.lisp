@@ -582,7 +582,7 @@ BODY is optional. DOCUMENTATION is optional"
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "do")
   (format to-stream "~%")
-  (print-form `(|prog| ,(cadr form)) t (+ 2 indent) to-stream)
+  (print-form `(|prog| ,@(cdr form)) t (+ 2 indent) to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "while ")
   (print-cond-expr (car form) stmtp 0 to-stream)
