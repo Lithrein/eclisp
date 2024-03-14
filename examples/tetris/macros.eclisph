@@ -1,25 +1,25 @@
 (macro when (condition &body body)
   `(if ,condition
-    (progn
+    (prog
       ,@body)))
 
 (macro unless (condition &body body)
   `(if (! ,condition)
-     (progn
+     (prog
        ,@body)))
 
 (macro awhen (condition &body body)
-  `(progn
+  `(prog
      (def it int ,condition)
      (when it ,@body)))
 
 (macro unwind-protect (form &body cleanup-forms)
   (let ((cleanup (gensym "cleanup"))
         (result  (gensym "result")))
-    `(progn
+    `(prog
        (def ,result int)
        (macrolet ((return (expr)
-                      `(progn
+                      `(prog
                         (= ,',result ,expr)
                         (goto ,',cleanup))))
         ,form)
@@ -28,10 +28,10 @@
        (return ,result))))
 
 (macro with-open-file ((var filename mode) &body body)
-  `(progn
+  `(prog
     (def ,var (ptr FILE) NULL)
     (unwind-protect
-     (progn
+     (prog
         (= ,var (fopen ,filename ,mode))
         ,@body)
       (if ,var
@@ -39,7 +39,7 @@
 
 (macro with-sdl2-init (args &body body)
   `(unwind-protect
-     (progn
+     (prog
        (when (SDL_Init ,@args)
          (fprintf stderr "Error SDL_Init: %s" (SDL_GetError))
          (return EXIT_FAILURE))
@@ -47,11 +47,11 @@
      (SDL_Quit)))
 
 (macro with-sdl2-window ((window wtitle x y w h flags) &body body)
-  `(progn
+  `(prog
       (def ,window (ptr SDL_Window)
            (SDL_CreateWindow ,wtitle ,x ,y ,w ,h ,flags))
       (unwind-protect
-        (progn
+        (prog
           (unless ,window
             (fprintf stderr "Error SDL_CreateWindow: %s" (SDL_GetError))
             (return EXIT_FAILURE))
@@ -59,11 +59,11 @@
       (SDL_DestroyWindow ,window))))
 
 (macro with-sdl2-renderer ((renderer window index flags) &body body)
-  `(progn
+  `(prog
       (def ,renderer (ptr SDL_Renderer)
            (SDL_CreateRenderer ,window ,index ,flags))
       (unwind-protect
-        (progn
+        (prog
            (unless ,renderer
              (fprintf stderr "Error SDL_CreateRenderer: %s" (SDL_GetError))
              (return EXIT_FAILURE))

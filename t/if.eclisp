@@ -1,4 +1,4 @@
 (if (== (strcmp str1 "str1") 0)
-    (progn (+ 1 2) 
+    (prog (+ 1 2) 
       (puts "bla"))
     (+ 2 3))

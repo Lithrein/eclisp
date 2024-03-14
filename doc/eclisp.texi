@@ -171,7 +171,7 @@ subsummed by @code{#if} or can be expressed as @code{macro}s.
 @end verbatim
 
 The @code{condition} is a @code{constant-expression}, the @code{body} is a list
-of forms which are executed like if they were into a @code{progn}. If condition
+of forms which are executed like if they were into a @code{prog}. If condition
 is @code{t}, then it is equivalent to the @code{#else} directive.
 
 @heading Examples
@@ -396,38 +396,38 @@ can be used to produce field-initializers within the list.
 
 Note: When used in a macro, @code{list} behaves like its lisp counterpart and does not allow special tokens.
 
-@node progn
-@subsection progn
+@node prog
+@subsection prog
 
-@code{progn} is the equivalent of opening a block with a pair of braces
+@code{prog} is the equivalent of opening a block with a pair of braces
 (@code{@{},@code{@}}).  This form is mostly needed by the @code{if} form, since
 the other loop control constructs such as @code{for}, @code{while} and
-@code{do-while} have an implicit @code{progn} around their bodies.
+@code{do-while} have an implicit @code{prog} around their bodies.
 
-@code{progn} can also be used even outside functions, which is great for macros
+@code{prog} can also be used even outside functions, which is great for macros
 generating multiple function declarations/definitions.  In that case, it groups
 everything but no curly braces will be outputed to the C file.
 
 When you want to group statements but do not want to start a new scope, you
-should use @code{progn*}.
+should use @code{prog*}.
 
-Note (deprecated): Top-level @code{progn} forms are handled a bit differently,
-and printed without braces.  A current limitation is that all @code{progn}s
-will be expanded with braces within functions. Use @code{progn*} instead.
+Note (deprecated): Top-level @code{prog} forms are handled a bit differently,
+and printed without braces.  A current limitation is that all @code{prog}s
+will be expanded with braces within functions. Use @code{prog*} instead.
 
 @heading Grammar
 
 @verbatim
-(progn form-1 form-2 ... form-n)
+(prog form-1 form-2 ... form-n)
 @end verbatim
 
 @heading Example
 
 @lisp
 (if cond
-  (progn
+  (prog
     form-1 form-2 ... form-n)
-  (progn
+  (prog
     form-1' form-2' ... form-m))
 @end lisp
 
@@ -545,10 +545,10 @@ The @code{if} form is the equivalent of the @code{if}/@code{else} of C.
 
 @lisp
 (if (<= 0 i (- size 1))
-    (progn
+    (prog
       (puts "This is within the bounds")
       (return 0))
-    (progn 
+    (prog 
       (puts "This is out-of-bounds")
       (return -1)))
 @end lisp
@@ -608,7 +608,7 @@ The form @code{goto} jumps to the designed label.
 @subsection for
 
 The form @code{for} introduces a `for' loop as its C counter-part.  The `body'
-is implicitely surrounded by a `progn'.
+is implicitely surrounded by a `prog'.
 
 @heading Grammar
 

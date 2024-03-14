@@ -331,7 +331,7 @@ ACC should be NIL at first."
   (when stmtp
     (format to-stream ";~%")))
 
-(defun print-progn (form stmtp indent to-stream)
+(defun print-prog (form stmtp indent to-stream)
   (pop form)
   (cond ((>= indent 0)
          (format to-stream "~v@{~C~:*~}{~%" indent #\Space)
@@ -339,7 +339,7 @@ ACC should be NIL at first."
          (format to-stream "~v@{~C~:*~}}~%" indent #\Space))
         (t (loop for f in form do (print-form f t indent to-stream)))))
 
-(defun print-progn* (form stmtp indent to-stream)
+(defun print-prog* (form stmtp indent to-stream)
   (pop form)
   (loop for f in form do (print-form f t indent to-stream)))
 
@@ -433,7 +433,7 @@ BODY is optional. DOCUMENTATION is optional"
     (print-type (when var (es-name var)) type to-stream)
     (when body
       (format to-stream "~%")
-      (print-progn (list* '|progn| body) stmtp indent to-stream))
+      (print-prog (list* '|prog| body) stmtp indent to-stream))
     (when (not body)
       (format to-stream ";~%"))))
 
@@ -574,7 +574,7 @@ BODY is optional. DOCUMENTATION is optional"
   (print-form (car form) nil 0 to-stream)
   (format to-stream ")~%")
   (if (cadr form)
-      (print-form `(|progn| ,@(cdr form)) t (+ 2 indent) to-stream)
+      (print-form `(|prog| ,@(cdr form)) t (+ 2 indent) to-stream)
       (format to-stream ";~%")))
 
 (defun print-do-while (form stmtp indent to-stream)
@@ -582,7 +582,7 @@ BODY is optional. DOCUMENTATION is optional"
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "do")
   (format to-stream "~%")
-  (print-form `(|progn| ,(cadr form)) t (+ 2 indent) to-stream)
+  (print-form `(|prog| ,(cadr form)) t (+ 2 indent) to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "while ")
   (print-cond-expr (car form) stmtp 0 to-stream)
@@ -609,7 +609,7 @@ BODY is optional. DOCUMENTATION is optional"
   (print-form (caddr form) nil 0 to-stream)
   (format to-stream ")~%")
   (if (cadddr form)
-      (print-form `(|progn| ,@(cdddr form)) t (+ 2 indent) to-stream)
+      (print-form `(|prog| ,@(cdddr form)) t (+ 2 indent) to-stream)
       (format to-stream ";~%")))
 
 (defun print-return (form stmtp indent to-stream)
@@ -671,7 +671,7 @@ BODY is optional. DOCUMENTATION is optional"
                       (format to-stream "~v@{~C~:*~}case " (+ 2 indent) #\Space)
                       (print-form label nil 0 to-stream)
                       (format to-stream ":~%")))))
-          (print-form `(|progn| ,@clauses) t (+ indent 4) to-stream)))
+          (print-form `(|prog| ,@clauses) t (+ indent 4) to-stream)))
   (format to-stream "~v@{~C~:*~}  }~%" indent #\Space))
 
 (defun compile-switch (form)
@@ -1247,7 +1247,7 @@ the result share with the argument x as much as possible."
           (setf tmp-bindings (cons (list name (gethash name macro-tbl)) tmp-bindings))
           (setf (gethash name macro-tbl) (list tmpl ml-body))))
       (setf res
-            (list* '|progn*|
+            (list* '|prog*|
                    (loop for bodyform in body collect (compile-form bodyform))))
       ;; remove the bindings
       (do ((bcur tmp-bindings (cdr bcur)))
@@ -1271,8 +1271,8 @@ the result share with the argument x as much as possible."
     ("def"       . (compile-def      . print-def))
     ("seq"       . (compile-call     . print-seq))
     ("list"      . (compile-call     . print-list))
-    ("progn"     . (compile-call     . print-progn))
-    ("progn*"    . (compile-call     . print-progn*))
+    ("prog"      . (compile-call     . print-prog))
+    ("prog*"     . (compile-call     . print-prog*))
     ("."         . (compile-call     . print-dot))
     ("->"        . (compile-call     . print-arrow))
     ("aref"      . (compile-call     . print-aref))
@@ -1362,7 +1362,7 @@ the result share with the argument x as much as possible."
   (if (consp form)
       (destructuring-bind (op &rest args) form
         (let ((fn (cddr (assoc (string op) kwd-behavior :test #'string=))))
-          (unless (eql fn 'print-progn)
+          (unless (eql fn 'print-prog)
             (setf indent (max 0 indent)))
           (if fn
               (funcall fn form stmtp indent to-stream)

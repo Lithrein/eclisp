@@ -20,11 +20,11 @@ main ()
 
 /*
 (%macro (includes (ilist (char ptr list))
-  `(progn
+  `(prog
      ,@(for ((%set cur ilist) (!= cur null) (%set cur (cdr ilist)))
          `(%includes ,(car cur))))
 
-;;; puts("(progn");
+;;; puts("(prog");
 ;;; for (cur = ilist ; cur != null ; cur = cdr (ilist)) {
 ;;;   printf ("  (%%include %s\n", car (cur));
 ;;; }

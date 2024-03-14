@@ -40,8 +40,8 @@ syntax keyword eclispKwd extern
 syntax keyword eclispKwd for
 syntax keyword eclispKwd goto
 syntax keyword eclispKwd if
-syntax keyword eclispKwd progn
-syntax keyword eclispKwd progn*
+syntax keyword eclispKwd prog
+syntax keyword eclispKwd prog*
 syntax keyword eclispKwd return
 syntax keyword eclispKwd sizeof
 syntax keyword eclispKwd switch

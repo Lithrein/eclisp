@@ -1,25 +1,25 @@
 (macro when (condition &body body)
   `(if ,condition
-    (progn
+    (prog
       ,@body)))
 
 (macro unless (condition &body body)
   `(if (! ,condition)
-     (progn
+     (prog
        ,@body)))
 
 (macro awhen (condition &body body)
-  `(progn
+  `(prog
      (def it (int) ,condition)
      (when it ,@body)))
 
 (macro unwind-protect (form &body cleanup-forms)
   (let ((cleanup (gensym "cleanup"))
         (result  (gensym "result")))
-    `(progn
+    `(prog
        (def ,result (int))
        (macrolet ((return (expr) 
-                      `(progn
+                      `(prog
                         (= ,',result ,expr)
                         (goto ,',cleanup))))
         ,form)
@@ -28,10 +28,10 @@
        (return ,result))))
 
 (macro with-open-file ((var filename mode) &body body)
-  `(progn
+  `(prog
     (def ,var (ptr FILE) NULL)
     (unwind-protect
-     (progn
+     (prog
         (= ,var (fopen ,filename ,mode))
         ,@body)
       (if ,var
