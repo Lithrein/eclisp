@@ -1,54 +1,27 @@
-#include <stdio.h>
-#include <stdlib.h>
+(macro cond (fst &body rest)
+  (if rest
+    (if (&& (listp (car rest)) (== (car (car rest)) 't))
+      `(if ,(car fst) (prog ,@(cdr fst))
+           (prog ,@(cdr (car rest))))
+      `(if ,(car fst) (prog ,@(cdr fst))
+           (cond ,@rest)))
+    `(if ,(car fst) (prog ,@(cdr fst)))))
 
-int
-main ()
-{
-  int myst = 0;
-  int user = 0;
-  myst = (rand () % 100) + 1;
+(#include <stdio.h> <stdlib.h>)
 
-  do {
-    printf ("Entrez un nombre:\n");
-    scanf ("%d", &user);
-    if (myst < user) puts ("C'est moins");
-    else if (myst > user) puts ("C'est plus");
-  } while (user != myst);
-  puts ("Bravo");
-  return 0;
-}
+(def main (-> int void)
+  "The entry point."
+  (def user (int) 0)
+  (def myst (int) (+ 1 (% (rand) 100)))
 
-/*
-(%macro (includes (ilist (char ptr list))
-  `(prog
-     ,@(for ((%set cur ilist) (!= cur null) (%set cur (cdr ilist)))
-         `(%includes ,(car cur))))
+  (puts "A number between 1 and 100 was \"randomly\" chosen.")
+  (puts "Can you guess it?")
+  (do-while (!= user myst)
+    (printf "Type your guess\n")
+    (scanf "%d" (& user))
+    (cond
+      ((< myst user) (puts "It's less."))
+      ((> myst user) (puts "It's more."))))
 
-;;; puts("(prog");
-;;; for (cur = ilist ; cur != null ; cur = cdr (ilist)) {
-;;;   printf ("  (%%include %s\n", car (cur));
-;;; }
-;;; puts(")");
-
-(includes '(stdio.h stdlib.h))
-
-(%include stdio.h)
-(%include stdlib.h)
-
-(%fun (main () (int) :attributes noinline)
-  "This is the main function of the program."
-  (%var (myst (int)) (% (+ 1 (rand)) 100))
-    "This variable holds the number that the user should guess.")
-  (%var (user (int) :attributes (aligned 8)) 0
-    "This variable holds the last guess of the user.")
-
-  (%do-while (!= user myst)
-    (printf "Entrez un nombre:\n")
-    (scanf "%d" (addr user))
-    (%cond
-      ((< myst user) (puts "C'est moins"))
-      ((> myst user) (puts "C'est plus"))))
-
-  (puts "Bravo")
-  (%return 0))
-*/
+  (puts "Congrats. You got it!")
+  (return 0))
