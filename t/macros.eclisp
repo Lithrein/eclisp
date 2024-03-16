@@ -1,0 +1,127 @@
+;;
+;; Threading macros
+;;
+
+(macro ~> (fst snd &body rst)
+  (let ((snd (if (listp snd) snd (list snd))))
+    (if (null rst)
+        `(,(car snd) ,fst ,@(cdr snd))
+        `(~> (,(car snd) ,fst ,@(cdr snd)) ,@rst))))
+
+(macro ~>> (fst snd &body rst)
+  (let ((snd (if (listp snd) snd (list snd))))
+    (if (null rst)
+        `(,(car snd) ,@(cdr snd) ,fst)
+        `(~>> (,(car snd) ,@(cdr snd) ,fst) ,@rst))))
+
+(macro cond~> (seed cond form &body rst)
+  (if (null rst)
+    `(if ,cond (,(car form) ,seed ,@(cdr form)))
+    `(prog*
+       (if ,cond (,(car form) ,seed ,@(cdr form)))
+       (cond~> seed ,@rst))))
+
+(macro cond~~> (seed cond form &body rst)
+  (if (null rst)
+    `(if ,cond (,(car form) ,@(cdr form) ,seed))
+    `(prog*
+       (if ,cond (,(car form) ,@(cdr form) ,seed))
+       (cond~> seed ,@rst))))
+
+;; ?(macro as~>>)
+;; (macro some~>)
+;; (macro some~~>)
+
+;;
+;; Specialized control macros
+;;
+
+(macro when (condition &body body)
+  `(if ,condition
+    (prog
+      ,@body)))
+
+(macro unless (condition &body body)
+  `(if (! ,condition)
+     (prog
+       ,@body)))
+
+(macro cond (fst &body rest)
+  (if rest
+    (if (&& (listp (car rest)) (== (car (car rest)) 't))
+      `(if ,(car fst) (prog ,@(cdr fst))
+           (prog ,@(cdr (car rest))))
+      `(if ,(car fst) (prog ,@(cdr fst))
+           (cond ,@rest)))
+    `(if ,(car fst) (prog ,@(cdr fst)))))
+
+;;
+;; Anaphoric macros
+;;
+
+(macro awhen (condition &body body)
+  `(prog
+     (def it int ,condition)
+     (when it ,@body)))
+
+;;
+;; Looping constructs
+;;
+
+(macro loop (&body body)
+  `(while 1 ,@body))
+
+;;
+;; Static looping constructs
+;;
+
+(macrofn replace (lst from to)
+  (if (null lst)
+      lst
+      (if (&& (== (car lst) from) (symbolp (car lst)))
+        `(,to ,@(replace (cdr lst) from to))
+        `(,(car lst) ,@(replace (cdr lst) from to)))))
+
+(macrofn repeatfn (num form sym)
+  (if (== num 0)
+  `()
+  `(,@(repeatfn (- num 1) form sym) ,(replace form sym num))))
+
+(macro repeat (num form sym)
+  (repeatfn num form sym))
+
+; (repeat 5 (fn "hello" i) i)
+
+;;
+;; Error Handling
+;;
+
+(macro unwind-protect (form &body cleanup-forms)
+  (let ((cleanup (gensym "cleanup"))
+        (result  (gensym "result")))
+    `(prog
+       (def ,result int)
+       (macrolet ((return (expr)
+                      `(prog
+                        (= ,',result ,expr)
+                        (goto ,',cleanup))))
+        ,form)
+        (label ,cleanup)
+        ,@cleanup-forms
+       (return ,result))))
+
+(macro with-open-file ((var filename mode) &body body)
+  `(prog
+    (def ,var (ptr FILE) NULL)
+    (unwind-protect
+     (prog*
+        (= ,var (fopen ,filename ,mode))
+        ,@body)
+      (if ,var
+        (fclose ,var)))))
+
+;;
+;; Misc.
+;;
+
+(macro va_arg (ap type) (%funcall 'va_arg ap (%type type)))
