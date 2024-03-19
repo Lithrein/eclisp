@@ -48,8 +48,6 @@ syntax keyword eclispKwd switch
 syntax keyword eclispKwd short
 syntax keyword eclispKwd while
 
-syntax match eclispKwd "\v\&body"
-
 syntax match   eclispOpe "\v\."
 syntax match   eclispOpe "\v\+"
 syntax match   eclispOpe "\v\*"
@@ -77,6 +75,9 @@ syntax match eclispPrP "\v\%:include"
 syntax match eclispPrP "\v\%:define"
 syntax match eclispPrP "\v\%:if"
 syntax match eclispPrP "\v\#endif"
+syntax match eclispKwd "\v\%funcall"
+syntax match eclispKwd "\v\%type"
+syntax match eclispKwd "\v\&body"
 
 syntax match eclispComment "\v;.*$"
 

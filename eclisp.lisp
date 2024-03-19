@@ -46,6 +46,52 @@ or in angle-brackets."
                       (t "#include \"~a\"~%"))
                 filename)))
 
+(defun eclisp-file-p (filename)
+  (let* ((filename (string filename))
+         (filename-len (length filename))
+         (pos (search ".eclisp" filename :start2 (max 0 (- filename-len 9)))))
+    (and pos (or (= pos (- filename-len 7))
+                 (and (= pos (- filename-len 8))
+                      (char= (aref filename (1- filename-len)) #\>)
+                      (char= (aref filename 0) #\<))
+                 (and (= pos (- filename-len 8))
+                      (char= (aref filename (1- filename-len)) #\h))
+                 (and (= pos (- filename-len 9))
+                      (char= (aref filename (1- filename-len)) #\>)
+                      (char= (aref filename 0) #\<))))))
+
+(defun convert-file-extension (filename)
+  (let* ((orig filename)
+         (sym-p (symbolp filename))
+         (filename (string filename))
+         (filename-len (length filename))
+         (pos (search ".eclisp" filename :start2 (max 0 (- filename-len 9))))
+         (pos-h (search ".eclisph" filename :start2 (max 0 (- filename-len 9)))))
+    (cond (pos-h
+           (let ((tmp (concatenate 'string (subseq filename 0 pos) ".h" (subseq filename (+ pos 8)))))
+             (if sym-p (intern tmp) tmp)))
+          (pos
+           (let ((tmp (concatenate 'string (subseq filename 0 pos) ".c" (subseq filename (+ pos 7)))))
+             (if sym-p (intern tmp) tmp)))
+          (t orig))))
+
+(defun read-macro-definitions (filename)
+  (with-open-file (f filename)
+    (loop for form = (parse f)
+          while form do
+            (when (or (string= (string (car form)) "macro")
+                      (string= (string (car form)) "macrofn")
+                      (string= (string (car form)) "macrolet"))
+              (compile-form form)))))
+
+(defun compile-include (forms)
+  (mapcar (lambda (x)
+            (let ((file (compile-form x)))
+              (cond ((eclisp-file-p file)
+                     (read-macro-definitions file)
+                     (convert-file-extension file))
+                    (t file)))) forms))
+
 (defun print-cpp-define (form stmtp indent to-stream)
   "Compile a define directive: %(define name substitution) and write it
 to TO-STREAM. FORM is a cons made of NAME and SUBSTITUTION.
@@ -1305,7 +1351,7 @@ the result share with the argument x as much as possible."
     res))
 
 (defvar kwd-behavior
-  '(("%:include"  . (compile-call     . print-cpp-include))
+  '(("%:include"  . (compile-include     . print-cpp-include))
     ("%:define"   . (compile-call     . print-cpp-define))
     ("%:if"       . (compile-cpp-if   . print-cpp-if))
     ("%type"     . (compile-call     . print-as-type))
@@ -1434,8 +1480,13 @@ the result share with the argument x as much as possible."
 TO-STREAM."
   (loop for form = (parse from-stream)
         while form do
-        (print-form (compile-form form) t -1 to-stream)))
+          (print-form (compile-form form) t -1 to-stream)))
 
 (defun main ()
   "The entry point."
-  (print-eclisp *standard-input* *standard-output*))
+  ;; *posix-argv* is not portable (sbcl)
+  (let ((args sb-ext:*posix-argv*))
+    (if (cdr args)
+        (with-open-file (f (cadr args))
+          (print-eclisp f *standard-output*))
+        (print-eclisp *standard-input* *standard-output*))))

@@ -1,18 +1,9 @@
+(%:include "macros.eclisph")
+(%:include "include/ray-tracer/utils.eclisph")
 (%:include <stdio.h> <stdlib.h> <math.h> <time.h>)
 
 ;; utils
 
-(def random_double (-> double void)
-  (return (/ (rand) (+ 1.0 RAND_MAX))))
-
-(def random_double_mm (-> double (min max double))
-  (return (+ min (* (- max min) (random_double)))))
-
-(def max_i (-> int (a b int))
-  (return (?: (> a b) a b)))
-
-(def degrees_to_radians (-> double (degrees double))
-  (return (/ (* degrees 3.14) 180.0)))
 
 ;; end utils
 

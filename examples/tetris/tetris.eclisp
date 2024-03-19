@@ -1,3 +1,5 @@
+(%:include "macros.eclisph")
+
 (%:include <stdbool.h> <stdio.h> <stdlib.h> <time.h>)
 (%:include <SDL2/SDL.h>)
 
@@ -62,7 +64,7 @@ Returns -1 when the access is out of the BOARD."
 
        (&= res
            (! (access board (+ (. (-> tm center) x) (* (aref dirs dir 0) dy))
-                      (+ (. (-> tm center) y) (* (aref dirs dir 1) dx))))))
+                            (+ (. (-> tm center) y) (* (aref dirs dir 1) dx))))))
   (when res
     (for (def i int 0) (< i 4) (+= i 1)
          (def dx int (- (. (aref (-> tm blocks) i) x) (. (-> tm center) x)))
@@ -84,7 +86,7 @@ successful, 0 otherwise."
 
   (for (def i int 0) (< i 4) (+= i 1)
        (if (access board (+ (. (aref (-> tm blocks) i) x) (aref dx dir))
-                   (+ (. (aref (-> tm blocks) i) y) (aref dy dir)))
+                         (+ (. (aref (-> tm blocks) i) y) (aref dy dir)))
            (return 0)))
 
   (+= (. (-> tm center) x) (aref dx dir))
@@ -106,7 +108,7 @@ onto TM."
   (for (def i int 0) (< i 4) (+= i 1)
        (&= res
            (! (access board (. (aref configs new_id) (aref blocks i) x)
-                      (. (aref configs new_id) (aref blocks i) y)))))
+                            (. (aref configs new_id) (aref blocks i) y)))))
 
   (when res
     (= (-> tm typ) new_id)
@@ -159,7 +161,9 @@ onto TM."
        (for (def y int 0) (< y BOARD_HEIGHT) (+= y 1)
             (def cid int (access board x y))
             (when cid
-              (def rect (SDL_Rect) `(,(+ 50 (* 20 x)) ,(+ 40 (* 20 y)) 20 20))
+              (def rect (SDL_Rect) `(,(+ 50 (* 20 x))
+                                     ,(+ 40 (* 20 y))
+                                     20 20))
               (SDL_SetRenderColorDrawColorStruct renderer cid)
               (SDL_RenderFillRect renderer (& rect)))))
 
@@ -167,7 +171,7 @@ onto TM."
   (for (def i int 0) (< i 4) (+= i 1)
        (def cid (enum tm_type) (-> tetro typ))
        (def rect (SDL_Rect) `(,(+ 50 (* 20 (. (-> tetro (aref blocks i)) x)))
-                               ,(+ 40 (* 20 (. (-> tetro (aref blocks i)) y)))
+                              ,(+ 40 (* 20 (. (-> tetro (aref blocks i)) y)))
                                20 20))
        (SDL_SetRenderColorDrawColorStruct renderer cid)
        (SDL_RenderFillRect renderer (& rect)))
@@ -183,7 +187,7 @@ onto TM."
          (def cid (enum tm_type) hold)
          (def hold_block (struct point) (aref (. (aref configs hold) blocks) i))
          (def rect (SDL_Rect) `(,(+ 200 (* 20 (. hold_block x)))
-                                 ,(+ 80  (* 20 (. hold_block y)))
+                                ,(+ 80  (* 20 (. hold_block y)))
                                  20 20))
          (SDL_SetRenderColorDrawColorStruct renderer cid)
          (SDL_RenderFillRect renderer (& rect))))
@@ -192,12 +196,72 @@ onto TM."
   (SDL_RenderPresent renderer)
   (return 1))
 
+(def game_loop (-> int (renderer (ptr SDL_Renderer)))
+ (def tetro (struct tetromino))
+ (def hold  (enum tm_type) TM_NONE)
+ (def board (array (* BOARD_WIDTH BOARD_HEIGHT) int) '(0))
+ (def pboard (ptr int) (cast (ptr int) board))
+ (def quit (bool) false)
+ (def timer int 0)
+ (def trigger int 0)
+ (def line_cleared int 0)
+
+ (setup_new_tm pboard (& tetro) TM_NONE)
+ (update_screen pboard (& tetro) hold renderer)
+
+ (while (! quit)
+   (def event (SDL_Event))
+   (while (SDL_PollEvent (& event))
+     (switch (. event type)
+             (SDL_QUIT
+               (= quit true)
+               (break))
+             (SDL_KEYDOWN
+                (switch (. event key keysym sym)
+                        (SDLK_q
+                          (= quit true)
+                          (break))
+                        (SDLK_DOWN
+                          (move_tm pboard (& tetro) DOWN)
+                          (break))
+                        (SDLK_SPACE
+                          (while (move_tm pboard (& tetro) DOWN))
+                          (= trigger 1)
+                          (break))
+                        ((SDLK_RSHIFT SDLK_LSHIFT)
+                          (def tmp (enum tm_type) (. tetro typ))
+                          (setup_new_tm pboard (& tetro) hold)
+                          (= hold tmp)
+                          (break))
+                        (SDLK_LEFT
+                          (move_tm pboard (& tetro) LEFT)
+                          (break))
+                        (SDLK_RIGHT
+                          (move_tm pboard (& tetro) RIGHT)
+                          (break))
+                        (SDLK_UP
+                          (rotate_tm pboard (& tetro) RIGHT)
+                          (break)))
+             (update_screen pboard (& tetro) hold renderer))
+               (default (break))))
+   (SDL_Delay 10)
+  (+= timer (* (+ 1 (/ line_cleared 10)) 10))
+  (when (|| (>= timer 500) trigger)
+    (= timer trigger 0)
+    (when (! (move_tm pboard (& tetro) DOWN))
+      (for (def i int 0) (< i 4) (+= i 1)
+        (set_color pboard (. tetro (aref blocks i) x)
+                          (. tetro (aref blocks i) y)
+                          (. tetro typ)))
+        (awhen (clear_lines pboard)
+          (+= line_cleared it)
+              (printf "lines: %d\n" line_cleared))
+              (unless (setup_new_tm pboard (& tetro) TM_NONE)
+                (break))))
+          (update_screen pboard (& tetro) hold renderer))
+        (return 1))
+
 (def main (-> int void)
-  (def tetro (struct tetromino))
-  (def hold  (enum tm_type) TM_NONE)
-  (def board (array (* BOARD_WIDTH BOARD_HEIGHT) int) '(0))
-  (def pboard (ptr int) (cast (ptr int) board))
-  (def quit (bool) false)
 
   (srand (time NULL))
 
@@ -206,63 +270,7 @@ onto TM."
                               SDL_WINDOWPOS_CENTERED SDL_WINDOWPOS_CENTERED
                               640 480
                               SDL_WINDOW_SHOWN)
-
       (with-sdl2-renderer (renderer window -1 SDL_RENDERER_ACCELERATED)
-        (setup_new_tm pboard (& tetro) TM_NONE)
-        (update_screen pboard (& tetro) hold renderer)
-
-        (def timer int 0)
-        (def trigger int 0)
-        (def line_cleared int 0)
-        (while (! quit)
-          (def event (SDL_Event))
-          (while (SDL_PollEvent (& event))
-            (switch (. event type)
-                    (SDL_QUIT
-                     (= quit true)
-                     (break))
-                    (SDL_KEYDOWN
-                     (switch (. event key keysym sym)
-                             (SDLK_q
-                              (= quit true)
-                              (break))
-                             (SDLK_DOWN
-                              (move_tm pboard (& tetro) DOWN)
-                              (break))
-                             (SDLK_SPACE
-                              (while (move_tm pboard (& tetro) DOWN))
-                              (= trigger 1)
-                              (break))
-                             ((SDLK_RSHIFT SDLK_LSHIFT)
-                              (def tmp (enum tm_type) (. tetro typ))
-                              (setup_new_tm pboard (& tetro) hold)
-                              (= hold tmp)
-                              (break))
-                             (SDLK_LEFT
-                              (move_tm pboard (& tetro) LEFT)
-                              (break))
-                             (SDLK_RIGHT
-                              (move_tm pboard (& tetro) RIGHT)
-                              (break))
-                             (SDLK_UP
-                              (rotate_tm pboard (& tetro) RIGHT)
-                              (break)))
-                     (update_screen pboard (& tetro) hold renderer))
-                    (default (break))))
-          (SDL_Delay 10)
-          (+= timer (* (+ 1 (/ line_cleared 10)) 10))
-          (when (|| (>= timer 500) trigger)
-            (= timer trigger 0)
-            (when (! (move_tm pboard (& tetro) DOWN))
-              (for (def i int 0) (< i 4) (+= i 1)
-                   (set_color pboard (. tetro (aref blocks i) x)
-                              (. tetro (aref blocks i) y)
-                              (. tetro typ)))
-              (awhen (clear_lines pboard)
-                     (+= line_cleared it)
-                     (printf "lines: %d\n" line_cleared))
-              (unless (setup_new_tm pboard (& tetro) TM_NONE)
-                (break))))
-          (update_screen pboard (& tetro) hold renderer))
-        (return EXIT_SUCCESS))))))
+        (game_loop renderer)
+        (return EXIT_SUCCESS)))))
 
