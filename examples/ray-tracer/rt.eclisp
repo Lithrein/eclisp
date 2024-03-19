@@ -1,3 +1,4 @@
+(#include "macros.eclisph")
 (#include <stdio.h> <stdlib.h> <math.h> <time.h>)
 
 ;; utils

@@ -2,13 +2,20 @@ ECLISP := ../../eclisp
 QUIET := @
 CFLAGS := -O2 -g3 -Wall -Wextra
 LDFLAGS := -lm
-.SUFFIXES: .eclisp
+.SUFFIXES: .eclisp .eclisph
+
+.eclisph.h:
+	$(QUIET)$(ECLISP) $< > $@
 
 .eclisp.c:
-	$(QUIET)cat macros.eclisph $< | $(ECLISP) > $@
+	$(QUIET)$(ECLISP) $< > $@
+
+all: rt
+	rm -rf *.c *.h
 
 rt: rt.o
 	gcc $(CLAGS) $< $(LDFLAGS) -o $@
 
+rt.c: macros.h
 clean:
-	rm rt rt.o
+	rm -rf rt rt.o

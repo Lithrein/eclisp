@@ -1,3 +1,5 @@
+(#include "macros.eclisph")
+
 (#include <stdbool.h> <stdio.h> <stdlib.h> <time.h>)
 (#include <SDL2/SDL.h>)
 
