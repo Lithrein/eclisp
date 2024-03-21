@@ -25,6 +25,7 @@
                 (cond ((char= c #\n) (setf char-list (cons #\n (cons #\\ char-list))))
                       ((char= c #\r) (setf char-list (cons #\r (cons #\\ char-list))))
                       ((char= c #\f) (setf char-list (cons #\f (cons #\\ char-list))))
+                      ((char= c #\") (setf char-list (cons #\" (cons #\\ char-list))))
                       (t (setf char-list (cons c char-list))))
                 (setf escape nil))
               (progn
