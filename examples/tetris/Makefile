@@ -1,5 +1,6 @@
 ECLISP := ../../eclisp
 QUIET := @
+CC = gcc
 CFLAGS := -g3 -Wall -Wextra $(shell pkg-config --cflags sdl2)
 LDFLAGS := $(shell pkg-config --libs sdl2)
 .SUFFIXES: .eclisp
@@ -11,4 +12,4 @@ tetris: tetris.o
 	gcc $(CLAGS) $< $(LDFLAGS) -o $@
 
 clean:
-	rm tetris tetris.o
+	rm -rf tetris tetris.o

@@ -382,8 +382,9 @@ All this information is returned as an ECLISP-SYMBOL instance"
       (let* ((sym (make-instance 'eclisp-symbol :name (car symdef)))
              (cur-key nil))
         (loop for elt in (cdr symdef) do
-          (cond ((and (consp elt) (eq (car elt) '|%key|))
-                 (setf cur-key (string (caddr elt)))
+              (cond ((and (or (stringp elt) (symbolp elt))
+                          (char= (aref (string elt) 0) #\:))
+                 (setf cur-key (subseq (string elt) 1))
                  (setf (gethash cur-key (es-attrs sym)) nil))
                 (t
                  (if (null cur-key)
@@ -520,16 +521,27 @@ BODY is optional. DOCUMENTATION is optional"
   (format to-stream "{")
   (let ((cur form))
     (loop while cur do
-          (when (and (consp (car cur))
-                     (or (stringp (caar cur)) (symbolp (caar cur)))
-                     (string= (caar cur) "%key"))
-            (format to-stream (if (eql (cadar cur) 'num) "[~a] = " ".~a = ")
-                    (with-output-to-string (s) (print-form (caddar cur) nil 0 s)))
-            (setf cur (cdr cur)))
+          (cond
+            ((and (consp (car cur))
+                  (or (stringp (caar cur)) (symbolp (caar cur)))
+                  (string= (caar cur) ":"))
+              (format to-stream "[~a] = "
+                      (with-output-to-string (s) (print-form (cadar cur) nil 0 s)))
+              (setf cur (cdr cur)))
+            ((and
+              (or (stringp (car cur)) (symbolp (car cur)))
+              (char= (aref (string (car cur)) 0) #\.))
+              (format to-stream "~a = " (car cur))
+              (pop cur))
+            ((and
+              (or (stringp (car cur)) (symbolp (car cur)))
+              (char= (aref (string (car cur)) 0) #\:))
+              (format to-stream "[~a] = " (subseq (string (car cur)) 1))
+              (pop cur)))
           (print-form (car cur) nil 0 to-stream)
           (if (cdr cur) (format to-stream ", "))
           (setf cur (cdr cur))))
-  (format to-stream " }")
+  (format to-stream "}")
   (if (and stmtp)
       (format to-stream ";~%")))
 
@@ -733,30 +745,27 @@ BODY is optional. DOCUMENTATION is optional"
              ((not cur))
           (if (consp el)
               (progn
-                (if (and (or (stringp (car el)) (symbolp (car el))))
-                    (cond ((string= (car el) "%key")
-                           (if (eql (cadr el) 'num)
-                               (format to-stream "[~a] = " (caddr el))
-                               (format to-stream ".~a = " (caddr el))))
-                          ;; quote within quote should not happen in this mode,
-                          ;; but you can still try
-                          ((string= (car el) "quote") (format to-stream "~a" el))
-                          (t
-                           (format to-stream "{")
-                           (print-quote-aux el nil (+ 2 indent) to-stream)
-                           (format to-stream "}")
-                           (when (cdr cur)
-                             (format to-stream ", "))))
-                    (progn
-                      (format to-stream "{")
-                      (print-quote-aux el nil (+ 2 indent) to-stream)
-                      (format to-stream "}")
-                      (when (cdr cur)
-                        (format to-stream ", ")))))
-              (progn
-                (format to-stream (if (stringp el) "\"~a\"" "~a") el)
+                (format to-stream "{")
+                (print-quote-aux el nil (+ 2 indent) to-stream)
+                (format to-stream "}")
                 (when (cdr cur)
-                  (format to-stream ", "))))))
+                  (format to-stream ", ")))
+              (progn
+                (if (or (stringp el) (symbolp el))
+                    (progn
+                      (cond
+                        ((char= (aref (string el) 0) #\.)
+                         (format to-stream "~a = " el))
+                        ((char= (aref (string el) 0) #\:)
+                         (format to-stream "[~a] = " (subseq (string el) 1)))
+                        (t
+                         (format to-stream (if (stringp el) "\"~a\"" "~a") el)
+                         (when (cdr cur)
+                           (format to-stream ", ")))))
+                    (progn
+                      (format to-stream "~a" el)
+                      (when (cdr cur)
+                        (format to-stream ", "))))))))
       (format to-stream (if (stringp args) "\"~a\"" "~a") args))
   (when stmtp
     (format to-stream ";~%")))
@@ -909,42 +918,41 @@ the result share with the argument x as much as possible."
              ((not cur))
           (if (consp el)
               (progn
-                (if (and (or (stringp (car el)) (symbolp (car el))))
-                    (cond ((string= (car el) "%key")
-                           (if (and (consp (caddr el))
-                                    (or (stringp (caaddr el)) (symbolp (caaddr el)))
-                                    (string= (caaddr el) "unquote"))
-                               (if (eql (cadr el) 'num)
-                                   (format to-stream "[~a] = " (with-output-to-string (s)
-                                                                 (print-form (car (cdaddr el)) nil 0 s)))
-                                   (format to-stream ".~a = " (with-output-to-string (s)
-                                                                (print-form (car (cdaddr el)) nil 0 s))))
-                               (if (eql (cadr el) 'num)
-                                   (format to-stream "[~a] = " (caddr el))
-                                   (format to-stream ".~a = " (caddr el)))))
-                          ;; quote within quote should not happen in this mode,
-                          ;; but you can still try
-                          ((string= (car el) "quote") (format to-stream "~a" el))
-                          ((string= (car el) "unquote")
-                           (print-form (cadr el) nil 0 to-stream)
-                           (when (cdr cur)
-                             (format to-stream ", ")))
-                          (t
-                           (format to-stream "{")
-                           (print-backquote-aux el nil (+ 2 indent) to-stream)
-                           (format to-stream "}")
-                           (when (cdr cur)
-                             (format to-stream ", "))))
-                    (progn
-                      (format to-stream "{")
-                      (print-backquote-aux el nil (+ 2 indent) to-stream)
-                      (format to-stream "}")
+                (cond
+                  ((and (or (stringp (car el)) (symbolp (car el)))
+                        (string= (car el) "unquote"))
+                   (print-form (cadr el) nil 0 to-stream)
+                   (when (cdr cur)
+                     (format to-stream ", ")))
+                  ((and (or (stringp (car el)) (symbolp (car el)))
+                        (string= (car el) ":"))
+                   (format to-stream "[~a] = "
+                           (if (and (consp (cadr el))
+                                    (or (stringp (caadr el)) (symbolp (caadr el)))
+                                    (string= (caadr el) "unquote"))
+                               (with-output-to-string (s)
+                                 (print-form (cadadr el) nil 0 s))
+                               (cadr el))))
+                  (t
+                   (format to-stream "{")
+                   (print-backquote-aux el nil (+ 2 indent) to-stream)
+                   (format to-stream "}")
+                   (when (cdr cur)
+                     (format to-stream ", ")))))
+              (if (or (stringp el) (symbolp el))
+                  (cond
+                    ((char= (aref (string (car cur)) 0) #\.)
+                     (format to-stream "~a = " (car cur)))
+                    ((char= (aref (string (car cur)) 0) #\:)
+                     (format to-stream "[~a] = " (subseq (string (car cur)) 1)))
+                    (t
+                      (format to-stream (if (stringp el) "\"~a\"" "~a") el)
                       (when (cdr cur)
-                        (format to-stream ", ")))))
-              (progn
-                (format to-stream (if (stringp el) "\"~a\"" "~a") el)
-                (when (cdr cur)
-                  (format to-stream ", "))))))
+                        (format to-stream ", "))))
+                  (progn
+                    (format to-stream "~a" el)
+                    (when (cdr cur)
+                      (format to-stream ", ")))))))
       (format to-stream (if (stringp args) "\"~a\"" "~a") args))
   (when stmtp
     (format to-stream ";~%")))

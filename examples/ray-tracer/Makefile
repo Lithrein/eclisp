@@ -1,5 +1,6 @@
 ECLISP := ../../eclisp
 QUIET := @
+CC = gcc
 CFLAGS := -O2 -g3 -Wall -Wextra
 LDFLAGS := -lm
 .SUFFIXES: .eclisp
@@ -11,4 +12,4 @@ rt: rt.o
 	gcc $(CLAGS) $< $(LDFLAGS) -o $@
 
 clean:
-	rm rt rt.o
+	rm -rf rt rt.o

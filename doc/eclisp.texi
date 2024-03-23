@@ -391,10 +391,11 @@ can be used to produce field-initializers within the list.
 (list 1 2 3) ;; @{ 1, 2, 3 @}
 (list 1 2 3 (list (+ 4 5))) ;; @{ 1, 2, 3 @{ (4 + 5) @} @}
 (list :A 1 :B 2) ;; @{ [A] = 1, [B] = 2, [C] = 3 @}
-(list :(+ CST_1 CST_2) 1 .field1 val1) ;; @{ [CST_1 + CST2] = 1, .field1 = val1 @}
+(list (: (+ CST_1 CST_2)) 1 .field1 val1) ;; @{ [CST_1 + CST2] = 1, .field1 = val1 @}
 @end lisp
 
-Note: When used in a macro, @code{list} behaves like its lisp counterpart and does not allow special tokens.
+Note: When used in a macro, @code{list} behaves like its lisp
+counterpart and does not recognize @code{(: form)}.
 
 @node prog
 @subsection prog
@@ -780,7 +781,7 @@ to use a constant expression.
 @end lisp
 
 @lisp
-(def arr (array int) `(:,(+ a (* b c)) 1))
+(def arr (array int) `((: ,(+ a (* b c))) 1))
 @end lisp
 
 @node macro
