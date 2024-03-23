@@ -109,8 +109,6 @@ the expression."
 (defun print-cpp-cond-expr (form stmtp indent to-stream)
   "Compile a preprocessor condition FORM, i.e.,  one that may appear after
 #if and #elif, and write it on TO-STREAM."
-  (declare (ignore indent))
-  (declare (ignore stmtp))
   (if (consp form)
       (destructuring-bind (op &rest args) form
         (cond
@@ -126,9 +124,9 @@ the expression."
 (defun print-cond-expr (form stmtp indent to-stream)
   "Compile a condition FORM, i.e.,  one that may appear after
 and if, and write it on TO-STREAM."
-  (declare (ignore indent))
   (if (consp form)
       (destructuring-bind (op &rest args) form
+        (declare (ignore args))
         (cond
           ((member (string op) '("<" ">" "<=" ">=" ">" "==" "!=") :test #'equal)
            (print-cmp-op form stmtp indent to-stream))
@@ -139,6 +137,7 @@ and if, and write it on TO-STREAM."
 
 (defun print-cpp-if (form stmtp indent to-stream)
   "Compile a if preprocessor directive FORM and write it on TO-STREAM"
+  (declare (ignore stmtp))
   (pop form)
   (do ((cur form (cdr cur))
        (first t nil))
@@ -332,6 +331,7 @@ ACC should be NIL at first."
     (format to-stream ";~%")))
 
 (defun print-prog (form stmtp indent to-stream)
+  (declare (ignore stmtp))
   (pop form)
   (cond ((>= indent 0)
          (format to-stream "~v@{~C~:*~}{~%" indent #\Space)
@@ -340,6 +340,7 @@ ACC should be NIL at first."
         (t (loop for f in form do (print-form f t indent to-stream)))))
 
 (defun print-prog* (form stmtp indent to-stream)
+  (declare (ignore stmtp))
   (pop form)
   (loop for f in form do (print-form f t indent to-stream)))
 
@@ -455,12 +456,11 @@ BODY is optional. DOCUMENTATION is optional"
 
 (defun print-def (form stmtp indent to-stream)
   (pop form)
-  (let ((category nil) (var nil) (type nil))
+  (let ((type nil))
     (if (consp (car form))
         (setf type (car form))
         ;; name is present
         (progn
-          (setf var (car form))
           (when (consp (cadr form)) (setf type (cadr form)))))
     (cond ((and type (string= (car type) "->"))
            (print-defun form stmtp indent to-stream))
@@ -477,6 +477,7 @@ BODY is optional. DOCUMENTATION is optional"
            (t (compile-defvar form)))))
 
 (defun print-if (form stmtp indent to-stream)
+  (declare (ignore stmtp))
   (pop form)
   (format to-stream "~v@{~C~:*~}if (" indent #\Space)
   (print-form (car form) nil 0 to-stream)
@@ -557,6 +558,7 @@ BODY is optional. DOCUMENTATION is optional"
       (format to-stream ";~%")))
 
 (defun print-aref (form stmtp indent to-stream)
+  (declare (ignore stmtp))
   (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (print-form (car form) nil indent to-stream)
@@ -568,6 +570,7 @@ BODY is optional. DOCUMENTATION is optional"
           (setf cur (cdr cur)))))
 
 (defun print-while (form stmtp indent to-stream)
+  (declare (ignore stmtp))
   (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "while (")
@@ -599,6 +602,7 @@ BODY is optional. DOCUMENTATION is optional"
   (when stmtp (format to-stream ";~%")))
 
 (defun print-for (form stmtp indent to-stream)
+  (declare (ignore stmtp))
   (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "for (")
@@ -648,6 +652,7 @@ BODY is optional. DOCUMENTATION is optional"
       (format to-stream ")")))
 
 (defun print-switch (form stmtp indent to-stream)
+  (declare (ignore stmtp))
   (pop form)
   (format to-stream "~v@{~C~:*~}switch (" indent #\Space)
   (print-form (car form) nil 0 to-stream)
@@ -691,11 +696,13 @@ BODY is optional. DOCUMENTATION is optional"
                        (mapcar (lambda (form) (compile-form form)) clauses))))))
 
 (defun print-label (form stmtp indent to-stream)
+  (declare (ignore stmtp))
   (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "~a:~%" (car form)))
 
 (defun print-goto (form stmtp indent to-stream)
+  (declare (ignore stmtp))
   (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "goto ~a;~%" (car form)))
