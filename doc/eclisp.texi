@@ -324,7 +324,7 @@ tetromino.")
 
 @lisp
 ;; Define an array and initialize it.
-(def colors (array TM_LAST SDL_Color) 
+(def colors (array TM_LAST SDL_Color)
   '(:TM_NONE (150 150 150 255)  :TM_L (255 165 0   255)
     :TM_J    (0   0   255 255)  :TM_T (170 0   255 255)
     :TM_I    (0   255 255 255)  :TM_O (255 255 0   255)
@@ -353,7 +353,7 @@ If you want to define a function with nothing in it. You should use the
 @node seq
 @subsection seq
 
-@code{seq} is the equivalent of the comma (@code{,}) operator, and allow to chain multiple statements.
+@code{seq} is the equivalent of the comma (@code{,}) operator, and allows to chain multiple statements.
 
 @heading Grammar
 
@@ -617,7 +617,19 @@ is implicitely surrounded by a `prog'.
   body)
 @end verbatim
 
-@heading Example
+The @code{init-form}, @code{cond-form} and @code{update-form} are all
+mandatory as is the case in C.  However, if you want to omit one of
+them you should use @code{seq} which will produce an empty statement.
+
+@heading Examples
+
+@lisp
+(for (def i (int) 0) (< i 10) (+= i 1)
+     (printf "%d * %d = %d" i i (* i i)))
+
+(for (seq) cond (seq)
+  (update))
+@end lisp
 
 @node do-while
 @subsection do-while
