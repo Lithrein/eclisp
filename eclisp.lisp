@@ -468,7 +468,7 @@ BODY is optional. DOCUMENTATION is optional"
           (t (print-defvar form stmtp indent to-stream)))))
 
  (defun compile-def (form)
-   (let ((var nil) (type nil))
+   (let ((name nil) (var nil) (type nil))
      (cond ((and (consp (car form)) (member (caar form) +c-keywords+ :test #'string=))
             (setf type (car form)))
            (t (setf name (car form)
@@ -1378,6 +1378,7 @@ the result share with the argument x as much as possible."
   "Compile an eclisp FROM and write it on TO-STREAM"
   (if (consp form)
       (destructuring-bind (op &rest args) form
+        (declare (ignore args))
         (let ((fn (cddr (assoc (string op) kwd-behavior :test #'string=))))
           (unless (eql fn 'print-prog)
             (setf indent (max 0 indent)))
