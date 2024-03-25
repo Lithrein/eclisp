@@ -1,0 +1,10 @@
+(macro for* ((&key (init (seq)) (cond (seq)) (next (seq))) &rest rst)
+  `(for ,init ,cond ,next ,@rst))
+
+(macro k (&rest rst &key a b c) `(list ,a ,b ,c ,@rst))
+
+(for* (:init (def i (int) 0) :cond (< i 10) :next ++i)
+  (puts "bla")
+  (puts "bli"))
+
+(k :a 1 :b 2 :c 3)

@@ -1205,18 +1205,48 @@ the result share with the argument x as much as possible."
         (setf body (caddr args)))
     (setf (gethash name macrofn-tbl) (list macrofn-args body))))
 
+(defun extract-keyword-args (args tmpl ctx)
+  (labels ((group-kwd-val (args)
+             (when args
+               (cons (list (string (car args)) (cadr args))
+                     (group-kwd-val (cddr args)))))
+           (get-val (kwd)
+             (cadr (assoc (if (char= (aref (string kwd) 0) #\:)
+                              (string kwd)
+                              (concatenate 'string ":" (string kwd)))
+                          (group-kwd-val args)
+                          :test #'string=)))
+           (explode-kwd (kwd)
+             (cond ((atom kwd) (list kwd kwd nil))
+                   ((atom (car kwd)) (list (car kwd) (car kwd) (cadr kwd)))
+                   ((and (consp (car kwd))
+                         (atom (caar kwd)) (atom (cadar kwd)))
+                    (list (caar kwd) (cadar kwd) (cadr kwd))))))
+    (loop for kwd in tmpl
+          for (accessor var-name default) = (explode-kwd kwd)
+          for val = (if (get-val accessor) (get-val accessor) default) do
+          (setf (gethash var-name ctx) val))))
+
 (defun expand-macro-args (args tmpl ctx)
   (when args
     (if (listp (car tmpl))
         (progn
           (expand-macro-args (car args) (car tmpl) ctx)
           (expand-macro-args (cdr args) (cdr tmpl) ctx))
-        (if (or (string= (string (car tmpl)) "&body")
-                (string= (string (car tmpl)) "&rest"))
-            (setf (gethash (cadr tmpl) ctx) args)
-            (progn
-              (setf (gethash (car tmpl) ctx) (car args))
-              (expand-macro-args (cdr args) (cdr tmpl) ctx))))))
+        (cond ((or (string= (string (car tmpl)) "&body")
+                   (string= (string (car tmpl)) "&rest"))
+               (setf (gethash (cadr tmpl) ctx) args)
+               (when (and (listp (cddr tmpl))
+                        (or (stringp (caddr tmpl)) (symbolp (caddr tmpl)))
+                        (string= (string (caddr tmpl)) "&key"))
+                 (expand-macro-args args (cddr tmpl) ctx)))
+              ((string= (string (car tmpl)) "&key")
+               (unless (= (mod (length args) 2) 0)
+                 (format t "warning: odd number of keyword arguments."))
+               (extract-keyword-args args (cdr tmpl) ctx))
+              (t
+               (setf (gethash (car tmpl) ctx) (car args))
+               (expand-macro-args (cdr args) (cdr tmpl) ctx))))))
 
 (defun expand-macro (macro args)
   (let ((ctx (make-hash-table))
