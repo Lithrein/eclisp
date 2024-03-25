@@ -1,4 +1,4 @@
-(in-package #:eclisp-tests)
+(in-package :eclisp-tests)
 
 (def-suite all-tests
     :description "The master suite of all eclisp tests.")
@@ -12,7 +12,7 @@
   "Compare two files RESULT and REFERENCE given as filepath, one line at a time.
 If both files are the same returns T, otherwise returns NIL.
 At the end the RESULT file is deleted."
-  (format t "~a ~a ~%" result reference)
+  (format t "~a ~a~%" result reference)
   (let ((res nil))
     (with-open-file (res-stream result)
       (with-open-file (ref-stream reference)

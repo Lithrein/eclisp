@@ -1,3 +1,5 @@
+(in-package :asdf)
+
 (asdf:defsystem #:eclisp
   :name "C Lisp"
   :description "A C Preprocessor based on s-exp"
