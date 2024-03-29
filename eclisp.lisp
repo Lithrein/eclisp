@@ -1,6 +1,6 @@
 ;; -*- Mode: Lisp; Syntax: Common-Lisp; -*-
 
-(in-package #:eclisp)
+(in-package :eclisp)
 
 (defclass eclisp-symbol ()
   ((name               :initform (error "name: mandatory argument.")

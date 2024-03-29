@@ -1,4 +1,4 @@
-(in-package #:eclisp)
+(in-package :eclisp)
 
 (defun parse-list (stream)
   ;; skip the opening parenthesis (

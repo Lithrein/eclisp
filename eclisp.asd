@@ -1,6 +1,6 @@
 (in-package :asdf)
 
-(asdf:defsystem #:eclisp
+(asdf:defsystem :eclisp
   :name "C Lisp"
   :description "A C Preprocessor based on s-exp"
   :version "0.1.0"
@@ -16,7 +16,7 @@
                (:file "eclisp")
                (:file "reader")))
 
-(asdf:defsystem #:eclisp/tests
+(asdf:defsystem :eclisp/tests
   :depends-on (:eclisp :fiveam)
   :perform (test-op (o s)
             (uiop:symbol-call :eclisp-tests :test-eclisp))
