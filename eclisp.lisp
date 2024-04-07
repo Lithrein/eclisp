@@ -1309,7 +1309,7 @@ the result share with the argument x as much as possible."
     ("#define"   . (compile-call     . print-cpp-define))
     ("#if"       . (compile-cpp-if   . print-cpp-if))
     ("%type"     . (compile-call     . print-as-type))
-    ("%:"        . (compile-verbatim . print-verbatim))
+    ("%verb"     . (compile-verbatim . print-verbatim))
     ("%comment"  . (compile-call     . print-comment))
     ("break"     . (compile-call     . print-break))
     ("continue"  . (compile-call     . print-continue))

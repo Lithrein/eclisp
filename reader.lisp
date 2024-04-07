@@ -1,17 +1,11 @@
 (in-package #:eclisp)
 
-(defun handle-verbatim (lst)
-  (unless (null lst)
-    (if (and (listp (car lst)) (= 1 (length lst)) (stringp (caar lst)) (string= "%:" (caar lst)))
-        (list* "%:" (cadar lst) (handle-verbatim (cdr lst)))
-        (cons (car lst) (handle-verbatim (cdr lst))))))
-
 (defun parse-list (stream)
   ;; skip the opening parenthesis (
   (read-char stream nil)
   (loop for c = (parse stream)
         while c collect c into terms
-        finally (return (handle-verbatim terms))))
+        finally (return terms)))
 
 (defun parse-string (stream)
   (let ((escape nil)
@@ -66,26 +60,30 @@
 (defun parse-character (stream)
   ;; skip the #
   (read-char stream nil)
-  (cond
-    ;; this is a character
-    ((char= #\\ (peek-char nil stream nil nil nil))
-     (read-char stream nil)
-     (let ((c (loop for c = (peek-char nil stream nil nil)
-                    while (and c (eql c (peek-char t stream nil nil))
-                               (not (char= c #\))))
-                    collect (read-char stream) into letters
-                    finally (return (coerce letters 'string)))))
-       (cond
-         ((string= c "Newline") (intern "'\\n'"))
-         ((string= c "Tab") (intern "'\\t'"))
-         ((string= c "Backspace") (intern "'\\b'"))
-         ((string= c "Linefeed") (intern "'\\r'"))
-         ((string= c "Page") (intern "'\\f'"))
-         ((string= c "Space") (intern "' '"))
-         (t (intern (concatenate 'string "'" c "'"))))))
-    ;; this is a regular symbol
-    (t
-     (intern (concatenate 'string "#" (parse-symbol stream))))))
+  (let ((c (peek-char nil stream nil nil nil)))
+    (cond
+      ;; this is a character
+      ((char= #\\ c)
+       (read-char stream nil)
+       (let ((c (loop for c = (peek-char nil stream nil nil)
+                      while (and c (eql c (peek-char t stream nil nil))
+                                 (not (char= c #\))))
+                      collect (read-char stream) into letters
+                      finally (return (coerce letters 'string)))))
+         (cond
+           ((string= c "Newline") (intern "'\\n'"))
+           ((string= c "Tab") (intern "'\\t'"))
+           ((string= c "Backspace") (intern "'\\b'"))
+           ((string= c "Linefeed") (intern "'\\r'"))
+           ((string= c "Page") (intern "'\\f'"))
+           ((string= c "Space") (intern "' '"))
+           (t (intern (concatenate 'string "'" c "'"))))))
+      ((char= #\{ c)
+       (read-char stream nil)
+       (list "%verb" (parse-verbatim stream)))
+      ;; this is a regular symbol
+      (t
+       (intern (concatenate 'string "#" (parse-symbol stream)))))))
 
 (defun parse-quote (stream)
   ;; skip the ' character
@@ -138,24 +136,16 @@ characters in the IGNORE-CHARS string while performing READ."
           (t (intern (concatenate 'string "." (parse-symbol stream)))))))
 
 (defun parse-verbatim (stream)
-  (let ((level 1))
-    (loop for c = (peek-char nil stream nil nil)
-          do (cond ((char= c #\() (incf level))
-                   ((char= c #\)) (decf level)))
-          while (and c (> level 0))
-          if (char= c #\Newline) collect #\\ into letters
-          collect (read-char stream) into letters
-          finally (return (coerce letters 'string)))))
-
-(defun parse-percent (stream)
-  ;; skip the % character
-  (read-char stream nil)
-  (let ((c (peek-char nil stream nil nil nil)))
-    (cond ((char= c #\:)
-           (read-char stream nil)
-           (list "%:" (parse-verbatim stream)))
-          ((char= c #\Space) "%")
-          (t (intern (concatenate 'string "%" (parse-symbol stream)))))))
+  (loop with level = 1
+        for c = (peek-char nil stream nil nil)
+        do (cond ((char= c #\\) (setf c (read-char stream)))
+                 ((char= c #\{) (incf level))
+                 ((char= c #\}) (decf level)))
+        while (and c (> level 0))
+        if (char= c #\Newline) collect #\\ into letters
+        collect (read-char stream) into letters
+        finally (return (progn (read-char stream)
+                               (coerce letters 'string)))))
 
 (defun parse (stream)
   ;; skip whitespace
@@ -165,7 +155,6 @@ characters in the IGNORE-CHARS string while performing READ."
       ((null cur-char) nil)
       ((char= cur-char #\() (parse-list stream))
       ((char= cur-char #\)) (progn (read-char stream nil) nil))
-      ((char= cur-char #\%) (parse-percent stream))
       ((char= cur-char #\") (parse-string stream))
       ((char= cur-char #\#) (parse-character stream))
       ((char= cur-char #\;) (parse-comment stream))
@@ -175,4 +164,4 @@ characters in the IGNORE-CHARS string while performing READ."
       ((char= cur-char #\.) (parse-dot stream))
       ((char= cur-char #\:) (progn (read-char stream nil)
                                    (intern (concatenate  'string ":" (parse-symbol stream)))))
-      (t (with-custom-reader "'|?" (read stream nil))))))
+      (t (with-custom-reader "'|?%" (read stream nil))))))
