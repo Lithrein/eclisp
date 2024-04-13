@@ -1,7 +1,7 @@
 (in-package :asdf)
 
 (asdf:defsystem :eclisp
-  :name "C Lisp"
+  :name "eClisp"
   :description "A C Preprocessor based on s-exp"
   :version "0.1.0"
   :maintainer "lithrein <lithrein.site@gmail.com>"
@@ -13,8 +13,10 @@
   :entry-point (uiop:symbol-call :eclisp "MAIN")
   :depends-on (:cl-ppcre)
   :components ((:file "package")
-               (:file "eclisp")
-               (:file "reader")))
+;               (:file "token")
+               (:file "parser")
+               (:file "reader")
+               (:file "eclisp")))
 
 (asdf:defsystem :eclisp/tests
   :depends-on (:eclisp :fiveam)
