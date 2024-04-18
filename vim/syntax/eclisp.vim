@@ -73,9 +73,9 @@ syntax keyword eclispKwd macro
 syntax keyword eclispKwd macrofn
 syntax keyword eclispKwd macrolet
 
-syntax match eclispPrP "\v\#include"
-syntax match eclispPrP "\v\#define"
-syntax match eclispPrP "\v\#if"
+syntax match eclispPrP "\v\%:include"
+syntax match eclispPrP "\v\%:define"
+syntax match eclispPrP "\v\%:if"
 syntax match eclispPrP "\v\#endif"
 
 syntax match eclispComment "\v;.*$"

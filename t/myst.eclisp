@@ -7,7 +7,7 @@
            (cond ,@rest)))
     `(if ,(car fst) (prog ,@(cdr fst)))))
 
-(#include <stdio.h> <stdlib.h>)
+(%:include <stdio.h> <stdlib.h>)
 
 (def main (-> int void)
   "The entry point."

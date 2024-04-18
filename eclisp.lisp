@@ -1305,9 +1305,9 @@ the result share with the argument x as much as possible."
     res))
 
 (defvar kwd-behavior
-  '(("#include"  . (compile-call     . print-cpp-include))
-    ("#define"   . (compile-call     . print-cpp-define))
-    ("#if"       . (compile-cpp-if   . print-cpp-if))
+  '(("%:include"  . (compile-call     . print-cpp-include))
+    ("%:define"   . (compile-call     . print-cpp-define))
+    ("%:if"       . (compile-cpp-if   . print-cpp-if))
     ("%type"     . (compile-call     . print-as-type))
     ("%verb"     . (compile-verbatim . print-verbatim))
     ("%comment"  . (compile-call     . print-comment))

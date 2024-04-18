@@ -89,7 +89,7 @@ enum-field-list: identifier
 @subsection %:
 
 The @code{%:} allows for inclusion of verbatim C code.  This should be used for
-@code{#define} which defines C macros and for accessing currently unsupported
+@code{%:define} which defines C macros and for accessing currently unsupported
 features such as inline assembly, or the typedef-ing of vector types.  Line
 endings are always escaped.
 
@@ -102,22 +102,22 @@ endings are always escaped.
 @heading Example
 
 @lisp
-(%: #define concat(a, b) a ## b)
+(%: %:define concat(a, b) a ## b)
 @end lisp
 
 Note: All spaces (tabs, linefeed, carriage return and form feed) directly after
 @code{%:} are ignored.
 
-@node #include
-@subsection #include
+@node %:include
+@subsection %:include
 
-The @code{#include} directive works exactly like its C counterpart and share
-the same syntax.  The only difference is that @code{#include} allows for a list
+The @code{%:include} directive works exactly like its C counterpart and share
+the same syntax.  The only difference is that @code{%:include} allows for a list
 of headers.
 
 @heading Grammar
 @verbatim
-(#include header-list)
+(%:include header-list)
 header-list:
         < filename >
         " filename "
@@ -127,15 +127,15 @@ header-list:
 
 @heading Examples
 @example lisp
-(#include <stdio.h> <stdlib.h> "main.h")
+(%:include <stdio.h> <stdlib.h> "main.h")
 @end example
 
-@node #define
-@subsection #define
+@node %:define
+@subsection %:define
 
-The @code{#define} form only addresses the most basic usage of its
-C-counterpart (@code{#define}), and can only be used to define compile time
-constants.  For anything more complex, you should rely on @code{%:#define}.
+The @code{%:define} form only addresses the most basic usage of its
+C-counterpart (@code{%:define}), and can only be used to define compile time
+constants.  For anything more complex, you should rely on @code{%:%:define}.
 
 @heading Grammar
 
@@ -146,26 +146,26 @@ constants.  For anything more complex, you should rely on @code{%:#define}.
 @heading Examples
 
 @lisp
-(#define WIDTH 720)
-(#define K (+ 7 G))
+(%:define WIDTH 720)
+(%:define K (+ 7 G))
 @end lisp
 
 Note: This form might be removed in a future revision.
 
-@node #if
-@subsection #if
+@node %:if
+@subsection %:if
 
-The @code{#if} directive should be thought as the equivalent of the @code{#if}
+The @code{%:if} directive should be thought as the equivalent of the @code{%:if}
 C-preprocessor directive, and accepts a @code{constant-expression}, augmented
 by the @code{defined} builtin function like its C counterpart.  This is the
 only conditional form supported by eClisp, the other ones, such as
-@code{#ifdef}, @code{#ifndef}, @code{#elif} and @code{#endif} are either
-subsummed by @code{#if} or can be expressed as @code{macro}s.
+@code{%:ifdef}, @code{%:ifndef}, @code{#elif} and @code{#endif} are either
+subsummed by @code{%:if} or can be expressed as @code{macro}s.
 
 @heading Grammar
 
 @verbatim
-(#if (condition1 body1)
+(%:if (condition1 body1)
      (condition2 body2)
      (condition3 body3))
 @end verbatim
@@ -177,7 +177,7 @@ is @code{t}, then it is equivalent to the @code{#else} directive.
 @heading Examples
 
 @lisp
-(#if
+(%:if
   ((defined __linux)
    (%include <pty.h>))
   ((|| (defined __OpenBSD__) (defined __NetBSD__) (defined __APPLE__))
@@ -979,11 +979,11 @@ Note: Suffixes, such as f, u, ull are currently unsupported, but can be achieved
 @section Preproccessor
 
 @verbatim
-#include "header"
-#include <header>
-#define
-#ifndef
-#ifdef
+%:include "header"
+%:include <header>
+%:define
+%:ifndef
+%:ifdef
 #endif
 defined
 @end verbatim
