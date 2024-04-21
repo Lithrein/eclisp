@@ -1,0 +1,167 @@
+(%:include "macros.eclisph")
+
+(%:include <stdbool.h> <stdio.h> <stdlib.h> <time.h>)
+(%:include <SDL2/SDL.h>)
+
+(macro min (a b) `(?: (< ,a ,b) ,a ,b))
+(macro max (a b) `(?: (> ,a ,b) ,a ,b))
+
+(macro defstruct (name &body rest)
+  `(prog*
+     (def ,name (typedef struct ,name))
+     (def (struct ,name ,@rest))))
+
+(macro SDL_SetRenderColorDrawColorStruct (renderer color)
+ `(SDL_SetRenderDrawColor ,renderer
+                         (. ,color r) (. ,color g) (. ,color b) (. ,color a)))
+
+(defstruct Point (x y int))
+
+(defstruct Ball
+  (pos SDL_Rect)
+  (vit Point))
+
+(def game_loop (-> int (renderer (ptr SDL_Renderer)))
+  (def quit (bool) false)
+ 
+  (def left int     (- 320 100))
+  (def screen SDL_Rect '(0 0 640 480))
+ 
+  (def ball Ball `((,(+ left 50) 465 5 5) (0 0)))
+  (def red SDL_Color   '(255 100 100 0))
+  (def green SDL_Color '(100 255 100 0))
+  (def blue  SDL_Color '(100 100 255 0))
+  (def gray  SDL_Color '(150 150 150 0))
+  (def white SDL_Color '(255 255 255 0))
+  (def black SDL_Color '(0 0 0 0))
+  (def active int 0)
+
+  (def board (array 5 (array 16 int)) '(0))
+  (for (def i int 0) (< i 5) ++i
+       (for (def j int 0) (< j 16) ++j
+            (= (aref board i j) 1)))
+ 
+  (while (! quit)
+    (def event (SDL_Event))
+    (while (SDL_PollEvent (& event))
+      (switch (. event type)
+              (default (break))
+              (SDL_QUIT
+                (= quit true)
+                (break))
+              (SDL_KEYDOWN
+                 (switch (. event key keysym sym)
+                         (default (break))
+                         (SDLK_q
+                           (= quit true)
+                           (break))
+                         (SDLK_x
+                           (*= (. ball vit x) 2)
+                           (*= (. ball vit y) 2)
+                           (break))
+                         (SDLK_c
+                           (/= (. ball vit x) 2)
+                           (/= (. ball vit y) 2)
+                           (break))
+                         (SDLK_SPACE
+                           (= (. ball vit x) -1)
+                           (= (. ball vit y) -3)
+                           (= active 1)
+                           (break))
+                         (SDLK_LEFT
+                           (= left (max 0 (- left 10)))
+                           (unless active
+                             (= (. ball pos x) (+ left 50)))
+                           (break))
+                         (SDLK_RIGHT
+                           (= left (min (- 640 100) (+ left 10)))
+                           (unless active
+                             (= (. ball pos x) (+ left 50)))
+                           (break))))))
+      (SDL_Delay 10)
+
+      ;; handle a collision with a wall
+      (if (< (. ball pos y) 0)
+        (*= (. ball vit y) -1))
+      (if (< (. ball pos x) 0)
+        (*= (. ball vit x) -1))
+      (if (> (. ball pos x) 640)
+        (*= (. ball vit x) -1))
+
+      ;; when you die, repop
+      (when (> (. ball pos y) 475) 
+        (= active 0)
+        (= left (- 320 100))
+        (= (. ball pos x) (+ left 50))
+        (= (. ball pos y) 465)
+        (= (. ball vit x) (. ball vit y) 0))
+
+      ;; The bounce on the paddle
+      (when (&& active
+            (<= left (. ball pos x) (+ left 100))
+            (>= (. ball pos y) 470))
+        (*= (. ball vit y) -1)
+        (*= (. ball vit x) (?: (< (. ball pos x) (+ 50 left)) -1 1)))
+
+      ;; handle a collision with a brick
+      (when (<= 0 (. ball pos y) (* 5 20))
+        (def i int (min 4 (/ (. ball pos y) 20)))
+        (def j int (min 15 (/ (. ball pos x) 40)))
+        (when (aref board i j)
+          (= (aref board i j) 0)
+          (= (. ball vit y) (- (. ball vit y)))))
+ 
+      ;; update the position of the ball
+      (+= (. ball pos x) (. ball vit x))
+      (+= (. ball pos y) (. ball vit y))
+ 
+      ;; clear the screen
+      (SDL_SetRenderColorDrawColorStruct renderer black)
+      (SDL_RenderFillRect renderer (& screen))
+ 
+      ;; draw the screen
+      (for (def i int 0) (< i 5) ++i
+           (for (def j int 0) (< j 16) ++j
+                (unless (aref board i j) (continue))
+
+                (def obrick SDL_Rect `(,(* j 40) ,(* i 20) ,(/ 640 16) 20))
+                (def ibrick SDL_Rect `(,(+ 2 (* j 40)) ,(+ 2 (* i 20))
+                                       ,(- (/ 640 16) 4) ,(- 20 4)))
+                (SDL_SetRenderColorDrawColorStruct renderer gray)
+                (SDL_RenderFillRect renderer (& obrick))
+                (switch (% (+ i j) 3)
+                 (1 
+                   (SDL_SetRenderColorDrawColorStruct renderer red)
+                   (break))
+                 (2
+                   (SDL_SetRenderColorDrawColorStruct renderer green)
+                   (break))
+                 (default
+                   (SDL_SetRenderColorDrawColorStruct renderer blue)
+                   (break)))
+                (SDL_RenderFillRect renderer (& ibrick)))
+        
+           (def paddle (SDL_Rect) `(,left 470 100 5))
+           (SDL_SetRenderColorDrawColorStruct renderer white)
+           (SDL_RenderFillRect renderer (& paddle))
+           (SDL_SetRenderColorDrawColorStruct renderer blue)
+           (SDL_RenderFillRect renderer (& (. ball pos))))
+ 
+      ;; refresh time
+      (SDL_RenderPresent renderer))
+  (return 1))
+
+(def main (-> int void)
+  (srand (time NULL))
+
+  (with-sdl2-init (SDL_INIT_VIDEO)
+    (with-sdl2-window
+      (window "Wallbreaker"
+              SDL_WINDOWPOS_CENTERED SDL_WINDOWPOS_CENTERED
+              640 480
+              SDL_WINDOW_SHOWN)
+      (with-sdl2-renderer
+        (renderer window -1 SDL_RENDERER_ACCELERATED)
+        (game_loop renderer)
+        (return EXIT_SUCCESS)))))
+
