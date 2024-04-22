@@ -3,6 +3,21 @@
 (%:include <stdbool.h> <stdio.h> <stdlib.h> <time.h>)
 (%:include <SDL2/SDL.h>)
 
+(%:define WIDTH  640)
+(%:define HEIGHT 480)
+
+(%:define PADDLE_LEN       100)
+(%:define PADDLE_THICKNESS   5)
+(%:define PADDLE_Y         465)
+
+(%:define BROWS    8)
+(%:define BCOLS   16)
+(%:define BWIDTH  40)
+(%:define BHEIGHT 20)
+(%:define BMARGIN  2)
+
+(%:define DELTA_X 10)
+
 (macro min (a b) `(?: (< ,a ,b) ,a ,b))
 (macro max (a b) `(?: (> ,a ,b) ,a ,b))
 
@@ -11,7 +26,7 @@
      (def ,name (typedef struct ,name))
      (def (struct ,name ,@rest))))
 
-(macro SDL_SetRenderColorDrawColorStruct (renderer color)
+(macro SDL_SetRenderDrawColorStruct (renderer color)
  `(SDL_SetRenderDrawColor ,renderer
                          (. ,color r) (. ,color g) (. ,color b) (. ,color a)))
 
@@ -22,26 +37,27 @@
   (vit Point))
 
 (def game_loop (-> int (renderer (ptr SDL_Renderer)))
+  (def screen SDL_Rect '(0 0 WIDTH HEIGHT))
+
   (def quit (bool) false)
- 
-  (def left int     (- 320 100))
-  (def screen SDL_Rect '(0 0 640 480))
- 
-  (def ball Ball `((,(+ left 50) 465 5 5) (0 0)))
-  (def red SDL_Color   '(255 100 100 0))
+  (def left int    (/ (- WIDTH PADDLE_LEN) 2))
+  (def ball Ball  `((,(+ left (/ PADDLE_LEN 2)) ,(- PADDLE_Y 5)
+                      PADDLE_THICKNESS PADDLE_THICKNESS)
+                   (0 0)))
+  (def red   SDL_Color '(255 100 100 0))
   (def green SDL_Color '(100 255 100 0))
   (def blue  SDL_Color '(100 100 255 0))
   (def gray  SDL_Color '(150 150 150 0))
   (def white SDL_Color '(255 255 255 0))
-  (def black SDL_Color '(0 0 0 0))
+  (def black SDL_Color '(  0   0   0 0))
   (def active int 0)
 
-  (def board (array 5 (array 16 int)) '(0))
-  (for (def i int 0) (< i 5) ++i
-       (for (def j int 0) (< j 16) ++j
+  (def board (array BROWS (array BCOLS int)) '(0))
+  (for (def i int 0) (< i BROWS) ++i
+       (for (def j int 0) (< j BCOLS) ++j
             (= (aref board i j) 1)))
- 
-  (while (! quit)
+
+  (until quit
     (def event (SDL_Event))
     (while (SDL_PollEvent (& event))
       (switch (. event type)
@@ -69,14 +85,14 @@
                            (= active 1)
                            (break))
                          (SDLK_LEFT
-                           (= left (max 0 (- left 10)))
+                           (= left (max 0 (- left DELTA_X)))
                            (unless active
-                             (= (. ball pos x) (+ left 50)))
+                             (= (. ball pos x) (+ left (/ PADDLE_LEN 2))))
                            (break))
                          (SDLK_RIGHT
-                           (= left (min (- 640 100) (+ left 10)))
+                           (= left (min (- WIDTH PADDLE_LEN) (+ left DELTA_X)))
                            (unless active
-                             (= (. ball pos x) (+ left 50)))
+                             (= (. ball pos x) (+ left (/ PADDLE_LEN 2))))
                            (break))))))
       (SDL_Delay 10)
 
@@ -85,68 +101,71 @@
         (*= (. ball vit y) -1))
       (if (< (. ball pos x) 0)
         (*= (. ball vit x) -1))
-      (if (> (. ball pos x) 640)
+      (if (> (. ball pos x) WIDTH)
         (*= (. ball vit x) -1))
-
-      ;; when you die, repop
-      (when (> (. ball pos y) 475) 
-        (= active 0)
-        (= left (- 320 100))
-        (= (. ball pos x) (+ left 50))
-        (= (. ball pos y) 465)
-        (= (. ball vit x) (. ball vit y) 0))
 
       ;; The bounce on the paddle
       (when (&& active
-            (<= left (. ball pos x) (+ left 100))
-            (>= (. ball pos y) 470))
+            (<= left (. ball pos x) (+ left PADDLE_LEN))
+            (< PADDLE_Y (. ball pos y)))
         (*= (. ball vit y) -1)
-        (*= (. ball vit x) (?: (< (. ball pos x) (+ 50 left)) -1 1)))
+        (= (. ball vit x) (?: (< (. ball pos x) (+ (/ PADDLE_LEN 2) left))
+                              (- (abs (. ball vit x)))
+                              (abs (. ball vit x)))))
+
+      ;; when you die, repop
+      (when (> (. ball pos y) HEIGHT)
+        (= active 0)
+        (= left (- (/ WIDTH 2) PADDLE_LEN))
+        (= (. ball pos x) (+ left (/ PADDLE_LEN 2)))
+        (= (. ball pos y) (- PADDLE_Y 5))
+        (= (. ball vit x) (. ball vit y) 0))
+
 
       ;; handle a collision with a brick
-      (when (<= 0 (. ball pos y) (* 5 20))
-        (def i int (min 4 (/ (. ball pos y) 20)))
-        (def j int (min 15 (/ (. ball pos x) 40)))
+      (when (<= 0 (. ball pos y) (* BROWS BHEIGHT))
+        (def i int (min (- BROWS 1) (/ (. ball pos y) BHEIGHT)))
+        (def j int (min (- BCOLS 1) (/ (. ball pos x) BWIDTH)))
         (when (aref board i j)
           (= (aref board i j) 0)
           (= (. ball vit y) (- (. ball vit y)))))
- 
+
       ;; update the position of the ball
       (+= (. ball pos x) (. ball vit x))
       (+= (. ball pos y) (. ball vit y))
- 
+
       ;; clear the screen
-      (SDL_SetRenderColorDrawColorStruct renderer black)
+      (SDL_SetRenderDrawColorStruct renderer black)
       (SDL_RenderFillRect renderer (& screen))
- 
+
       ;; draw the screen
-      (for (def i int 0) (< i 5) ++i
-           (for (def j int 0) (< j 16) ++j
+      (for (def i int 0) (< i BROWS) ++i
+           (for (def j int 0) (< j BCOLS) ++j
                 (unless (aref board i j) (continue))
 
-                (def obrick SDL_Rect `(,(* j 40) ,(* i 20) ,(/ 640 16) 20))
-                (def ibrick SDL_Rect `(,(+ 2 (* j 40)) ,(+ 2 (* i 20))
-                                       ,(- (/ 640 16) 4) ,(- 20 4)))
-                (SDL_SetRenderColorDrawColorStruct renderer gray)
+                (def obrick SDL_Rect `(,(* j BWIDTH) ,(* i BHEIGHT) ,(/ WIDTH BCOLS) BHEIGHT))
+                (def ibrick SDL_Rect `(,(+ (* j BWIDTH) BMARGIN) ,(+ (* i BHEIGHT) BMARGIN)
+                                       ,(- (/ WIDTH BCOLS) (* 2 BMARGIN)) ,(- BHEIGHT (* 2 BMARGIN))))
+                (SDL_SetRenderDrawColorStruct renderer gray)
                 (SDL_RenderFillRect renderer (& obrick))
                 (switch (% (+ i j) 3)
-                 (1 
-                   (SDL_SetRenderColorDrawColorStruct renderer red)
+                 (1
+                   (SDL_SetRenderDrawColorStruct renderer red)
                    (break))
                  (2
-                   (SDL_SetRenderColorDrawColorStruct renderer green)
+                   (SDL_SetRenderDrawColorStruct renderer green)
                    (break))
                  (default
-                   (SDL_SetRenderColorDrawColorStruct renderer blue)
+                   (SDL_SetRenderDrawColorStruct renderer blue)
                    (break)))
                 (SDL_RenderFillRect renderer (& ibrick)))
-        
-           (def paddle (SDL_Rect) `(,left 470 100 5))
-           (SDL_SetRenderColorDrawColorStruct renderer white)
+
+           (def paddle (SDL_Rect) `(,left PADDLE_Y PADDLE_LEN PADDLE_THICKNESS))
+           (SDL_SetRenderDrawColorStruct renderer white)
            (SDL_RenderFillRect renderer (& paddle))
-           (SDL_SetRenderColorDrawColorStruct renderer blue)
+           (SDL_SetRenderDrawColorStruct renderer blue)
            (SDL_RenderFillRect renderer (& (. ball pos))))
- 
+
       ;; refresh time
       (SDL_RenderPresent renderer))
   (return 1))
@@ -158,7 +177,7 @@
     (with-sdl2-window
       (window "Wallbreaker"
               SDL_WINDOWPOS_CENTERED SDL_WINDOWPOS_CENTERED
-              640 480
+              WIDTH HEIGHT
               SDL_WINDOW_SHOWN)
       (with-sdl2-renderer
         (renderer window -1 SDL_RENDERER_ACCELERATED)
