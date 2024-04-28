@@ -8,6 +8,11 @@
      (prog
        ,@body)))
 
+(macro until (condition &body body)
+  `(while (! ,condition)
+     (prog
+       ,@body)))
+
 (macro awhen (condition &body body)
   `(prog
      (def it int ,condition)

@@ -262,15 +262,16 @@ onto TM."
         (return 1))
 
 (def main (-> int void)
-
   (srand (time NULL))
 
   (with-sdl2-init (SDL_INIT_VIDEO)
-    (with-sdl2-window (window "Tetris"
-                              SDL_WINDOWPOS_CENTERED SDL_WINDOWPOS_CENTERED
-                              640 480
-                              SDL_WINDOW_SHOWN)
-      (with-sdl2-renderer (renderer window -1 SDL_RENDERER_ACCELERATED)
+    (with-sdl2-window
+      (window "Tetris"
+              SDL_WINDOWPOS_CENTERED SDL_WINDOWPOS_CENTERED
+              640 480
+              SDL_WINDOW_SHOWN)
+      (with-sdl2-renderer
+        (renderer window -1 SDL_RENDERER_ACCELERATED)
         (game_loop renderer)
         (return EXIT_SUCCESS)))))
 
