@@ -432,6 +432,19 @@ will be expanded with braces within functions. Use @code{prog*} instead.
     form-1' form-2' ... form-m))
 @end lisp
 
+@node Pre and Post increment/decrement operators
+@subsection Pre and Post increment/decrement operators
+
+The operators @code{.++}, @code{++.}, @code{--.}, @code{.--}, serves the same
+purposes as C pre and post increment and decrement operators.
+
+@lisp
+(.++ a) ;; a++
+(++. a) ;; ++a
+(.-- a) ;; a--
+(--. a) ;; --a
+@end lisp
+
 @node &
 @subsection &
 

@@ -1333,6 +1333,36 @@ the result share with the argument x as much as possible."
           (setf (gethash (caar bcur) macro-tbl) (cadar bcur)))))
     res))
 
+(defun print-prefix (op form stmtp indent to-stream)
+  (when stmtp
+    (format to-stream "~v@{~C~:*~}" indent #\Space))
+  (cond ((string= op ".++")
+         (format to-stream "~a++"
+                 (with-output-to-string (s) (print-form form nil 0 s))))
+        ((string= op ".--")
+         (format to-stream "~a--"
+                 (with-output-to-string (s) (print-form form nil 0 s))))
+        ((string= op "++.")
+         (format to-stream "++~a"
+                 (with-output-to-string (s) (print-form form nil 0 s))))
+        ((string= op "--.")
+         (format to-stream "--~a"
+                 (with-output-to-string (s) (print-form form nil 0 s)))))
+  (when stmtp
+    (format to-stream ";~%")))
+
+(defun print-.++ (form stmtp indent to-stream)
+  (print-prefix ".++" (cadr form) stmtp indent to-stream))
+
+(defun print-.-- (form stmtp indent to-stream)
+  (print-prefix ".--" (cadr form) stmtp indent to-stream))
+
+(defun print-++. (form stmtp indent to-stream)
+  (print-prefix "++." (cadr form) stmtp indent to-stream))
+
+(defun print---. (form stmtp indent to-stream)
+  (print-prefix "--." (cadr form) stmtp indent to-stream))
+
 (defvar kwd-behavior
   '(("%:include"  . (compile-include  . print-cpp-include))
     ("%:define"   . (compile-call     . print-cpp-define))
@@ -1363,6 +1393,10 @@ the result share with the argument x as much as possible."
     ("return"    . (compile-call     . print-return))
     ("quote"     . (compile-quote-c  . print-quote))
     ("backquote" . (compile-backquote-c  . print-backquote))
+    (".++"       . (compile-call     . print-.++))
+    ("++."       . (compile-call     . print-++.))
+    (".--"       . (compile-call     . print-.--))
+    ("--."       . (compile-call     . print---.))
     ("="         . (compile-call     . print-binop))
     ("+="        . (compile-call     . print-binop))
     ("-="        . (compile-call     . print-binop))
