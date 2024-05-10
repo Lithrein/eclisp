@@ -86,22 +86,20 @@
                            (break))
                          (SDLK_LEFT
                            (= left (max 0 (- left DELTA_X)))
-                           (unless active
-                             (= (. ball pos x) (+ left (/ PADDLE_LEN 2))))
                            (break))
                          (SDLK_RIGHT
                            (= left (min (- WIDTH PADDLE_LEN) (+ left DELTA_X)))
-                           (unless active
-                             (= (. ball pos x) (+ left (/ PADDLE_LEN 2))))
                            (break))))))
       (SDL_Delay 10)
+
+      ;; when the ball is standing still on the paddle, we move it along.
+      (unless active
+        (= (. ball pos x) (+ left (/ PADDLE_LEN 2))))
 
       ;; handle a collision with a wall
       (if (< (. ball pos y) 0)
         (*= (. ball vit y) -1))
-      (if (< (. ball pos x) 0)
-        (*= (. ball vit x) -1))
-      (if (> (. ball pos x) WIDTH)
+      (unless (<= 0 (. ball pos x) WIDTH)
         (*= (. ball vit x) -1))
 
       ;; The bounce on the paddle
