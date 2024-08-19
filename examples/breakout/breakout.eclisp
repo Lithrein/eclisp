@@ -41,7 +41,7 @@
 
   (def quit (bool) false)
   (def left int    (/ (- WIDTH PADDLE_LEN) 2))
-  (def ball Ball  `((,(+ left (/ PADDLE_LEN 2)) ,(- PADDLE_Y 5)
+  (def ball Ball  `((,(+ left (/ PADDLE_LEN 2)) ,(- PADDLE_Y PADDLE_THICKNESS)
                       PADDLE_THICKNESS PADDLE_THICKNESS)
                    (0 0)))
   (def red   SDL_Color '(255 100 100 0))
@@ -114,7 +114,7 @@
       ;; when you die, repop
       (when (> (. ball pos y) HEIGHT)
         (= active 0)
-        (= left (- (/ WIDTH 2) PADDLE_LEN))
+        (= left (/ (- WIDTH PADDLE_LEN) 2))
         (= (. ball pos x) (+ left (/ PADDLE_LEN 2)))
         (= (. ball pos y) (- PADDLE_Y 5))
         (= (. ball vit x) (. ball vit y) 0))
