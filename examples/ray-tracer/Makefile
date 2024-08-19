@@ -21,4 +21,4 @@ rt.c: macros.h include/ray-tracer/utils.h
 %.c: %.h
 
 clean:
-	rm -rf rt rt.o
+	rm -rf rt rt.o rt.c

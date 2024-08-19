@@ -16,7 +16,7 @@
   "Direct accessors to each coordinate.")))
 
 (macro mkvec3 (x y z)
-  `(cast (union vec3) (list (list ,x ,y ,z))))
+  `(cast (union vec3) `((,,x ,,y ,,z))))
 
 (macro mk-naryop (name binop)
   `(macro ,name (arg1 arg2 &body rest)
@@ -123,8 +123,9 @@
 ;; ray
 
 (def (struct ray
-  (orig (union vec3))
-  (dir  (union vec3))))
+             (orig (union vec3))
+             (dir  (union vec3))))
+
 (macro mkray (orig dir)
   `(cast (struct ray) (list ,orig ,dir)))
 
@@ -136,10 +137,10 @@
 ;; hit record
 
 (def (struct hit_record
-  (p (union vec3))
-  (normal (union vec3))
-  (t double)
-  (front_face int)))
+             (p (union vec3))
+             (normal (union vec3))
+             (t double)
+             (front_face int)))
 
 (def set_face_normal (-> void (ht (ptr struct hit_record)) (r (ptr struct ray)) (outward_normal (ptr union vec3)))
   (= ht->front_face (< (vec3_dot r->dir *outward_normal) 0))
@@ -165,12 +166,13 @@
   (def rec      (struct hit_record))
   (def unit_dir (union vec3) (vec3_unit r->dir))
   (def a        double     (/ (+ unit_dir.y 1.0) 2))
+  (def t double 0.0)
 
   (if (< depth 0)
     (return (mkvec3 0 0 0)))
 
   ;; sphere
-  (def t double (hit_sphere (& (mkvec3 0 0.25 -1)) 0.75 r &rec))
+  (= t (hit_sphere (& (mkvec3 0 0.25 -1)) 0.75 r &rec))
   (when (> t 0.0)
     (def direction (union vec3) (vec3+ rec.normal (random_unit_vector)))
     (return (vec3_mul (mkvec3 0 0.9 0.9) (vec3_smul (ray_color (& (mkray rec.p direction)) (- depth 1)) 0.5))))
