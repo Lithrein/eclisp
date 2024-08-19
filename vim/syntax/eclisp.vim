@@ -34,7 +34,6 @@ syntax keyword eclispKwd continue
 syntax keyword eclispKwd default
 syntax keyword eclispKwd deref
 syntax keyword eclispKwd do
-syntax keyword eclispKwd else
 syntax keyword eclispKwd enum
 syntax keyword eclispKwd extern
 syntax keyword eclispKwd for
@@ -78,6 +77,9 @@ syntax match eclispPrP "\v\#endif"
 syntax match eclispKwd "\v\%funcall"
 syntax match eclispKwd "\v\%type"
 syntax match eclispKwd "\v\&body"
+syntax match eclispKwd "\v\&rest"
+syntax match eclispKwd "\v\&key"
+syntax match eclispKwd "\vtype-of"
 
 syntax match eclispComment "\v;.*$"
 
