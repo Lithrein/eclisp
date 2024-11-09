@@ -170,7 +170,7 @@ Typically associated to the reader macro #\(."
   (declare (ignore char))
   (loop for c = (eclisp-read stream)
         while c collect c into terms
-        finally (return terms)))
+        finally (return (if terms terms '(nil)))))
 
 (defun eclisp-read-close-curly-brace (stream char)
   "Nothing to do when reading the end-list character.

@@ -812,7 +812,8 @@ BODY is optional. DOCUMENTATION is optional"
                    (t (if (gethash op macrofn-tbl)
                           (eval-macrofn op args ctx)
                           (error (format nil "call to a C function (here, ~a) through the ffi is not yet unsupported.~%" op))))))
-              (format t "unsupported: ~a~%" form)))
+              (when form
+                (format t "unsupported: ~a~%" form))))
     res))
 
 (defun extract-keyword-args (args tmpl ctx)
