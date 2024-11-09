@@ -963,7 +963,8 @@ BODY is optional. DOCUMENTATION is optional"
           (format to-stream "~v@{~C~:*~}" indent #\Space)
           (if (eq (et-type form) :eclisp-string)
               (format to-stream "\"~a\"" (et-value form))
-              (format to-stream "~a" (et-value form)))))))
+              (format to-stream "~a" (et-value form)))
+              (when stmtp (format to-stream ";~%"))))))
 
 (defun print-eclisp (from-stream to-stream)
   "Write the result of the compilation of the content of FROM-STREAM into
