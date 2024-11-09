@@ -23,38 +23,42 @@
 
 ;;; Code:
 
-(provide 'eclisp-mode)
+(provide 'eclisp-mode)  
 
-(defconst eclisp-keywords
-  '("aref" "auto" "addr" "break" "cast" "continue" "def" "default"
-    "deref" "do" "else" "enum" "extern" "for" "goto" "if" "macro"
-    "prog" "prog*" "return" "sizeof" "switch" "short" "while"))
+(defconst eclisp-keywords-regexp
+  (regexp-opt
+   '("aref" "auto" "addr" "break" "cast" "continue" "def" "default"
+     "deref" "do" "else" "enum" "extern" "for" "goto" "if" "macro"
+     "prog" "prog*" "return" "sizeof" "switch" "short" "while")
+   'words))
 
-(defconst eclisp-typ-keywords
-  '("array" "char" "const" "double" "float" "int" "long" "ptr"
-    "register" "signed" "static" "struct" "typedef" "union"
-    "unisgned" "void" "volatile"))
+(defconst eclisp-typ-keywords-regexp
+  (regexp-opt
+   '("array" "char" "const" "double" "float" "int" "long" "ptr"
+     "register" "signed" "static" "struct" "typedef" "union"
+     "unisgned" "void" "volatile")  
+   'words))
 
-(defconst eclisp-builtins
-  '("=" "&=" "+=" "&&" "||" "<=" "->" "+" "-" "*" "/" "."))
+(defconst eclisp-operators-regexp
+  (regexp-opt
+   '("=" "&=" "+=" "&&" "||" "<=" "->" "+" "-" "*" "/" ".")
+   'symbols))
 
-(defconst eclisp-keywords-regexp (regexp-opt eclisp-keywords 'words))
-(defconst eclisp-typ-keywords-regexp (regexp-opt eclisp-typ-keywords 'words))
-(defconst eclisp-builtins-regexp (regexp-opt eclisp-builtins 'symbols))
+(defconst eclisp-pp-keywords-regexp
+  (regexp-opt
+   '("%:include" "%:define" "%:if")
+   'symbols))
 
 (defconst eclisp-font-lock-keywords
   `((,";.*$"                              . font-lock-comment-face)
+    (,eclisp-operators-regexp             . font-lock-builtin-face)
     (,eclisp-keywords-regexp              . font-lock-keyword-face)
-    (,"&body"                             . font-lock-keyword-face)
+    (,"&\\(body\\|rest\\|keys\\)"         . font-lock-keyword-face)
     (,eclisp-typ-keywords-regexp          . font-lock-type-face)
-    (,eclisp-preprocessor-keywords-regexp . font-lock-preprocessor-face)
-    (,"%:include"                          . font-lock-preprocessor-face)
-    (,"%:define"                           . font-lock-preprocessor-face)
-    (,"%:if"                               . font-lock-preprocessor-face)
-    (,eclisp-builtins-regexp              . font-lock-builtin-face)
     (,"\\<[0-9]+\\>"                      . font-lock-constant-face)
+    (,eclisp-pp-keywords-regexp           . font-lock-preprocessor-face)
     (,"\<[^ ]+\>"                         . font-lock-string-face)
-    ))
+    (,"[\\\.\|:][a-zA-z_][a-zA-Z0-9_]*"   . font-lock-preprocessor-face)))
 
 (define-derived-mode eclisp-mode lisp-mode "eclisp"
   (setq font-lock-defaults '(eclisp-font-lock-keywords))
