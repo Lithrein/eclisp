@@ -351,10 +351,11 @@ and if, and write it on TO-STREAM."
                                                 (format nil "~v@{~C~:*~}" indent #\Space))))))
     (when var
       (when (string= (gethash "linkage" (es-attrs var)) "static")
-        (setf type `(|static| ,type))))
+        (setf type `(,(intern-eclisp-token "static") ,type))))
     (format to-stream "~v@{~C~:*~}" indent #\Space)
     (print-type (when var (es-name var)) type to-stream)
-    (when value (format to-stream " = ~a"
+    (when value
+      (format to-stream " = ~a"
                         (with-output-to-string (s) (print-form (eclisp-eval value nil) nil 0 s))))
     (when stmtp (format to-stream ";~%"))))
 
@@ -390,8 +391,37 @@ BODY is optional. DOCUMENTATION is optional"
                                                 (format nil "~v@{~C~:*~}" indent #\Space))))))
     (format to-stream "~v@{~C~:*~}" indent #\Space)
     (when var
+      (when (multiple-value-bind (val present-p) (gethash "inline" (es-attrs var))
+              (and (not (string= val "never")) present-p))
+        (setf type `(,(intern-eclisp-token "->") (,(intern-eclisp-token "inline") ,(cadr type)) ,@(cddr type))))
       (when (string= (gethash "linkage" (es-attrs var)) "static")
         (setf type `(,(intern-eclisp-token "->") (,(intern-eclisp-token "static") ,(cadr type)) ,@(cddr type)))))
+    (when (or (gethash "section" (es-attrs var))
+              (gethash "inline" (es-attrs var))
+              (multiple-value-bind (val present-p) (gethash "noreturn" (es-attrs var)) present-p)
+              (multiple-value-bind (val present-p) (gethash "interrupt" (es-attrs var)) present-p))
+      (format to-stream "__attribute__ ((")
+      (let ((comma-p nil))
+        (when (gethash "section" (es-attrs var))
+          (format to-stream "section (\"~a\")" (gethash "section" (es-attrs var)))
+          (setf comma-p t))
+        (when (string= (gethash "inline" (es-attrs var)) "always")
+          (when comma-p (format to-stream ", "))
+          (format to-stream "always_inline")
+          (setf comma-p t))
+        (when (string= (gethash "inline" (es-attrs var)) "never")
+          (when comma-p (format to-stream ", "))
+          (format to-stream "noinline")
+          (setf comma-p t))
+        (when (multiple-value-bind (val present-p) (gethash "noreturn" (es-attrs var)) present-p)
+          (when comma-p (format to-stream ", "))
+          (format to-stream "noreturn")
+          (setf comma-p t))
+        (when (multiple-value-bind (val present-p) (gethash "interrupt" (es-attrs var)) present-p)
+          (when comma-p (format to-stream ", "))
+          (format to-stream "interrupt")
+          (setf comma-p t))
+      (format to-stream "))~%")))
     (print-type (when var (es-name var)) type to-stream)
     (when body
       (format to-stream "~%")
@@ -1154,9 +1184,9 @@ TO-STREAM."
 
 (defvar +c-keywords+
   '("auto" "break" "case" "char" "const" "continue" "default" "do" "double"
-    "else" "enum" "extern" "float" "for" "goto" "if" "int" "long" "register"
-    "return" "short" "signed" "sizeof" "static" "struct" "switch" "typedef"
-    "union" "unsigned" "void" "volatile" "while"))
+    "else" "enum" "extern" "float" "for" "goto" "if" "inline" "int" "long"
+    "register" "return" "short" "signed" "sizeof" "static" "struct" "switch"
+    "typedef" "union" "unsigned" "void" "volatile" "while"))
 
 (defun print-c-type (name type acc)
   "Create a nested list which represents the variable NAME of TYPE.
@@ -1294,7 +1324,7 @@ ACC should be NIL at first."
                 nil
                 (if (consp (cadr type)) (cadr type) (cdr type))
                 (list (et-value kind) " " acc name)))
-              ((member (et-value kind) '("typedef" "static" "register" "extern"
+              ((member (et-value kind) '("typedef" "static" "inline" "register" "extern"
                                          "long" "short" "signed" "unsigned")
                        :test #'string=)
                (append (list (et-value kind) " ")
