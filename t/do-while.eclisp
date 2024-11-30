@@ -1,2 +1,5 @@
 (do-while (!= i 0)
  (-= i 1))
+
+(do-while 0
+ (-= i 1))

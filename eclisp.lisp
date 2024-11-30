@@ -458,9 +458,9 @@ BODY is optional. DOCUMENTATION is optional"
   (format to-stream "~%")
   (print-form `(,+eclisp-prog+ ,@(cdr form)) t (+ 2 indent) to-stream)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
-  (format to-stream "while ")
+  (format to-stream "while (")
   (print-cond-expr (car form) stmtp 0 to-stream)
-  (format to-stream ";~%"))
+  (format to-stream ");~%"))
 
 (defun print-ite (form stmtp indent to-stream)
   (pop form)
