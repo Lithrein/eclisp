@@ -696,6 +696,42 @@ them you should use @code{seq} which will produce an empty statement.
 
 @heading Example
 
+@node asm
+@subsection asm
+
+The @code{asm} expression is used to issue inline asm statements and can be
+anywhere in the code, even outside functions.  The only mandatory part of this
+form is the assembly that shall be outputed.  The string after the :suffix
+keyword is appended to each assembly line and avoid to repeat a
+formatting/indenting directive.
+
+@heading Grammar
+
+@verbatim
+(asm :volatile "line1" "line2" ... "linen"
+     :in in-out-set
+     :out in-out-set
+     :clobber clobber-set
+     :suffix "suffix")
+
+in-out-set:
+  | (constraint symbol)
+  | ((constraint0 symbol0) (constraint1 symbol1) ... (constraintn symboln))
+
+clobber-set: (clobber1 clobber2 ... clobbern)
+@end verbatim
+
+@heading Examples
+
+@lisp
+(asm :volatile "line1" "line2" ... "linen"
+     :in ("r" var0)
+     :in (("r" var1) ("i" var2))
+     :out ("=r" var3)
+     :clobber "%al"
+     :suffix "\n\t")
+@end lisp
+
 @node %type
 @subsection %type
 

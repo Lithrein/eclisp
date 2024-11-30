@@ -349,6 +349,13 @@ All this information is returned as an ECLISP-SYMBOL instance"
                           :eclisp-symbol
                           #'eclisp-while-parse)))
 
+(flet ((eclisp-asm-parse (form ctx)
+         (parse-call form ctx)))
+  (define-constant +eclisp-asm+
+    (intern-eclisp-token "asm"
+                          :eclisp-symbol
+                          #'eclisp-asm-parse)))
+
 (labels
     ((parse-label (label ctx)
        (if (eq label (intern-eclisp-token "default"))
