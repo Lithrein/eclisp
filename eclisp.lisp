@@ -727,12 +727,10 @@ BODY is optional. DOCUMENTATION is optional"
         (t x)))
 
 (defun compile-concat (args ctx)
-  (let* ((typ (car args))
-         (cargs (cdr args))
-         (res
-          (apply #'concatenate 'string
-                 (mapcar #'(lambda (x) (format nil "~a" (ctx-lookup x ctx))) cargs))))
-    (if (string= typ "string") res (intern res))))
+  (intern-eclisp-token
+    (apply #'concatenate 'string
+           (mapcar #'(lambda (x) (format nil "~a" (et-value (ctx-lookup x ctx)))) args))
+    :eclisp-string))
 
 (defun compile-symbolicate (args ctx)
   (intern-eclisp-token
