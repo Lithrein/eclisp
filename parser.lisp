@@ -781,6 +781,11 @@ All this information is returned as an ECLISP-SYMBOL instance"
 
 (flet ((eclisp-rshift-parse (form ctx)
          (parse-call form ctx)))
+(define-constant +eclisp-symbolicate+
+    (intern-eclisp-token "symbolicate" :eclisp-symbol)))
+
+(flet ((eclisp-rshift-parse (form ctx)
+         (parse-call form ctx)))
 (define-constant +eclisp-gensym+
     (intern-eclisp-token "gensym" :eclisp-symbol)))
 

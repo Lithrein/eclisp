@@ -624,6 +624,12 @@ BODY is optional. DOCUMENTATION is optional"
                  (mapcar #'(lambda (x) (format nil "~a" (ctx-lookup x ctx))) cargs))))
     (if (string= typ "string") res (intern res))))
 
+(defun compile-symbolicate (args ctx)
+  (intern-eclisp-token
+    (apply #'concatenate 'string
+           (mapcar #'(lambda (x) (format nil "~a" (et-value (ctx-lookup x ctx)))) args))
+    :eclisp-symbol))
+
 (defun compile-car (args ctx)
   (car (ctx-lookup (car args) ctx)))
 
@@ -803,6 +809,7 @@ BODY is optional. DOCUMENTATION is optional"
                   ((eq +eclisp-if+        op) (compile-if-macro   args ctx))
                   ((eq +eclisp-gensym+    op) (compile-gensym     args ctx))
                   ((eq +eclisp-let+       op) (compile-let-macro  args ctx))
+                  ((eq +eclisp-symbolicate+ op) (compile-symbolicate args ctx))
                   ((member (et-value op) '("<" ">" "<=" ">=" ">" "==" "!=" "&&" "||") :test #'equal)
                     (compile-op-macro (et-value op) args ctx))
                    ;; not implemented ^ | & ~ << >>
