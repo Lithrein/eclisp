@@ -396,9 +396,17 @@ Backspace, Linefeed, Page and Space."
                  collect (read-char stream) into letters
                  finally (return (coerce letters 'string)))))
     (if (or (= 1 (length c))
-            (member c '("Newline" "Tab" "Backspace" "Linefeed" "Page" "Space")))
-        (intern-eclisp-token c :eclisp-character)
-        (error (format nil "~s is not a character.~%" c)))))
+            (member c '("Newline" "Tab" "Backspace" "Linefeed" "Page" "Space" "Return") :test #'string=))
+        (cond ((= 1 (length c)) (intern-eclisp-token c :eclisp-character))
+              (t (cond
+                   ((string= c "Newline")   (intern-eclisp-token "\\r\\n" :eclisp-string))
+                   ((string= c "Tab")       (intern-eclisp-token "\\t" :eclisp-character))
+                   ((string= c "Backspace") (intern-eclisp-token "\\b" :eclisp-character))
+                   ((string= c "Linefeed")  (intern-eclisp-token "\\n" :eclisp-character))
+                   ((string= c "Return")    (intern-eclisp-token "\\r" :eclisp-character))
+                   ((string= c "Page")      (intern-eclisp-token "\\f" :eclisp-character))
+                   ((string= c "Space")     (intern-eclisp-token " " :eclisp-character))))
+        (error (format nil "~s is not a character.~%" c))))))
 
 (defun eclisp-read-verbatim (stream char)
   "Read verbatim C code."

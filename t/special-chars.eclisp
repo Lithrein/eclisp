@@ -1,0 +1,7 @@
+(def nl (array char) #\Newline)
+(def tab char #\Tab)
+(def bs char #\Backspace)
+(def lf char #\Linefeed)
+(def cr char #\Return)
+(def ff char #\Page)
+(def sp char #\Space)
