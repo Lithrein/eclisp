@@ -144,7 +144,7 @@ the expression."
       (destructuring-bind (op &rest args) form
         (cond
           ((string= "defined" (et-value op))
-           (format to-stream "defined~a" args))
+           (format to-stream "defined (~a)" (et-value (car args))))
           ((member (et-value op) '("<" ">" "<=" ">=" ">" "==") :test #'equal)
            (print-cmp-op form stmtp indent to-stream t))
           ((member (et-value op) '("!" "+" "-" "*" "/" "%" "^" "|" "||" "&" "&&" "~" "<<" ">>")
@@ -181,13 +181,13 @@ and if, and write it on TO-STREAM."
         (if first
             (format to-stream "#if ")
             (format to-stream (if (otherwise_p cond)
-                                  "~%~v@{~C~:*~}#else" "~%~v@{~C~:*~}#elif ")
+                                  "~v@{~C~:*~}#else" "~v@{~C~:*~}#elif ")
                     indent #\Space))
         (unless (otherwise_p cond) (print-cpp-cond-expr cond nil 0 to-stream))
         (format to-stream "~%")
         (loop for b in body do
           (print-form b t (+ 2 indent) to-stream))))
-    (format to-stream "~%~v@{~C~:*~}#endif~%" indent #\Space)))
+    (format to-stream "~v@{~C~:*~}#endif~%" indent #\Space)))
 
 (defun print-ll (l shift to-stream)
   "Flatten and print to TO-STREAM the list produced by PRINT-C-TYPE."

@@ -7,3 +7,4 @@
 (%:if ((& (== (defined A) (defined C) K)
           (defined B))
       (+ 1 2)))
+(%:if ((defined A) 1))
