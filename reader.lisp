@@ -419,7 +419,6 @@ Backspace, Linefeed, Page and Space."
                  ((char= c #\{) (incf level))
                  ((char= c #\}) (decf level)))
         while (and c (> level 0))
-        if (char= c #\Newline) collect #\\ into letters
         collect (read-char stream) into letters
         finally (return (progn (read-char stream)
                                (coerce letters 'string))))))
