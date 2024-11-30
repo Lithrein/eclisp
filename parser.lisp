@@ -682,10 +682,11 @@ All this information is returned as an ECLISP-SYMBOL instance"
              (cond ((and (atom (car rest))
                          (eq (et-type (car rest)) :eclisp-string))
                     (setf documentation (car rest))
-                    (setf body (cdr rest)))
+                    (setf body (cadr rest)))
                    (t
-                    (setf body  rest)))
-           (setf (gethash name macrofn-tbl) (list args body documentation)))))
+                    (setf body (car rest))))
+           (setf (gethash name macrofn-tbl) (list args body documentation))
+           nil)))
   (define-constant +eclisp-macrofn+
     (intern-eclisp-token "macrofn"
                           :eclisp-symbol

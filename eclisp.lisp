@@ -693,7 +693,7 @@ BODY is optional. DOCUMENTATION is optional"
 (defun ctx-lookup (x ctx)
   (cond ((symbolp x) (gethash x ctx))
         ((listp x) (compile-macro x ctx))
-        ((eq (type-of x) 'eclisp-token) (gethash x ctx))
+        ((and (eq (type-of x) 'eclisp-token) (eq (et-type x) :eclisp-symbol)) (gethash x ctx))
         (t x)))
 
 (defun compile-concat (args ctx)
@@ -906,12 +906,12 @@ BODY is optional. DOCUMENTATION is optional"
 (defun extract-keyword-args (args tmpl ctx)
   (labels ((group-kwd-val (args)
              (when args
-               (cons (list (string (car args)) (cadr args))
+               (cons (list (et-value (car args)) (cadr args))
                      (group-kwd-val (cddr args)))))
            (get-val (kwd)
-             (cadr (assoc (if (char= (aref (string kwd) 0) #\:)
-                              (string kwd)
-                              (concatenate 'string ":" (string kwd)))
+             (cadr (assoc (if (char= (aref (et-value kwd) 0) #\:)
+                              (et-value kwd)
+                              (concatenate 'string ":" (et-value kwd)))
                           (group-kwd-val args)
                           :test #'string=)))
            (explode-kwd (kwd)
@@ -959,8 +959,8 @@ BODY is optional. DOCUMENTATION is optional"
         (progn
           (expand-macrofn-args (car args) (car tmpl) ctx ctx-ref)
           (expand-macrofn-args (cdr args) (cdr tmpl) ctx ctx-ref))
-        (if (or (string= (string (car tmpl)) "&body")
-                (string= (string (car tmpl)) "&rest"))
+        (if (or (string= (string (et-value (car tmpl))) "&body")
+                (string= (string (et-value (car tmpl))) "&rest"))
             ;; we should clarify where the evaluation of macrofn takes place
             ;; because this may raise issues in the &body case.
             (setf (gethash (cadr tmpl) ctx) (ctx-lookup (car args) ctx-ref))
