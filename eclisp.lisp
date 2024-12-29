@@ -150,7 +150,7 @@ the expression."
           ((member (et-value op) '("!" "+" "-" "*" "/" "%" "^" "|" "||" "&" "&&" "~" "<<" ">>")
                    :test #'equal)
            (print-binop form stmtp 0 to-stream))))
-      (format to-stream "~a" form)))
+      (format to-stream "~a" (et-value form))))
 
 (defun print-cond-expr (form stmtp indent to-stream)
   "Compile a condition FORM, i.e.,  one that may appear after
@@ -251,7 +251,7 @@ and if, and write it on TO-STREAM."
   (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "~a (~{~a~^, ~})"
-          (car form)
+          (et-value (car form))
           (mapcar (lambda (x) (if (stringp x) (format nil "\"~a\"" x)
                                   (with-output-to-string (s) (print-form x nil 0 s))))
                   (cdr form)))
