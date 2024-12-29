@@ -879,6 +879,25 @@ BODY is optional. DOCUMENTATION is optional"
           (setf (gethash (caar bcur) ctx) (cadar bcur)))))
     res))
 
+(defun copy-hash-table (hash-table)
+  (let ((ht (make-hash-table
+             :test (hash-table-test hash-table)
+             :rehash-size (hash-table-rehash-size hash-table)
+             :rehash-threshold (hash-table-rehash-threshold hash-table)
+             :size (hash-table-size hash-table))))
+    (loop for key being each hash-key of hash-table
+       using (hash-value value)
+       do (setf (gethash key ht) value)
+       finally (return ht))))
+
+(defun compile-dbind-macro (args ctx)
+  (let ((tmpl (car args))
+        (arg (ctx-lookup (cadr args) ctx))
+        (body (caddr args))
+        (new-ctx (copy-hash-table ctx)))
+    (expand-macro-args arg tmpl new-ctx)
+    (compile-macro body new-ctx)))
+
 (defvar *eclisp-gensym-counter* 0)
 
 (defun compile-gensym (args ctx)
@@ -927,6 +946,7 @@ BODY is optional. DOCUMENTATION is optional"
                   ((eq +eclisp-if+          op) (compile-if-macro    args ctx))
                   ((eq +eclisp-gensym+      op) (compile-gensym      args ctx))
                   ((eq +eclisp-let+         op) (compile-let-macro   args ctx))
+                  ((eq +eclisp-dbind+       op) (compile-dbind-macro args ctx))
                   ((member (et-value op) '("<" ">" "<=" ">=" ">" "==" "!=" "&&" "||") :test #'equal)
                     (compile-op-macro (et-value op) args ctx))
                    ;; not implemented ^ | & ~ << >>

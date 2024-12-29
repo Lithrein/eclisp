@@ -809,8 +809,13 @@ All this information is returned as an ECLISP-SYMBOL instance"
 
 (flet ((eclisp-rshift-parse (form ctx)
          (parse-call form ctx)))
-(define-constant +eclisp-append+
-    (intern-eclisp-token "append" :eclisp-symbol)))
+(define-constant +eclisp-dbind+
+    (intern-eclisp-token "destructuring-bind" :eclisp-symbol)))
+
+(flet ((eclisp-rshift-parse (form ctx)
+                            (parse-call form ctx)))
+      (define-constant +eclisp-append+
+        (intern-eclisp-token "append" :eclisp-symbol)))
 
 (flet ((eclisp-rshift-parse (form ctx)
          (parse-call form ctx)))
