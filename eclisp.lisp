@@ -762,8 +762,11 @@ BODY is optional. DOCUMENTATION is optional"
   (null (gethash (car args) ctx)))
 
 (defun compile-aref-macro (args ctx)
-  (declare (ignore args))
-  (declare (ignore ctx)))
+  (let ((seq (ctx-lookup (car args) ctx))
+        (idx (ctx-lookup (cadr args) ctx)))
+    (intern-eclisp-token
+      (aref (et-value seq) (et-value idx))
+      :eclisp-character)))
 
 (defun compile-if-macro (args ctx)
   ;; (format t "~a~%" args)

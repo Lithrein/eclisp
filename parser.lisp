@@ -48,7 +48,7 @@ eClisp token to be compared with #'eq.")
   (defun intern-eclisp-token (value &optional (type :eclisp-symbol) (fn nil))
     "Register a new eClisp token or return an already allocated eClisp
 token with the same content.  This allows tokens to be compared with #'eq."
-    (declare (type (or string number) value)
+    (declare (type (or string number character) value)
              (type eclisp-token-type type))
     (let* ((key (format nil "~s:~s" value type))
            (tok (gethash key *eclisp-tokens*)))
