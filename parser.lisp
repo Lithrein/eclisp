@@ -225,12 +225,15 @@ of arguments.  This is useful for breaking the recursion in some macros."))
                           #'eclisp-cast-parse)))
 
 (defun neo-compile-symbol-definition (symdef)
-  "Reads a name and its attributes.
+  "Reads an (optional) name and its attributes.
 All this information is returned as an ECLISP-SYMBOL instance"
   (if (listp symdef)
-      (let* ((sym (make-instance 'eclisp-symbol :name (et-value (car symdef))))
+      (let* ((sym (make-instance 'eclisp-symbol :name nil))
              (cur-key nil))
-        (loop for elt in (cdr symdef) do
+        (unless (and symdef (char= (aref (et-value (car symdef)) 0) #\:))
+          (setf (es-name sym) (et-value (car symdef)))
+          (pop symdef))
+        (loop for elt in symdef do
               (cond ((and (char= (aref (et-value elt) 0) #\:))
                  (setf cur-key (subseq (et-value elt) 1))
                  (setf (gethash cur-key (es-attrs sym)) nil))

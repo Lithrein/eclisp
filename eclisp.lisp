@@ -356,8 +356,13 @@ and if, and write it on TO-STREAM."
     (print-type (when var (es-name var)) type to-stream)
     (when value
       (format to-stream " = ~a"
-                        (with-output-to-string (s) (print-form (eclisp-eval value nil) nil 0 s))))
-    (when stmtp (format to-stream ";~%"))))
+              (with-output-to-string (s) (print-form (eclisp-eval value nil) nil 0 s))))
+    (when (and (es-attrs var)
+               (multiple-value-bind (var present-p) (gethash "packed" (es-attrs var)) present-p))
+      (when (or (null (gethash "packed" (es-attrs var)))
+                (string= (gethash "packed" (es-attrs var)) "t"))
+          (format to-stream " __attribute__ ((packed))")))
+      (when stmtp (format to-stream ";~%"))))
 
 (defun compile-symbol-definition (symdef)
   "Reads a name and its attributes.
