@@ -29,7 +29,7 @@
   (regexp-opt
    '("aref" "auto" "addr" "break" "cast" "continue" "def" "default"
      "deref" "do" "else" "enum" "extern" "for" "goto" "if" "macro"
-     "prog" "prog*" "return" "sizeof" "switch" "short" "while")
+     "macrofn" "prog" "prog*" "return" "sizeof" "switch" "short" "while")
    'words))
 
 (defconst eclisp-typ-keywords-regexp
@@ -41,7 +41,7 @@
 
 (defconst eclisp-operators-regexp
   (regexp-opt
-   '("=" "&=" "+=" "&&" "||" "<=" "->" "+" "-" "*" "/" ".")
+   '("=" "&=" "|=" "+=" "&&" "|" "||" "<=" "->" "+" "-" "*" "/" ".")
    'symbols))
 
 (defconst eclisp-pp-keywords-regexp
@@ -58,11 +58,17 @@
     (,"\\<[0-9]+\\>"                      . font-lock-constant-face)
     (,eclisp-pp-keywords-regexp           . font-lock-preprocessor-face)
     (,"\<[^ ]+\>"                         . font-lock-string-face)
-    (,"[\\\.\|:][a-zA-z_][a-zA-Z0-9_]*"   . font-lock-preprocessor-face)))
+    (,"[\\\.\|:][a-zA-z_][a-zA-Z0-9_]*"   . font-lock-preprocessor-face)
+    ))
 
-(define-derived-mode eclisp-mode lisp-mode "eclisp"
+;;;###autoload
+(define-derived-mode eclisp-mode prog-mode "eclisp"
   (setq font-lock-defaults '(eclisp-font-lock-keywords))
+  (setq indent-line-function 'lisp-indent-line)
   (setq mode-name "eclisp"))
+
+;;;###autoload
+(add-to-list 'auto-mode-alist '("\\.eclisp" . eclisp-mode))
 
 (provide 'eclisp-mode)
 ;;; eclisp-mode.el ends here
