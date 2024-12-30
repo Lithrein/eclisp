@@ -62,7 +62,7 @@ syntax match   eclispOpe "\v\>"
 syntax match   eclispOpe "\v\<\="
 syntax match   eclispOpe "\v\>\="
 
-syntax match eclispLbl "\v[( ]\zs[\.:][a-zA-Z_]+"
+syntax match eclispLbl "\v[( ]\zs[\.:][a-zA-Z_0-9]+"
 
 syntax keyword eclispKwd aref
 syntax keyword eclispKwd def
