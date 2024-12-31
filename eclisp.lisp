@@ -1018,25 +1018,25 @@ BODY is optional. DOCUMENTATION is optional"
           (setf (gethash var-name ctx) val))))
 
 (defun expand-macro-args (args tmpl ctx)
-  (when args
+  (when (or args tmpl)
     (if (listp (car tmpl))
         (progn
           (expand-macro-args (car args) (car tmpl) ctx)
           (expand-macro-args (cdr args) (cdr tmpl) ctx))
-        (cond ((or (string= (et-value (car tmpl)) "&body")
-                   (string= (et-value (car tmpl)) "&rest"))
-               (setf (gethash (cadr tmpl) ctx) args)
-               (when (and (listp (cddr tmpl))
+      (cond ((or (string= (et-value (car tmpl)) "&body")
+                 (string= (et-value (car tmpl)) "&rest"))
+             (setf (gethash (cadr tmpl) ctx) args)
+             (when (and (listp (cddr tmpl))
                         (or (stringp (caddr tmpl)) (symbolp (caddr tmpl)))
                         (string= (et-value (caddr tmpl)) "&key"))
-                 (expand-macro-args args (cddr tmpl) ctx)))
-              ((string= (et-value (car tmpl)) "&key")
-               (unless (= (mod (length args) 2) 0)
-                 (format t "warning: odd number of keyword arguments."))
-               (extract-keyword-args args (cdr tmpl) ctx))
-              (t
-               (setf (gethash (car tmpl) ctx) (car args))
-               (expand-macro-args (cdr args) (cdr tmpl) ctx))))))
+               (expand-macro-args args (cddr tmpl) ctx)))
+            ((string= (et-value (car tmpl)) "&key")
+             (unless (= (mod (length args) 2) 0)
+               (format t "warning: odd number of keyword arguments."))
+             (extract-keyword-args args (cdr tmpl) ctx))
+            (t
+             (setf (gethash (car tmpl) ctx) (car args))
+             (expand-macro-args (cdr args) (cdr tmpl) ctx))))))
 
 (defun expand-macro (macro args)
   (let ((ctx (make-hash-table))
