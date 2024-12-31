@@ -1,0 +1,177 @@
+(%:include ("../../include/macros.eclisph"))
+
+(import "utils")
+(import "vec3")
+
+(%:include <math.h>)
+
+(global-defunion vec3
+  ((e (array 3 double) "Coordinates as an array.")
+   ((struct (x y z double)) "Direct accessors to each coordinate."))
+  "A 3d vector.")
+
+(macro mkvec3 (x y z)
+  "A convenience macro to instanciate 3d vectors."
+  `(cast (union vec3) `((,,x ,,y ,,z))))
+
+(macro mk-naryop (name binop)
+  "A convenience macro to convert binary operators into n-ary operators."
+  `(macro ,name (arg1 arg2 &body rest)
+     (if (null rest)
+         `(,',binop ,arg1 ,arg2)
+       `(,',binop ,arg1 (,',name ,arg2 ,@rest)))))
+
+(cl-defun vec3_minus (v)
+  "Unary minus operator on a 3d vector."
+  (declare rtype (union vec3))
+  (declare type (union vec3) v)
+  
+  (return (mkvec3 (- (. v x)) (- (. v y)) (- (. v z)))))
+
+(cl-defun vec3_add (v1 v2)
+  "Add two 3d vectors."
+  (declare rtype (union vec3))
+  (declare type (union vec3) v1 v2)
+  
+  (return (mkvec3 (+ (. v1 x) (. v2 x))
+                  (+ (. v1 y) (. v2 y))
+                  (+ (. v1 z) (. v2 z)))))
+(mk-naryop vec3+ vec3_add)
+
+(cl-defun vec3_sub (v1 v2)
+  "Substract two 3d vectors."
+  (declare rtype (union vec3))
+  (declare type (union vec3) v1 v2)
+  
+  (return (mkvec3 (- (. v1 x) (. v2 x))
+                  (- (. v1 y) (. v2 y))
+                  (- (. v1 z) (. v2 z)))))
+(mk-naryop vec3- vec3_sub)
+
+(cl-defun vec3_mul (v1 v2)
+  "Multiply two 3d vectors element-wise."
+  (declare rtype (union vec3))
+  (declare type (union vec3) v1 v2)
+  
+  (return (mkvec3 (* (. v1 x) (. v2 x))
+                  (* (. v1 y) (. v2 y))
+                  (* (. v1 z) (. v2 z)))))
+(mk-naryop vec3* vec3_mul)
+
+(cl-defun vec3_div (v1 v2)
+  "Divide two 3d vectors element-wise."
+  (declare rtype (union vec3))
+  (declare type (union vec3) v1 v2)
+  
+  (return (mkvec3 (/ (. v1 x) (. v2 x))
+                  (/ (. v1 y) (. v2 y))
+                  (/ (. v1 z) (. v2 z)))))
+(mk-naryop vec3/ vec3_div)
+
+(cl-defun vec3_dot (v1 v2)
+  "Compute the dot-product of two 3d vectors."
+  (declare rtype double)
+  (declare type (union vec3) v1 v2)
+  
+  (return (+ (* (. v1 x) (. v2 x))
+             (* (. v1 y) (. v2 y))
+             (* (. v1 z) (. v2 z)))))
+(mk-naryop vec3. vec3_dot)
+
+(cl-defun vec3_cross (v1 v2)
+  "Compute the cross-product of two 3d vectors."
+  (declare rtype (union vec3))
+  (declare type (union vec3) v1 v2)
+
+  (return (mkvec3 (- (* (. v1 y) (. v2 z)) (* (. v1 z) (. v2 y)))
+                  (- (* (. v1 z) (. v2 x)) (* (. v1 x) (. v2 z)))
+                  (- (* (. v1 x) (. v2 y)) (* (. v1 y) (. v2 x))))))
+(mk-naryop vec3x vec3_cross)
+
+(cl-defun vec3_sadd (v t)
+  "Addition by a scalar"
+  (declare rtype (union vec3))
+  (declare type (union vec3) v)
+  (declare type double t)
+
+  (return (mkvec3 (+ (. v x) t) (+ (. v y) t) (+ (. v z) t))))
+
+(cl-defun vec3_smul (v t)
+  "Multiplication by a scalar"
+  (declare rtype (union vec3))
+  (declare type (union vec3) v)
+  (declare type double t)
+
+  (return (mkvec3 (* (. v x) t) (* (. v y) t) (* (. v z) t))))
+
+(cl-defun vec3_sdiv (v t)
+  "Division by a scalar"
+  (declare rtype (union vec3))
+  (declare type (union vec3) v)
+  (declare type double t)
+
+  (return (mkvec3 (/ (. v x) t) (/ (. v y) t) (/ (. v z) t))))
+
+(cl-defun vec3_len2 (v)
+  "Compute the length square of a 3d vector."
+  (declare rtype double)
+  (declare type (union vec3) v)
+
+  (return (+ (* (. v x) (. v x)) (* (. v y) (. v y)) (* (. v z) (. v z)))))
+
+(cl-defun vec3_len (v)
+  "Compute the length of a 3d vector.
+
+This function may not be accurate for some extremal values of the double
+precision floating-point range.  However, it should suffice in most cases,
+even though not as precise as an hypothetical `hypot3' function."
+  (declare rtype double)
+  (declare type (union vec3) v)
+  
+  (return (sqrt (vec3_len2 v))))
+
+(cl-defun vec3_unit (v)
+  "Compute the unit vector associated with `v'."
+  (declare rtype (union vec3))
+  (declare type (union vec3) v)
+  
+  (return (vec3_sdiv v (vec3_len v))))
+
+(cl-defun vec3_random ()
+  "Pick a random 3d vector."
+  (declare rtype (union vec3))
+  
+  (return (mkvec3 (random_double) (random_double) (random_double))))
+
+(cl-defun vec3_random_mm (min max)
+  "Pick a random 3d vector whose components are within `min' and `max'."
+  (declare rtype (union vec3))
+  (declare type double min max)
+  
+  (return (mkvec3 (random_double_mm min max)
+                  (random_double_mm min max)
+                  (random_double_mm min max))))
+
+(cl-defun random_in_unit_sphere ()
+  "Pick a random 3d vector within the unit sphere."
+  (declare rtype (union vec3))
+  
+  (loop
+    (def p (union vec3) (vec3_random_mm -1 1))
+    (if (< (vec3_len2 p) 1) (return p))))
+
+(cl-defun random_unit_vector ()
+  "Pick a random unit vector within the unit sphere"
+  (declare rtype (union vec3))
+  
+  (return (vec3_unit (random_in_unit_sphere))))
+
+(cl-defun random_on_hemisphere (normal)
+  "Pick a random vector in the same hemisphere as `normal'."
+  (declare rtype (union vec3))
+  (declare type (ptr union vec3) normal)
+  
+  (def on_unit_sphere (union vec3) (random_unit_vector))
+  (if (> (vec3_dot on_unit_sphere *normal) 0.0)
+      (return on_unit_sphere)
+    (return (vec3_minus on_unit_sphere))))

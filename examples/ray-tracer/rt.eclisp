@@ -1,115 +1,22 @@
-(%:include "macros.eclisph")
-(%:include "include/ray-tracer/utils.eclisph")
+(%:include ("../../include/macros.eclisph"))
+
+(import "utils")
+(import "vec3")
+(import "rt")
+
 (%:include <stdio.h> <stdlib.h> <math.h> <time.h>)
-
-;; utils
-
-
-;; end utils
-
-;; vec3
-
-(def (union vec3
-  (e (array 3 double)
-  "Coordinates as an array.")
-  (struct (x y z double)
-  "Direct accessors to each coordinate.")))
-
-(macro mkvec3 (x y z)
-  `(cast (union vec3) `((,,x ,,y ,,z))))
-
-(macro mk-naryop (name binop)
-  `(macro ,name (arg1 arg2 &body rest)
-     (if (null rest)
-       `(,',binop ,arg1 ,arg2)
-       `(,',binop ,arg1 (,',name ,arg2 ,@rest)))))
-
-(def vec3_minus (-> (union vec3) (v (union vec3)))
-  (return (mkvec3 -v.x -v.y -v.z)))
-
-(def vec3_add (-> (union vec3) (v1 v2 (union vec3)))
-  (return (mkvec3 (+ v1.x v2.x) (+ v1.y v2.y) (+ v1.z v2.z))))
-(mk-naryop vec3+ vec3_add)
-
-(def vec3_sub (-> (union vec3) (v1 v2 (union vec3)))
-  (return (mkvec3 (- v1.x v2.x) (- v1.y v2.y) (- v1.z v2.z))))
-(mk-naryop vec3- vec3_sub)
-
-(def vec3_mul (-> (union vec3) (v1 v2 (union vec3)))
-  (return (mkvec3 (* v1.x v2.x) (* v1.y v2.y) (* v1.z v2.z))))
-(mk-naryop vec3* vec3_mul)
-
-(def vec3_div (-> (union vec3) (v1 v2 (union vec3)))
-  (return (mkvec3 (/ v1.x v2.x) (/ v1.y v2.y) (/ v1.z v2.z))))
-(mk-naryop vec3/ vec3_div)
-
-(def vec3_dot (-> double (v1 v2 (union vec3)))
-  (return (+ (* v1.x v2.x) (* v1.y v2.y) (* v1.z v2.z))))
-(mk-naryop vec3. vec3_dot)
-
-(def vec3_cross (-> (union vec3) (v1 v2 (union vec3)))
-  (return (mkvec3 (- (* v1.y v2.z) (* v1.z v2.y))
-                  (- (* v1.z v2.x) (* v1.x v2.z))
-                  (- (* v1.x v2.y) (* v1.y v2.x)))))
-(mk-naryop vec3x vec3_cross)
-
-(def vec3_sadd (-> (union vec3) (v (union vec3)) (t double))
-  "Addition by a scalar"
-  (return (mkvec3 (+ v.x t) (+ v.y t) (+ v.z t))))
-
-(def vec3_smul (-> (union vec3) (v (union vec3)) (t double))
-  "Multiplication by a scalar"
-  (return (mkvec3 (* v.x t) (* v.y t) (* v.z t))))
-
-(def vec3_sdiv (-> (union vec3) (v (union vec3)) (t double))
-  "Division by a scalar"
-  (return (mkvec3 (/ v.x t) (/ v.y t) (/ v.z t))))
-
-(def vec3_len2 (-> double (v (union vec3)))
-  (return (+ (* v.x v.x) (* v.y v.y) (* v.z v.z))))
-
-;; Not very accurate around the corners but will do the job, since there is no
-;; hypot3 function
-(def vec3_len (-> double (v (union vec3)))
-  (return (sqrt (vec3_len2 v))))
-
-(def vec3_unit (-> (union vec3) (v (union vec3)))
-  (return (vec3_sdiv v (vec3_len v))))
-
-(def vec3_random (-> (union vec3) void)
-  (return (mkvec3 (random_double) (random_double) (random_double))))
-
-(def vec3_random_mm (-> (union vec3) (min max double))
-  (return (mkvec3 (random_double_mm min max) (random_double_mm min max) (random_double_mm min max))))
-
-(def random_in_unit_sphere (-> (union vec3) void)
-  (while 1
-    (def p (union vec3) (vec3_random_mm -1 1))
-    (if (< (vec3_len2 p) 1)
-        (return p))))
-
-(def random_unit_vector (-> (union vec3) void)
-    (return (vec3_unit (random_in_unit_sphere))))
-
-(def random_on_hemisphere (-> (union vec3) (normal (ptr union vec3)))
-    (def on_unit_sphere (union vec3) (random_unit_vector))
-    (if (> (vec3_dot on_unit_sphere *normal) 0.0)
-        (return on_unit_sphere)
-        (return (vec3_minus on_unit_sphere))))
-
-;; end vec3
 
 ;; color
 
-(def clamp (-> double (min max x double))
+(defun clamp (-> double (min max x double))
   (if (< x min) (return min))
   (if (> x max) (return max))
   (return x))
 
-(def linear_to_gamma (-> double (linear_component double))
+(defun linear_to_gamma (-> double (linear_component double))
     (return (sqrt linear_component)))
 
-(def write_color (-> void (f (ptr FILE)) (color (union vec3)) (samples_per_pixel int))
+(defun write_color (-> void (f (ptr FILE)) (color (union vec3)) (samples_per_pixel int))
   (def scale double (/ 1.0 samples_per_pixel))
   (def r     double (linear_to_gamma (* scale color.x)))
   (def g     double (linear_to_gamma (* scale color.y)))
@@ -122,31 +29,31 @@
 
 ;; ray
 
-(def (struct ray
-             (orig (union vec3))
-             (dir  (union vec3))))
+(global-defstruct ray
+  ((orig (union vec3))
+   (dir  (union vec3))))
 
 (macro mkray (orig dir)
   `(cast (struct ray) (list ,orig ,dir)))
 
-(def ray_at (-> (union vec3) (r (struct ray)) (t double))
+(defun ray_at (-> (union vec3) (r (struct ray)) (t double))
   (return (vec3+ r.orig (vec3_smul r.dir t))))
 
 ;; ray end
 
 ;; hit record
 
-(def (struct hit_record
-             (p (union vec3))
-             (normal (union vec3))
-             (t double)
-             (front_face int)))
+(global-defstruct hit_record
+  ((p (union vec3))
+   (normal (union vec3))
+   (t double)
+   (front_face int)))
 
-(def set_face_normal (-> void (ht (ptr struct hit_record)) (r (ptr struct ray)) (outward_normal (ptr union vec3)))
+(defun set_face_normal (-> void (ht (ptr struct hit_record)) (r (ptr struct ray)) (outward_normal (ptr union vec3)))
   (= ht->front_face (< (vec3_dot r->dir *outward_normal) 0))
   (= ht->normal     (?: ht->front_face *outward_normal (vec3_minus *outward_normal))))
 
-(def hit_sphere (-> double (center (ptr union vec3)) (radius double) (r (ptr struct ray)) (ht (ptr struct hit_record)))
+(defun hit_sphere (-> double (center (ptr union vec3)) (radius double) (r (ptr struct ray)) (ht (ptr struct hit_record)))
     (def oc (union vec3) (vec3_sub r->orig *center))
     (def a  double     (vec3_len2 r->dir))
     (def hb double     (vec3_dot oc r->dir))
@@ -162,7 +69,7 @@
 
 ;; hit record end
 
-(def ray_color (-> (union vec3) (r (ptr struct ray)) (depth int))
+(defun ray_color (-> (union vec3) (r (ptr struct ray)) (depth int))
   (def rec      (struct hit_record))
   (def unit_dir (union vec3) (vec3_unit r->dir))
   (def a        double     (/ (+ unit_dir.y 1.0) 2))
@@ -197,12 +104,12 @@
   (return (vec3+ (vec3_smul (mkvec3 1.0 1.0 1.0) (- 1.0 a))
                  (vec3_smul (mkvec3 0.5 0.7 1.0) a))))
 
-(def pixel_sample_square (-> (union vec3) (pixel_delta_u pixel_delta_v (union vec3)))
+(defun pixel_sample_square (-> (union vec3) (pixel_delta_u pixel_delta_v (union vec3)))
  (def px double (+ -0.5 (random_double)))
  (def py double (+ -0.5 (random_double)))
  (return (vec3+ (vec3_smul pixel_delta_u px) (vec3_smul pixel_delta_v py))))
 
-(def get_ray (-> (struct ray) (i j int) (pixel00_loc pixel_delta_u pixel_delta_v camera_center (union vec3)))
+(defun get_ray (-> (struct ray) (i j int) (pixel00_loc pixel_delta_u pixel_delta_v camera_center (union vec3)))
   (def pixel_center (union vec3)
        (vec3+ pixel00_loc
               (vec3_smul pixel_delta_u i)
@@ -215,7 +122,7 @@
 
   (return (mkray ray_origin ray_direction)))
 
-(def main (-> int void)
+(local-defun main (-> int void)
   "The entry point."
 
   (def samples_per_pixel int 500)
