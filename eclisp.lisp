@@ -989,8 +989,8 @@ BODY is optional. DOCUMENTATION is optional"
                            :test #'equal)
                    (compile-op-macro op args ctx))
                   (t (if (gethash op macrofn-tbl)
-                        (eval-macrofn op args ctx)
-                      (error (format nil "call to a C function (here, ~a) through the ffi is not yet unsupported.~%" op))))))
+                         (eval-macrofn op args ctx)
+                         (error (format nil "call to a C function (here, ~a) through the ffi is not yet unsupported.~%" op))))))
               (when form
                 (format t "unsupported: ~a~%" form))))
     res))
