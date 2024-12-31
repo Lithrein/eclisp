@@ -91,13 +91,15 @@ or in angle-brackets."
              (if sym-p (intern tmp) tmp)))
           (t orig))))
 
-(defun read-macro-definitions (filename)
+(defun read-macro-definitions (filename &aux (local-macros (make-hash-table :test 'equal)))
   (with-open-file (f filename)
     (loop for form = (eclisp-read f)
           while form do
           (when (or (eq (car form) +eclisp-macro+)
                     (eq (car form) +eclisp-macrofn+)
-                    (eq (car form) +eclisp-macrolet+))
+                    (eq (car form) +eclisp-macrolet+)
+                    (gethash (et-value (car form)) local-macros))
+            (setf (gethash (et-value (cadr form)) local-macros) 1)
             (eclisp-eval form nil)))))
 
 (defun print-cpp-define (form stmtp indent to-stream)
