@@ -115,13 +115,31 @@ token with the same content.  This allows tokens to be compared with #'eq."
 (flet ((eclisp-pp-include-parse (form ctx)
          (let ((eclisp-include (pop form)))
            (cons eclisp-include
-                 (mapcar (lambda (x)
-                           (let ((file (eclisp-eval x ctx)))
-                             (cond ((eclisp-file-p (et-value file))
-                                    (read-macro-definitions (et-value file))
-                                    (intern-eclisp-token (convert-file-extension (et-value file))
-                                                         (et-type file)))
-                                   (t file)))) form)))))
+                 (remove nil
+                         (mapcar (lambda (x)
+                                   (cond ((atom x)
+                                          (let ((file (eclisp-eval x ctx)))
+                                            (cond ((eclisp-file-p (et-value file))
+                                                   (read-macro-definitions (et-value file))
+                                                   (intern-eclisp-token (convert-file-extension (et-value file))
+                                                                        (et-type file)))
+                                                  (t file))))
+                                         (t
+                                           (cond
+                                             ((and (consp x) (= 2 (length x)))
+                                              (let ((orig (eclisp-eval (car x) ctx))
+                                                    (dest (eclisp-eval (cadr x) ctx)))
+                                                (if (eclisp-file-p (et-value orig))
+                                                  (read-macro-definitions (et-value orig)))
+                                                (intern-eclisp-token (et-value dest) (et-type orig))))
+                                             ((and (consp x) (= 1 (length x)))
+                                              (let ((orig (eclisp-eval (car x) ctx))
+                                                    (dest (eclisp-eval (cadr x) ctx)))
+                                                (if (eclisp-file-p (et-value orig))
+                                                  (read-macro-definitions (et-value orig)))
+                                                nil))
+                                             (t (raise "Expected a list with 1 or 2 elements"))))))
+                                 form))))))
   (define-constant +eclisp-pp-include+
     (intern-eclisp-token "%:include"
                          :eclisp-symbol
