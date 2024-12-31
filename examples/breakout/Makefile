@@ -17,7 +17,5 @@ all: breakout
 breakout: breakout.o
 	gcc $(CLAGS) $< $(LDFLAGS) -o $@
 
-breakout.c: macros.h
-
 clean:
 	rm -rf breakout breakout.o

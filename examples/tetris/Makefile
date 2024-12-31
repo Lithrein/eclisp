@@ -17,6 +17,9 @@ all: tetris
 tetris: tetris.o
 	gcc $(CLAGS) $< $(LDFLAGS) -o $@
 
+macros.h: ../../include/macros.eclisph
+	$(QUIET)$(ECLISP) $< > $@
+
 tetris.c: macros.h
 
 clean:

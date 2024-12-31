@@ -1,0 +1,236 @@
+(macrofn assoc (key list)
+  (if list
+    (if (== (car (car list)) key)
+        (car list)
+        (assoc key (cdr list)))))
+
+(macrofn build-type-aux (typ list)
+  (if typ
+    `(,(assoc (car typ) list) ,@(build-type-aux (cdr typ) list))))
+
+(macrofn build-type (typ list)
+  (if (car typ)
+      `(-> ,(car (cdr (assoc __rtype list))) ,@(build-type-aux typ list))
+      `(-> ,(car (cdr (assoc __rtype list))) void)))
+
+(macrofn process-type-decls (type &rest vars)
+  (if vars
+      `((,(car vars) ,type) ,@(process-type-decls type (cdr vars)))))
+
+(macrofn extract-declare-forms (typ-decls attrs-decls &rest rest)
+  (if (== (car (car rest)) "declare")
+      (destructuring-bind (declare category type &rest vars) (car rest)
+        (if (== category "type")
+            (extract-declare-forms `(,@(process-type-decls type vars) ,@typ-decls)
+                                    attrs-decls
+                                    (cdr rest))
+          (if (== category "rtype")
+              (extract-declare-forms `(('__rtype ,type) ,@typ-decls)
+                                      attrs-decls
+                                      (cdr rest))
+            (if (== category "inline")
+                (extract-declare-forms typ-decls
+                                       `(:inline ,type ,@attrs-decls)
+                                       (cdr rest))
+              (if (== category "static")
+                  (extract-declare-forms typ-decls
+                                         `(:static ,,@attrs-decls)
+                                         (cdr rest))
+                (if (== category "noreturn")
+                    (extract-declare-forms typ-decls
+                                           `(:noreturn ,,@attrs-decls)
+                                           (cdr rest))))))))
+    `(,typ-decls ,attrs-decls ,rest)))
+
+(macrofn extract-params (&rest rest)
+  (if rest
+    (if (== "&key" (car rest))
+      `(,@(extract-params (cdr rest)))
+       (if (symbolp (car rest))
+         `(,(car rest) ,@(extract-params (cdr rest)))
+         (if (listp (car rest))
+           `(,(car (car rest)) ,@(extract-params (cdr rest))))))))
+
+(macro cl-defun (fn-name sig &body body)
+  (let ((docp (stringp (car body)))
+        (decl-attrs-body (extract-declare-forms nil nil (if docp (cdr body) body)))
+        (params (extract-params sig))
+        (nsig (build-type params (car decl-attrs-body)))
+        (nattrs (car (cdr decl-attrs-body)))
+        (nbody (car (cdr (cdr decl-attrs-body)))))
+     `(prog*
+        (macro ,fn-name ,sig (list '%funcall ',fn-name ,@params))
+        (%:if ((defined PROCESS_HEADER)
+          ,(if docp `(def (,fn-name ,@nattrs) ,nsig ,(car body))
+                    `(def (,fn-name ,@nattrs) ,nsig)))
+          (t (def (,fn-name ,@nattrs) ,nsig ,@nbody))))))
+
+(macro defun (fn-name typ &body body)
+  (let ((docp (stringp (car body))))
+    `(%:if ((defined PROCESS_HEADER)
+            ,(if docp `(def ,fn-name ,typ ,(car body))
+               `(def ,fn-name ,typ)))
+        (t (def ,fn-name ,typ ,@body)))))
+
+(macro local-defun (fn-name typ &body body)
+  `(%:if ((! (defined PROCESS_HEADER)) (def ,fn-name ,typ ,@body))))
+
+(macro local-asm (&body body)
+  `(%:if ((! (defined PROCESS_HEADER)) (asm ,@body))))
+
+(macro local-defvar (var-name typ &body body)
+  `(%:if ((! (defined PROCESS_HEADER)) (def (,var-name :linkage static) ,typ ,@body))))
+
+(macro definline (fn-name typ &body body)
+  (if (listp fn-name)
+    `(%:if ((defined PROCESS_HEADER) (def (,@fn-name :inline always) ,typ ,@body)))
+    `(%:if ((defined PROCESS_HEADER) (def (,fn-name :inline always) ,typ ,@body)))))
+
+(macro deftype (type definition)
+  `(def ,type (typedef ,definition)))
+
+(macro defstruct (name (&rest fields) &rest documentation)
+   (if documentation
+    (if (listp name)
+      `(def ,(cdr name) (struct ,(car name) ,@fields) ,(car documentation))
+      `(def (struct ,name ,@fields) ,(car documentation)))
+    (if (listp name)
+      `(def ,(cdr name) (struct ,(car name) ,@fields))
+      `(def (struct ,name ,@fields)))))
+
+(macro local-defstruct (name (&rest fields) &rest documentation)
+  `(%:if ((! (defined PROCESS_HEADER)) (defstruct ,name (,@fields) ,@documentation))))
+
+(macro global-defstruct (name (&rest fields) &rest documentation)
+  `(%:if ((defined PROCESS_HEADER) (defstruct ,name (,@fields) ,@documentation))))
+
+(macro defunion (name (&rest fields) &rest documentation)
+   (if documentation
+    (if (listp name)
+      `(def ,(cdr name) (union ,(car name) ,@fields) ,(car documentation))
+      `(def (union ,name ,@fields) ,(car documentation)))
+    (if (listp name)
+      `(def ,(cdr name) (union ,(car name) ,@fields))
+      `(def (union ,name ,@fields)))))
+
+(macro local-defunion (name (&rest fields) &rest documentation)
+  `(%:if ((! (defined PROCESS_HEADER)) (defunion ,name (,@fields) ,@documentation))))
+
+(macro global-defunion (name (&rest fields) &rest documentation)
+  `(%:if ((defined PROCESS_HEADER) (defunion ,name (,@fields) ,@documentation))))
+
+(macro local-deftype (type definition)
+  `(%:if ((! (defined PROCESS_HEADER)) (deftype ,type ,definition))))
+
+(macro global-deftype (type definition)
+  `(%:if ((defined PROCESS_HEADER) (deftype ,type ,definition))))
+
+(macrofn multiline-string-aux (&rest strings)
+  (if strings
+      (concat (car strings)
+              (multiline-string-aux (cdr strings)))
+    ""))
+
+(macro multiline-string (&rest strings)
+  `,(multiline-string-aux strings))
+
+(macro import (&rest files)
+  (if files
+    `(prog
+        (%:include (,(concat (car files) ".eclisp") ,(concat (car files) ".h")))
+        (import ,@(cdr files)))))
+
+(macro when (condition &body body)
+  `(if ,condition
+    (prog
+      ,@body)))
+
+(macro unless (condition &body body)
+  `(if (! ,condition)
+     (prog
+       ,@body)))
+
+(macro until (condition &body body)
+  `(while (! ,condition)
+     (prog
+       ,@body)))
+
+(macro awhen (condition &body body)
+  `(prog
+     (def it int ,condition)
+     (when it ,@body)))
+
+(macro loop (&body body)
+  `(while 1 ,@body))
+
+(macro cond (fst &body rest)
+  (if rest
+      (if (&& (listp (car rest)) (|| (== (car (car rest)) 't))
+              (== (car (car rest)) 'else)
+              (== (car (car rest)) 'otherwise))
+          `(if ,(car fst) (prog ,@(cdr fst))
+             (prog ,@(cdr (car rest))))
+        `(if ,(car fst) (prog ,@(cdr fst))
+           (cond ,@rest)))
+    `(if ,(car fst) (prog ,@(cdr fst)))))
+
+(macro unwind-protect (form &body cleanup-forms)
+  (let ((cleanup (gensym "cleanup"))
+        (result  (gensym "result"))
+        (returnp (gensym "returnp")))
+    `(prog
+       (def ,result int)
+       (def ,returnp int 0)
+       (macrolet ((return (expr)
+                      `(prog
+                        (= ,',returnp 1)
+                        (= ,',result ,expr)
+                        (goto ,',cleanup))))
+        ,form)
+        (label ,cleanup)
+        ,@cleanup-forms
+       (if ,returnp (return ,result)))))
+
+(macro with-open-file ((var filename mode) &body body)
+  `(prog
+    (def ,var (ptr FILE) NULL)
+    (unwind-protect
+     (prog
+        (= ,var (fopen ,filename ,mode))
+        ,@body)
+      (if ,var
+        (fclose ,var)))))
+
+(macro with-sdl2-init (args &body body)
+  `(unwind-protect
+     (prog
+       (when (SDL_Init ,@args)
+         (fprintf stderr "Error SDL_Init: %s" (SDL_GetError))
+         (return EXIT_FAILURE))
+      ,@body)
+     (SDL_Quit)))
+
+(macro with-sdl2-window ((window wtitle x y w h flags) &body body)
+  `(prog
+      (def ,window (ptr SDL_Window)
+           (SDL_CreateWindow ,wtitle ,x ,y ,w ,h ,flags))
+      (unwind-protect
+        (prog
+          (unless ,window
+            (fprintf stderr "Error SDL_CreateWindow: %s" (SDL_GetError))
+            (return EXIT_FAILURE))
+         ,@body)
+      (SDL_DestroyWindow ,window))))
+
+(macro with-sdl2-renderer ((renderer window index flags) &body body)
+  `(prog
+      (def ,renderer (ptr SDL_Renderer)
+           (SDL_CreateRenderer ,window ,index ,flags))
+      (unwind-protect
+        (prog
+           (unless ,renderer
+             (fprintf stderr "Error SDL_CreateRenderer: %s" (SDL_GetError))
+             (return EXIT_FAILURE))
+         ,@body)
+      (SDL_DestroyRenderer ,renderer))))
+
