@@ -193,7 +193,7 @@ and #endif.  #ifdef and #ifndef should be emulated by using the pseudo function
 the final C source code."))
 
 (flet ((eclisp-special-funcall-parse (form ctx)
-         (parse-call form ctx)))
+         (parse-call (cdr form) ctx)))
   (define-constant +eclisp-special-funcall+
     (intern-eclisp-token "%funcall"
                           :eclisp-symbol
