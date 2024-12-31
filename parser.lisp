@@ -234,7 +234,7 @@ All this information is returned as an ECLISP-SYMBOL instance"
           (setf (es-name sym) (et-value (car symdef)))
           (pop symdef))
         (loop for elt in symdef do
-              (cond ((and (char= (aref (et-value elt) 0) #\:))
+              (cond ((and (stringp (et-value elt)) (char= (aref (et-value elt) 0) #\:))
                  (setf cur-key (subseq (et-value elt) 1))
                  (setf (gethash cur-key (es-attrs sym)) nil))
                 (t
