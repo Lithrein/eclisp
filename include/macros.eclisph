@@ -18,25 +18,25 @@
       `((,(car vars) ,type) ,@(process-type-decls type (cdr vars)))))
 
 (macrofn extract-declare-forms (typ-decls attrs-decls &rest rest)
-  (if (== (car (car rest)) "declare")
+  (if (== (car (car rest)) 'declare)
       (destructuring-bind (declare category type &rest vars) (car rest)
-        (if (== category "type")
+        (if (== category 'type)
             (extract-declare-forms `(,@(process-type-decls type vars) ,@typ-decls)
                                     attrs-decls
                                     (cdr rest))
-          (if (== category "rtype")
+          (if (== category 'rtype)
               (extract-declare-forms `(('__rtype ,type) ,@typ-decls)
                                       attrs-decls
                                       (cdr rest))
-            (if (== category "inline")
+            (if (== category 'inline)
                 (extract-declare-forms typ-decls
                                        `(:inline ,type ,@attrs-decls)
                                        (cdr rest))
-              (if (== category "static")
+              (if (== category 'static)
                   (extract-declare-forms typ-decls
                                          `(:static ,,@attrs-decls)
                                          (cdr rest))
-                (if (== category "noreturn")
+                (if (== category 'noreturn)
                     (extract-declare-forms typ-decls
                                            `(:noreturn ,,@attrs-decls)
                                            (cdr rest))))))))
@@ -44,7 +44,7 @@
 
 (macrofn extract-params (&rest rest)
   (if rest
-    (if (== "&key" (car rest))
+    (if (== '&key (car rest))
       `(,@(extract-params (cdr rest)))
        (if (symbolp (car rest))
          `(,(car rest) ,@(extract-params (cdr rest)))
@@ -63,7 +63,7 @@
         (%:if ((defined PROCESS_HEADER)
           ,(if docp `(def (,fn-name ,@nattrs) ,nsig ,(car body))
                     `(def (,fn-name ,@nattrs) ,nsig)))
-          (t (def (,fn-name ,@nattrs) ,nsig ,@nbody))))))
+          (t (def (,fn-name ,@nattrs) ,nsig ,(if docp (car body)) ,@nbody))))))
 
 (macro defun (fn-name typ &body body)
   (let ((docp (stringp (car body))))
