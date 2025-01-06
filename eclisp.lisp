@@ -369,12 +369,10 @@ and if, and write it on TO-STREAM."
         (setf type `(,(intern-eclisp-token "extern") ,type))))
     (format to-stream "~v@{~C~:*~}" indent #\Space)
     (print-type (when var (es-name var)) type to-stream)
-    (when value
-      (format to-stream " = ~a"
-              (with-output-to-string (s) (print-form (eclisp-eval value nil) nil 0 s))))
     (when (and (es-attrs var)
                (or (multiple-value-bind (var present-p) (gethash "packed" (es-attrs var)) present-p)
-                   (multiple-value-bind (var present-p) (gethash "aligned" (es-attrs var)) present-p)))
+                   (multiple-value-bind (var present-p) (gethash "aligned" (es-attrs var)) present-p)
+                   (multiple-value-bind (var present-p) (gethash "section" (es-attrs var)) present-p)))
       (format to-stream " __attribute__ ((")
       (let ((comma-p nil))
       (when (and (multiple-value-bind (var present-p) (gethash "packed" (es-attrs var)) present-p)
@@ -383,12 +381,17 @@ and if, and write it on TO-STREAM."
           (if comma-p (format to-stream ", "))
           (format to-stream "packed")
           (setf comma-p t))
+      (when (gethash "section" (es-attrs var))
+        (format to-stream "section (\"~a\")" (gethash "section" (es-attrs var)))
+        (setf comma-p t))
       (when (multiple-value-bind (var present-p) (gethash "aligned" (es-attrs var)) present-p)
           (if comma-p (format to-stream ", "))
           (format to-stream "aligned (~a)" (gethash "aligned" (es-attrs var)))
           (setf comma-p t))
-      (format to-stream "))")
-      ))
+      (format to-stream "))")))
+    (when value
+      (format to-stream " = ~a"
+              (with-output-to-string (s) (print-form (eclisp-eval value nil) nil 0 s))))
       (when stmtp (format to-stream ";~%"))))
 
 (defun compile-symbol-definition (symdef)
