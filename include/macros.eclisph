@@ -165,9 +165,9 @@
 
 (macro cond (fst &body rest)
   (if rest
-      (if (&& (listp (car rest)) (|| (== (car (car rest)) 't))
-              (== (car (car rest)) 'else)
-              (== (car (car rest)) 'otherwise))
+      (if (&& (listp (car rest)) (|| (== (car (car rest)) 't)
+                                     (== (car (car rest)) 'else)
+                                     (== (car (car rest)) 'otherwise)))
           `(if ,(car fst) (prog ,@(cdr fst))
              (prog ,@(cdr (car rest))))
         `(if ,(car fst) (prog ,@(cdr fst))
