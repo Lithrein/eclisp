@@ -522,6 +522,12 @@ BODY is optional. DOCUMENTATION is optional"
   (format to-stream "{")
   (let ((cur form))
     (loop while cur do
+      ;; fixme: unquote self-quoting symbols
+      (loop while (and (listp cur)
+                       (listp (car cur))
+                       (eq (caar cur) +eclisp-quote+)
+                       (= 1 (length (cdar cur))))
+            do (setf cur (cons (cadar cur) (cdr cur))))
       (cond
         ((and (consp (car cur))
               (eq (et-type (caar cur)) :eclisp-symbol)
