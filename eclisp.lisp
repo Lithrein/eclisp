@@ -1129,7 +1129,15 @@ BODY is optional. DOCUMENTATION is optional"
   "Compile an eclisp FROM and write it on TO-STREAM"
   (if (consp form)
       (if (consp (car form))
-          (funcall 'print-list (list* +eclisp-list+ form) stmtp indent to-stream)
+          (progn
+            (format to-stream "~a (~{~a~^, ~})"
+                    (with-output-to-string (s) (print-form (car form) nil 0 s))
+                    (mapcar (lambda (x)
+                                      (cond ((eq (et-type x) :eclisp-string) (format nil "\"~a\"" (et-value x)))
+                                            ((eq (et-type x) :eclisp-character) (format nil "'~a'" (et-value x)))
+                                            (t (with-output-to-string (s) (print-form x nil 0 s)))))
+                                    (cdr form)))
+            (when stmtp (format to-stream ";~%")))
           (destructuring-bind (op &rest args) form
             (declare (ignore args))
             (let ((fn (cdr (assoc op kwd-behavior))))
