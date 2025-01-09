@@ -1,0 +1,21 @@
+(%:include ("../../include/macros.eclisph"))
+
+(import "vec3")
+(import "ray")
+
+(global-defstruct ray
+  ((orig (union vec3)
+         "The base 3d coordinates of the ray.")
+   (dir  (union vec3)
+         "The 3d vector encoding the direction of the ray."))
+  "A ray as a 3d vector.")
+
+(macro mkray (orig dir)
+  `(cast (struct ray) (list ,orig ,dir)))
+
+(cl-defun ray_at (r t)
+  (declare rtype (union vec3))
+  (declare type (struct ray) r)
+  (declare type double t)
+  
+  (return (vec3+ (. r orig) (vec3_smul (. r dir) t))))

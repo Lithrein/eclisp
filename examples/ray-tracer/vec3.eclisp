@@ -6,8 +6,10 @@
 (%:include <math.h>)
 
 (global-defunion vec3
-  ((e (array 3 double) "Coordinates as an array.")
-   ((struct (x y z double)) "Direct accessors to each coordinate."))
+  ((e (array 3 double)
+      "Coordinates as an array.")
+   (struct (x y z double)
+           "Direct accessors to each coordinate."))
   "A 3d vector.")
 
 (macro mkvec3 (x y z)
@@ -161,7 +163,7 @@ even though not as precise as an hypothetical `hypot3' function."
     (if (< (vec3_len2 p) 1) (return p))))
 
 (cl-defun random_unit_vector ()
-  "Pick a random unit vector within the unit sphere"
+  "Pick a random unit vector within the unit sphere."
   (declare rtype (union vec3))
   
   (return (vec3_unit (random_in_unit_sphere))))

@@ -1,0 +1,37 @@
+(%:include ("../../include/macros.eclisph"))
+
+(import "vec3")
+
+(%:include <stdio.h>)
+
+(cl-defun clamp (min max x)
+  "Clamp `x' between `min' and `max'."
+  (declare rtype double)
+  (declare type double min max x)
+  
+  (if (< x min) (return min))
+  (if (> x max) (return max))
+  (return x))
+
+(cl-defun linear_to_gamma (linear_component)
+  "Convert a color from the linear scale to the gamma2 scale."
+  (declare rtype double)
+  (declare type double linear_component)
+  
+  (return (sqrt linear_component)))
+
+(cl-defun write_color (f color samples_per_pixel)
+  "Output the `color' as a ppm value into file `f'."
+  (declare rtype void)
+  (declare type (ptr FILE) f)
+  (declare type (union vec3) color)
+  (declare type int samples_per_pixel)
+  
+  (def scale double (/ 1.0 samples_per_pixel))
+  (def r     double (linear_to_gamma (* scale (. color x))))
+  (def g     double (linear_to_gamma (* scale (. color y))))
+  (def b     double (linear_to_gamma (* scale (. color z))))
+
+  (fprintf f "%d %d %d\n" (cast int (* 256 (clamp 0.0 0.999 r)))
+           (cast int (* 256 (clamp 0.0 0.999 g)))
+           (cast int (* 256 (clamp 0.0 0.999 b)))))

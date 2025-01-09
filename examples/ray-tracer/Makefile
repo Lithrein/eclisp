@@ -6,9 +6,12 @@ LDFLAGS := -lm
 .SUFFIXES: .eclisp .eclisph
 
 SOURCES = \
-	rt.eclisp \
+	rt.eclisp    \
 	utils.eclisp \
-	vec3.eclisp
+	vec3.eclisp  \
+	color.eclisp \
+	ray.eclisp   \
+	hittable.eclisp
 
 X_FILES = $(addprefix build/,$(patsubst %.eclisp,%.X,$(SOURCES)))
 
@@ -22,12 +25,35 @@ X_FILES = $(addprefix build/,$(patsubst %.eclisp,%.X,$(SOURCES)))
 
 all: rt
 
-rt: build/utils.o build/rt.o build/vec3.o
+rt: build/utils.o build/rt.o build/vec3.o build/color.o build/ray.o
 	gcc $(CLAGS) $^ $(LDFLAGS) -o $@
 
-build/rt.c: build/rt.h build/utils.h build/vec3.h
-build/utils.c: build/utils.h
-build/vec3.c: build/vec3.h
+build/rt.c: \
+	build/rt.h       \
+	build/utils.h    \
+	build/vec3.h     \
+	build/ray.h      \
+	build/color.h    \
+	build/hittable.h
+
+build/hittable.c: \
+	build/hittable.h \
+	build/ray.h
+
+build/ray.c: \
+	build/ray.h \
+	build/vec3.h
+
+build/color.c: \
+	build/color.h \
+	build/vec3.h
+
+build/utils.c: \
+	build/utils.h
+
+build/vec3.c: \
+	build/vec3.h \
+	build/utils.h
 
 %.c: %.X
 	sed -e 's/#include/%include/' $< > $@
@@ -37,6 +63,7 @@ build/vec3.c: build/vec3.h
 	mv $@.i $@
 	sed -i 's/%include/#include/' $@
 	clang-format -i $@
+	awk 'NF {p=1} p' $@ > $@.i && mv $@.i $@
 
 %.h: %.X
 	sed -e 's/#include/%include/' $< > $@
@@ -50,11 +77,14 @@ build/vec3.c: build/vec3.h
 	sed -i 's/%include/#include/' $@
 	clang-format -i $@
 
-build/%.X: %.eclisp
-	$(ECLISP) $^ > $@
+make-build-dir:
+	mkdir -p build
 
-build/%.h: %.eclisph
-	$(ECLISP) $^ > $@
+build/%.X: %.eclisp | make-build-dir
+	$(QUIET)$(ECLISP) $^ > $@
+
+build/%.h: %.eclisph | make-build-dir
+	$(QUIET)$(ECLISP) $^ > $@
 
 clean:
 	rm -rf build/

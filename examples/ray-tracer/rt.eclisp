@@ -1,78 +1,41 @@
 (%:include ("../../include/macros.eclisph"))
-
-(import "utils")
-(import "vec3")
-(import "rt")
-
 (%:include <stdio.h> <stdlib.h> <math.h> <time.h>)
 
-;; color
-
-(defun clamp (-> double (min max x double))
-  (if (< x min) (return min))
-  (if (> x max) (return max))
-  (return x))
-
-(defun linear_to_gamma (-> double (linear_component double))
-    (return (sqrt linear_component)))
-
-(defun write_color (-> void (f (ptr FILE)) (color (union vec3)) (samples_per_pixel int))
-  (def scale double (/ 1.0 samples_per_pixel))
-  (def r     double (linear_to_gamma (* scale color.x)))
-  (def g     double (linear_to_gamma (* scale color.y)))
-  (def b     double (linear_to_gamma (* scale color.z)))
-
-  (fprintf f "%d %d %d\n" (cast int (* 256 (clamp 0.0 0.999 r)))
-                          (cast int (* 256 (clamp 0.0 0.999 g)))
-                          (cast int (* 256 (clamp 0.0 0.999 b)))))
-;; end color
-
-;; ray
-
-(global-defstruct ray
-  ((orig (union vec3))
-   (dir  (union vec3))))
-
-(macro mkray (orig dir)
-  `(cast (struct ray) (list ,orig ,dir)))
-
-(defun ray_at (-> (union vec3) (r (struct ray)) (t double))
-  (return (vec3+ r.orig (vec3_smul r.dir t))))
-
-;; ray end
+(import "color")
+(import "hittable")
+(import "ray")
+(import "rt")
+(import "utils")
+(import "vec3")
 
 ;; hit record
 
-(global-defstruct hit_record
-  ((p (union vec3))
-   (normal (union vec3))
-   (t double)
-   (front_face int)))
+(cl-defun hit_sphere (center radius r ht)
+  (declare rtype double)
+  (declare type (ptr union vec3) center)
+  (declare type double radius)
+  (declare type (ptr struct ray) r)
+  (declare type (ptr struct hit_record) ht)
 
-(defun set_face_normal (-> void (ht (ptr struct hit_record)) (r (ptr struct ray)) (outward_normal (ptr union vec3)))
-  (= ht->front_face (< (vec3_dot r->dir *outward_normal) 0))
-  (= ht->normal     (?: ht->front_face *outward_normal (vec3_minus *outward_normal))))
+  (def oc (union vec3) (vec3_sub r->orig *center))
+  (def a  double     (vec3_len2 r->dir))
+  (def hb double     (vec3_dot oc r->dir))
+  (def c  double     (- (vec3_len2 oc) (* radius radius)))
+  (def discriminant double (- (* hb hb) (* a c)))
+  (def root double (/ (- (+ hb (sqrt discriminant))) a))
 
-(defun hit_sphere (-> double (center (ptr union vec3)) (radius double) (r (ptr struct ray)) (ht (ptr struct hit_record)))
-    (def oc (union vec3) (vec3_sub r->orig *center))
-    (def a  double     (vec3_len2 r->dir))
-    (def hb double     (vec3_dot oc r->dir))
-    (def c  double     (- (vec3_len2 oc) (* radius radius)))
-    (def discriminant double (- (* hb hb) (* a c)))
-    (def root double (/ (- (+ hb (sqrt discriminant))) a))
+  (= ht->t      root)
+  (= ht->p      (ray_at (* r) (-> ht t)))
+  (= ht->normal (vec3_sdiv (vec3- (-> ht p) (* center)) radius))
 
-    (= ht->t      root)
-    (= ht->p      (ray_at *r ht->t))
-    (= ht->normal (vec3_sdiv (vec3- ht->p *center) radius))
-
-    (return (?: (> discriminant 0) root -1.0)))
+  (return (?: (> discriminant 0) root -1.0)))
 
 ;; hit record end
 
 (defun ray_color (-> (union vec3) (r (ptr struct ray)) (depth int))
   (def rec      (struct hit_record))
   (def unit_dir (union vec3) (vec3_unit r->dir))
-  (def a        double     (/ (+ unit_dir.y 1.0) 2))
+  (def a        double     (/ (+ (. unit_dir y) 1.0) 2))
   (def t double 0.0)
 
   (if (< depth 0)

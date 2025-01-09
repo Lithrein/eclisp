@@ -1,0 +1,18 @@
+(%:include ("../../include/macros.eclisph"))
+
+(import "ray")
+
+(global-defstruct hit_record
+  ((p (union vec3))
+   (normal (union vec3))
+   (t double)
+   (front_face int)))
+
+(cl-defun set_face_normal (ht r outward_normal)
+  (declare rtype void)
+  (declare type (ptr struct hit_record) ht)
+  (declare type (ptr struct ray) r)
+  (declare type (ptr union vec3) outward_normal)
+  
+  (= ht->front_face (< (vec3_dot r->dir *outward_normal) 0))
+  (= ht->normal     (?: ht->front_face *outward_normal (vec3_minus *outward_normal))))
