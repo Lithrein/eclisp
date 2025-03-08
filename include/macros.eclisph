@@ -89,6 +89,17 @@
 (macro deftype (type definition)
   `(def ,type (typedef ,definition)))
 
+(macro defenum (name (&rest values) &rest documentation)
+  (if documentation
+      `(def (enum ,name ,@values) ,(car documentation))
+      `(def (enum ,name ,@values))))
+
+(macro global-defenum (name (&rest values) &rest documentation)
+  `(%:if ((defined PROCESS_HEADER) (defenum ,name (,@values) ,@documentation))))
+
+(macro local-defenum (name (&rest fields) &rest documentation)
+  `(%:if ((! (defined PROCESS_HEADER)) (defenum ,name (,@values) ,@documentation))))
+
 (macro defstruct (name (&rest fields) &rest documentation)
    (if documentation
     (if (listp name)
