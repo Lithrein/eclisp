@@ -45,6 +45,9 @@
 (defvar macro-tbl (make-hash-table)
   "A global variable with the currently defined macros.")
 
+(defvar symbol-macro-tbl (make-hash-table)
+  "A global variable with the currently defined symbol macros.")
+
 (defvar macrofn-tbl (make-hash-table)
   "A global variable with the currently defined macrofns, this are functions
 which operates directly on the AST.")
