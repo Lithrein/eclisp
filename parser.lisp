@@ -99,7 +99,7 @@ token with the same content.  This allows tokens to be compared with #'eq."
           (if (gethash op macro-tbl)
               (setf form (expand-macro op args))
               (return)))
-        (if (gethash form macro-tbl)
+        (if (gethash form symbol-macro-tbl)
             (setf form (expand-macro form nil))
             (return))))
   (cond ((atom form) form)
@@ -848,10 +848,11 @@ All this information is returned as an ECLISP-SYMBOL instance"
 (define-constant +eclisp-unquote-splice+
     (intern-eclisp-token "unquote-splice" :eclisp-symbol)))
 
-(flet ((eclisp-rshift-parse (form ctx)
-         (parse-call form ctx)))
+(flet ((eclisp-quote-parse (form ctx) form))
 (define-constant +eclisp-quote+
-    (intern-eclisp-token "quote" :eclisp-symbol)))
+    (intern-eclisp-token "quote"
+                         :eclisp-symbol
+                         #'eclisp-quote-parse)))
 
 (flet ((eclisp-rshift-parse (form ctx)
          (parse-call form ctx)))
