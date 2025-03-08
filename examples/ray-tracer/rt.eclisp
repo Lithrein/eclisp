@@ -35,7 +35,7 @@
 (defun ray_color (-> (union vec3) (r (ptr struct ray)) (depth int))
   (def rec      (struct hit_record))
   (def unit_dir (union vec3) (vec3_unit r->dir))
-  (def a        double     (/ (+ (. unit_dir y) 1.0) 2))
+  (def a        double     (/ (+ (vec3-y unit_dir) 1.0) 2))
   (def t double 0.0)
 
   (if (< depth 0)

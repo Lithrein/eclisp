@@ -7,10 +7,13 @@
 
 (global-defunion vec3
   ((e (array 3 double)
-      "Coordinates as an array.")
-   (struct (x y z double)
-           "Direct accessors to each coordinate."))
+      "Coordinates as an array."))
   "A 3d vector.")
+
+(macro vec3-e (v) `(. ,v e))
+(macro vec3-x (v) `(aref (. ,v e) 0))
+(macro vec3-y (v) `(aref (. ,v e) 1))
+(macro vec3-z (v) `(aref (. ,v e) 2))
 
 (macro mkvec3 (x y z)
   "A convenience macro to instanciate 3d vectors."
@@ -28,16 +31,16 @@
   (declare rtype (union vec3))
   (declare type (union vec3) v)
   
-  (return (mkvec3 (- (. v x)) (- (. v y)) (- (. v z)))))
+  (return (mkvec3 (- (vec3-x v)) (- (vec3-y v)) (- (vec3-z v)))))
 
 (cl-defun vec3_add (v1 v2)
   "Add two 3d vectors."
   (declare rtype (union vec3))
   (declare type (union vec3) v1 v2)
   
-  (return (mkvec3 (+ (. v1 x) (. v2 x))
-                  (+ (. v1 y) (. v2 y))
-                  (+ (. v1 z) (. v2 z)))))
+  (return (mkvec3 (+ (vec3-x v1) (vec3-x v2))
+                  (+ (vec3-y v1) (vec3-y v2))
+                  (+ (vec3-z v1) (vec3-z v2)))))
 (mk-naryop vec3+ vec3_add)
 
 (cl-defun vec3_sub (v1 v2)
@@ -45,9 +48,9 @@
   (declare rtype (union vec3))
   (declare type (union vec3) v1 v2)
   
-  (return (mkvec3 (- (. v1 x) (. v2 x))
-                  (- (. v1 y) (. v2 y))
-                  (- (. v1 z) (. v2 z)))))
+  (return (mkvec3 (- (vec3-x v1) (vec3-x v2))
+                  (- (vec3-y v1) (vec3-y v2))
+                  (- (vec3-z v1) (vec3-z v2)))))
 (mk-naryop vec3- vec3_sub)
 
 (cl-defun vec3_mul (v1 v2)
@@ -55,9 +58,9 @@
   (declare rtype (union vec3))
   (declare type (union vec3) v1 v2)
   
-  (return (mkvec3 (* (. v1 x) (. v2 x))
-                  (* (. v1 y) (. v2 y))
-                  (* (. v1 z) (. v2 z)))))
+  (return (mkvec3 (* (vec3-x v1) (vec3-x v2))
+                  (* (vec3-y v1) (vec3-y v2))
+                  (* (vec3-z v1) (vec3-z v2)))))
 (mk-naryop vec3* vec3_mul)
 
 (cl-defun vec3_div (v1 v2)
@@ -65,9 +68,9 @@
   (declare rtype (union vec3))
   (declare type (union vec3) v1 v2)
   
-  (return (mkvec3 (/ (. v1 x) (. v2 x))
-                  (/ (. v1 y) (. v2 y))
-                  (/ (. v1 z) (. v2 z)))))
+  (return (mkvec3 (/ (vec3-x v1) (vec3-x v2))
+                  (/ (vec3-y v1) (vec3-y v2))
+                  (/ (vec3-z v1) (vec3-z v2)))))
 (mk-naryop vec3/ vec3_div)
 
 (cl-defun vec3_dot (v1 v2)
@@ -75,9 +78,9 @@
   (declare rtype double)
   (declare type (union vec3) v1 v2)
   
-  (return (+ (* (. v1 x) (. v2 x))
-             (* (. v1 y) (. v2 y))
-             (* (. v1 z) (. v2 z)))))
+  (return (+ (* (vec3-x v1) (vec3-x v2))
+             (* (vec3-y v1) (vec3-y v2))
+             (* (vec3-z v1) (vec3-z v2)))))
 (mk-naryop vec3. vec3_dot)
 
 (cl-defun vec3_cross (v1 v2)
@@ -85,9 +88,9 @@
   (declare rtype (union vec3))
   (declare type (union vec3) v1 v2)
 
-  (return (mkvec3 (- (* (. v1 y) (. v2 z)) (* (. v1 z) (. v2 y)))
-                  (- (* (. v1 z) (. v2 x)) (* (. v1 x) (. v2 z)))
-                  (- (* (. v1 x) (. v2 y)) (* (. v1 y) (. v2 x))))))
+  (return (mkvec3 (- (* (vec3-y v1) (vec3-z v2)) (* (vec3-z v1) (vec3-y v2)))
+                  (- (* (vec3-z v1) (vec3-x v2)) (* (vec3-x v1) (vec3-z v2)))
+                  (- (* (vec3-x v1) (vec3-y v2)) (* (vec3-y v1) (vec3-x v2))))))
 (mk-naryop vec3x vec3_cross)
 
 (cl-defun vec3_sadd (v t)
@@ -96,7 +99,7 @@
   (declare type (union vec3) v)
   (declare type double t)
 
-  (return (mkvec3 (+ (. v x) t) (+ (. v y) t) (+ (. v z) t))))
+  (return (mkvec3 (+ (vec3-x v) t) (+ (vec3-y v) t) (+ (vec3-z v) t))))
 
 (cl-defun vec3_smul (v t)
   "Multiplication by a scalar"
@@ -104,7 +107,7 @@
   (declare type (union vec3) v)
   (declare type double t)
 
-  (return (mkvec3 (* (. v x) t) (* (. v y) t) (* (. v z) t))))
+  (return (mkvec3 (* (vec3-x v) t) (* (vec3-y v) t) (* (vec3-z v) t))))
 
 (cl-defun vec3_sdiv (v t)
   "Division by a scalar"
@@ -112,14 +115,16 @@
   (declare type (union vec3) v)
   (declare type double t)
 
-  (return (mkvec3 (/ (. v x) t) (/ (. v y) t) (/ (. v z) t))))
+  (return (mkvec3 (/ (vec3-x v) t) (/ (vec3-y v) t) (/ (vec3-z v) t))))
 
 (cl-defun vec3_len2 (v)
   "Compute the length square of a 3d vector."
   (declare rtype double)
   (declare type (union vec3) v)
 
-  (return (+ (* (. v x) (. v x)) (* (. v y) (. v y)) (* (. v z) (. v z)))))
+  (return (+ (* (vec3-x v) (vec3-x v))
+             (* (vec3-y v) (vec3-y v))
+             (* (vec3-z v) (vec3-z v)))))
 
 (cl-defun vec3_len (v)
   "Compute the length of a 3d vector.

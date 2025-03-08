@@ -28,10 +28,10 @@
   (declare type int samples_per_pixel)
   
   (def scale double (/ 1.0 samples_per_pixel))
-  (def r     double (linear_to_gamma (* scale (. color x))))
-  (def g     double (linear_to_gamma (* scale (. color y))))
-  (def b     double (linear_to_gamma (* scale (. color z))))
+  (def r     double (linear_to_gamma (* scale (vec3-x color))))
+  (def g     double (linear_to_gamma (* scale (vec3-y color))))
+  (def b     double (linear_to_gamma (* scale (vec3-z color))))
 
   (fprintf f "%d %d %d\n" (cast int (* 256 (clamp 0.0 0.999 r)))
-           (cast int (* 256 (clamp 0.0 0.999 g)))
-           (cast int (* 256 (clamp 0.0 0.999 b)))))
+                          (cast int (* 256 (clamp 0.0 0.999 g)))
+                          (cast int (* 256 (clamp 0.0 0.999 b)))))
