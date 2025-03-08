@@ -542,9 +542,16 @@ BODY is optional. DOCUMENTATION is optional"
         ((and (consp (car cur))
               (eq (et-type (caar cur)) :eclisp-symbol)
               (string= (caar (et-value cur)) ":"))
-         (format to-stream "[~a] = "
-                 (with-output-to-string (s) (print-form (cadar cur) nil 0 s)))
-         (setf cur (cdr cur)))
+         (if (string= (et-value cur) ":")
+           (progn
+             (format to-stream "[~a] = "
+                     (with-output-to-string (s) (print-form (cadadr cur) nil 0 s)))
+             (setf cur (cddr cur)))
+           (progn
+             (format to-stream "[~a] = "
+                     (with-output-to-string (s) (print-form (cadar cur) nil 0 s)))
+            (setf cur (cdr cur))))
+         )
         ((and
           (eq (et-type (car cur)) :eclisp-symbol)
           (char= (aref (et-value (car cur)) 0) #\.))
@@ -553,8 +560,15 @@ BODY is optional. DOCUMENTATION is optional"
         ((and
           (eq (et-type (car cur)) :eclisp-symbol)
           (char= (aref (et-value (car cur)) 0) #\:))
-         (format to-stream "[~a] = " (subseq (et-value (car cur)) 1))
-         (pop cur)))
+         (if (string= (et-value (car cur)) ":")
+           (progn
+             (format to-stream "[~a] = "
+                     (with-output-to-string (s) (print-form (cadr cur) nil 0 s)))
+             (pop cur)
+             (pop cur))
+           (progn
+             (format to-stream "[~a] = " (subseq (et-value (car cur)) 1))
+             (pop cur)))))
       (print-form (car cur) nil 0 to-stream)
       (if (cdr cur) (format to-stream ", "))
       (setf cur (cdr cur))))
@@ -755,7 +769,12 @@ BODY is optional. DOCUMENTATION is optional"
                         ((char= (aref (et-value el) 0) #\.)
                          (format to-stream "~a = " (et-value el)))
                         ((char= (aref (et-value el) 0) #\:)
-                         (format to-stream "[~a] = " (subseq (et-value el) 1)))
+                          (if (string= (et-value el) ":")
+                            (progn
+                              (format to-stream "[~a] = "
+                                      (with-output-to-string (s) (print-form (cadr cur) nil 0 s)))
+                              (setf cur (cdr cur)))
+                                      (format to-stream "[~a] = " (subseq (et-value el) 1))))
                         (t
                          (format to-stream (cond ((eq (et-type args) :eclisp-string) "\"~a\"")
                                                  ((eq (et-type args) :eclisp-character) "'~a'")

@@ -32,6 +32,9 @@ feed (#xc) and carriage returns (#xd) as whitespace characters.")
   "Return the reader macro associated with character CHAR."
   (cdr (assoc char (eclisp-readtable-content rt))))
 
+(defun eclisp-get-macro-character-list (&optional (rt +eclisp-readtable+))
+  (mapcar #'car (eclisp-readtable-content rt)))
+
 (defun eclisp-make-dispatch-macro-character (char
                                              &optional (rt +eclisp-readtable+))
   "Allow CHAR to be used as a dispatch character."
@@ -149,13 +152,15 @@ and can be followed by e or E and an exponent."
                           (if (= len cursor)
                               (coerce (* sign res) 'float))))))))))
 
-(defun eclisp-read-token (stream char)
+(defun eclisp-read-token (stream char
+                          &optional (rt +eclisp-readtable+))
   "Read one word from STREAM and returns it.
 A word is the longuest contiguous sequence of non whitespace characters."
   (let* ((tok (loop for c = (peek-char nil stream nil nil)
                     while (and c
                                (eql c (peek-char t stream nil nil))
                                (not (eql c #\)))
+                               (not (member c (eclisp-get-macro-character-list rt)))
                                (not (member c +eclisp-whitespace+)))
                     collect (read-char stream) into letters
                     finally (return (coerce (cons char letters) 'string))))

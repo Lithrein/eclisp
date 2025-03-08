@@ -1,0 +1,23 @@
+(macrofn maux0 (f n)
+  (if (!= n 0)
+    `(,@(maux0 f (- n 1)) :,`(f (+ 0 ,n)) ,n)))
+
+(macrofn maux1 (f n)
+  (if (!= n 0)
+    `(:,`(f (+ 0 ,n)) ,n ,@(maux1 f (- n 1)))))
+
+(macro m0 (f n) `',(maux0 f n))
+(macro m0bis (f n) `(list ,@(maux0 f n)))
+(macro m1 (f n) `',(maux1 f n))
+(macro m1bis (f n) `(list ,@(maux1 f n)))
+
+(def bla (struct A) (list :a 1))
+(def bli (array 5 int) (list :(+ a 1) 1 :(+ b 2) 2))
+(def blo (array 5 int) (list :(f 1) 1 :(f 2) 2))
+(def bla (struct A) '(:a 1))
+(def bla (struct A) `(:a 1))
+(def bli (array 5 int) `(:,(+ a 1) 1 :,(+ b 2) 2))
+(def blo (array 5 int) `(:,(f 1) 1 :,(f 2) 2))
+(def blu (array 5 int) (m0bis f 5))
+(def blu (array 5 int) (m1 f 5))
+(def blu (array 5 int) (m1bis f 5))
