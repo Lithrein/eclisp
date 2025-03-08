@@ -10,8 +10,8 @@
 
 (macrofn build-type (typ list)
   (if (car typ)
-      `(-> ,(car (cdr (assoc __rtype list))) ,@(build-type-aux typ list))
-      `(-> ,(car (cdr (assoc __rtype list))) void)))
+      `(-> ,(car (cdr (assoc '__rtype list))) ,@(build-type-aux typ list))
+      `(-> ,(car (cdr (assoc '__rtype list))) void)))
 
 (macrofn process-type-decls (type &rest vars)
   (if vars
@@ -25,7 +25,7 @@
                                     attrs-decls
                                     (cdr rest))
           (if (== category 'rtype)
-              (extract-declare-forms `(('__rtype ,type) ,@typ-decls)
+              (extract-declare-forms `((__rtype ,type) ,@typ-decls)
                                       attrs-decls
                                       (cdr rest))
             (if (== category 'inline)
