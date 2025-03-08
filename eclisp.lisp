@@ -1405,7 +1405,14 @@ ACC should be NIL at first."
                               (loop for tt in enum-contents
                                     collect (list "," #\Newline
                                                   (if (consp tt)
-                                                      (list (et-value (car tt)) " = " (et-value (cadr tt)))
+                                                      (list (et-value (car tt)) " = "
+                                                            (cond
+                                                              ((eq (et-type (cadr tt)) :eclisp-string)
+                                                                     (format nil "\"~a\"" (et-value (cadr tt))))
+                                                              ((eq (et-type (cadr tt)) :eclisp-character)
+                                                                     (format nil "'~a'" (et-value (cadr tt))))
+                                                              (t (format nil "~a" (et-value (cadr tt))))))
+
                                                       (list (et-value tt))))))
                              (list #\Newline "}")))
                           acc))))
