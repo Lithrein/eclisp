@@ -209,7 +209,7 @@ onto TM."
  (setup_new_tm pboard (& tetro) TM_NONE)
  (update_screen pboard (& tetro) hold renderer)
 
- (while (! quit)
+ (until quit
    (def event (SDL_Event))
    (while (SDL_PollEvent (& event))
      (switch (. event type)
