@@ -1,2 +1,2 @@
-(%:define "A" "This is macro A")
-(%:define "max(a,b)" "((a)>(b)?(a):(b))")
+(%:define A This is macro A)
+#{#define max(a,b) ((a)>(b)?(a):(b))}

@@ -115,7 +115,11 @@ the parenthesis.  SUBSTITUTION should be valid C code."
   (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
   (format to-stream "#define ~{~a~^ ~}~%"
-          (mapcar #'et-value form)))
+          (mapcar #'(lambda (x)
+                      (cond
+                        ((eq (et-type x) :eclisp-string) (format nil "\"~a\"" (et-value x)))
+                        ((eq (et-type x) :eclisp-character) (format nil "\'~a\'" (et-value x)))
+                        (t (et-value x)))) form)))
 
 (defun print-verbatim (form stmtp indent to-stream)
   (declare (ignore indent))
@@ -151,7 +155,7 @@ the expression."
           ((string= "defined" (et-value op))
            (format to-stream "defined (~a)" (et-value (car args))))
           ((member (et-value op) '("<" ">" "<=" ">=" ">" "==") :test #'equal)
-           (print-cmp-op form stmtp indent to-stream t))
+           (print-cmp-op form stmtp indent to-stream))
           ((member (et-value op) '("!" "+" "-" "*" "/" "%" "^" "|" "||" "&" "&&" "~" "<<" ">>")
                    :test #'equal)
            (print-binop form stmtp 0 to-stream))))
