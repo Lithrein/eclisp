@@ -171,6 +171,11 @@
      (def it int ,condition)
      (when it ,@body)))
 
+(macro aif (condition then else)
+  `(prog
+     (def it int ,condition)
+     (if ,condition ,then ,else)))
+
 (macro loop (&body body)
   `(while 1 ,@body))
 
