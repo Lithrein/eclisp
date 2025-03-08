@@ -101,13 +101,13 @@
   `(%:if ((! (defined PROCESS_HEADER)) (defenum ,name (,@values) ,@documentation))))
 
 (macro defstruct (name (&rest fields) &rest documentation)
-   (if documentation
-    (if (listp name)
-      `(def ,(cdr name) (struct ,(car name) ,@fields) ,(car documentation))
-      `(def (struct ,name ,@fields) ,(car documentation)))
-    (if (listp name)
-      `(def ,(cdr name) (struct ,(car name) ,@fields))
-      `(def (struct ,name ,@fields)))))
+  (if documentation
+      (if (listp name)
+          `(def ,(cdr name) (struct ,(car name) ,@fields) ,(car documentation))
+           `(def (struct ,name ,@fields) ,(car documentation)))
+      (if (listp name)
+          `(def ,(cdr name) (struct ,(car name) ,@fields))
+           `(def (struct ,name ,@fields)))))
 
 (macro local-defstruct (name (&rest fields) &rest documentation)
   `(%:if ((! (defined PROCESS_HEADER)) (defstruct ,name (,@fields) ,@documentation))))
