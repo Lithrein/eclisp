@@ -17,32 +17,43 @@
   (if vars
       `((,(car vars) ,type) ,@(process-type-decls type (cdr vars)))))
 
-(macrofn extract-declare-forms (typ-decls attrs-decls &rest rest)
+(macrofn extract-declare-forms (typ-decls fn-attrs misc-attrs &rest rest)
   (if (== (car (car rest)) 'declare)
       (destructuring-bind (declare category type &rest vars) (car rest)
         (if (== category 'type)
             (extract-declare-forms `(,@(process-type-decls type vars) ,@typ-decls)
-                                    attrs-decls
+                                    fn-attrs
+                                    misc-attrs
                                     (cdr rest))
           (if (== category 'rtype)
               (extract-declare-forms `((__rtype ,type) ,@typ-decls)
-                                      attrs-decls
+                                      fn-attrs
+                                      misc-attrs
                                       (cdr rest))
             (if (== category 'inline)
                 (extract-declare-forms typ-decls
-                                       `(:inline ,type ,@attrs-decls)
+                                       `(:inline ,type ,@fn-attrs)
+                                       misc-attrs
                                        (cdr rest))
               (if (== category 'static)
                   (extract-declare-forms typ-decls
-                                         `(:static ,,@attrs-decls)
+                                         `(:static ,@fn-attrs)
+                                         misc-attrs
                                          (cdr rest))
                 (if (== category 'noreturn)
                     (extract-declare-forms typ-decls
-                                           `(:noreturn ,,@attrs-decls)
-                                           (cdr rest))))))))
-    `(,typ-decls ,attrs-decls ,rest)))
+                                           `(:noreturn ,@fn-attrs)
+                                           misc-attrs
+                                           (cdr rest))
+                  (if (== category 'scope)
+                      (extract-declare-forms typ-decls
+                                             fn-attrs
+                                             `((:scope ,type) ,@misc-attrs)
+                                             (cdr rest)))))))))
+    `(,typ-decls ,fn-attrs ,misc-attrs ,rest)))
 
 (macrofn extract-params (&rest rest)
+  "Extract function parameters from a function type."
   (if rest
     (if (== '&key (car rest))
       `(,@(extract-params (cdr rest)))
@@ -53,17 +64,17 @@
 
 (macro cl-defun (fn-name sig &body body)
   (let ((docp (stringp (car body)))
-        (decl-attrs-body (extract-declare-forms nil nil (if docp (cdr body) body)))
-        (params (extract-params sig))
-        (nsig (build-type params (car decl-attrs-body)))
-        (nattrs (car (cdr decl-attrs-body)))
-        (nbody (car (cdr (cdr decl-attrs-body)))))
-     `(prog*
-        (macro ,fn-name ,sig (list '%funcall ',fn-name ,@params))
-        (%:if ((defined PROCESS_HEADER)
-          ,(if docp `(def (,fn-name ,@nattrs) ,nsig ,(car body))
-                    `(def (,fn-name ,@nattrs) ,nsig)))
-          (t (def (,fn-name ,@nattrs) ,nsig ,(if docp (car body)) ,@nbody))))))
+        (decl-attrs-body (extract-declare-forms nil nil nil (if docp (cdr body) body)))
+        (params (extract-params sig)))
+       (destructuring-bind (tmp-sig fn-attrs misc-attrs nbody) decl-attrs-body
+         (let ((nsig (build-type params tmp-sig)))
+           `(prog*
+              (macro ,fn-name ,sig (list '%funcall ',fn-name ,@params))
+              (%:if ((defined PROCESS_HEADER)
+                ,(if docp `(def (,fn-name ,@nattrs) ,nsig ,(car body))
+                          `(def (,fn-name ,@nattrs) ,nsig)))
+              (t (def (,fn-name ,@nattrs) ,nsig
+                      ,(if docp (car body)) ,@nbody))))))))
 
 (macro defun (fn-name typ &body body)
   (let ((docp (stringp (car body))))
@@ -97,38 +108,43 @@
 (macro global-defenum (name (&rest values) &rest documentation)
   `(%:if ((defined PROCESS_HEADER) (defenum ,name (,@values) ,@documentation))))
 
-(macro local-defenum (name (&rest fields) &rest documentation)
+(macro local-defenum (name (&rest values) &rest documentation)
   `(%:if ((! (defined PROCESS_HEADER)) (defenum ,name (,@values) ,@documentation))))
 
-(macro defstruct (name (&rest fields) &rest documentation)
+(macro define-struct-or-union-internal (sou name (&rest fields) &rest documentation)
   (if documentation
       (if (listp name)
-          `(def ,(cdr name) (struct ,(car name) ,@fields) ,(car documentation))
-           `(def (struct ,name ,@fields) ,(car documentation)))
+          `(def ,(cdr name) (,sou ,(car name) ,@fields) ,(car documentation))
+          `(def (,sou ,name ,@fields) ,(car documentation)))
       (if (listp name)
-          `(def ,(cdr name) (struct ,(car name) ,@fields))
-           `(def (struct ,name ,@fields)))))
+          `(def ,(cdr name) (,sou ,(car name) ,@fields))
+          `(def (,sou ,name ,@fields)))))
 
-(macro local-defstruct (name (&rest fields) &rest documentation)
-  `(%:if ((! (defined PROCESS_HEADER)) (defstruct ,name (,@fields) ,@documentation))))
+(macro local-define-struct-or-union (sou name (&rest fields) &rest documentation)
+  `(%:if ((! (defined PROCESS_HEADER))
+          (define-struct-or-union-internal ,sou ,name (,@fields) ,@documentation))))
 
-(macro global-defstruct (name (&rest fields) &rest documentation)
-  `(%:if ((defined PROCESS_HEADER) (defstruct ,name (,@fields) ,@documentation))))
+(macro global-define-struct-or-union (sou name (&rest fields) &rest documentation)
+  `(%:if ((defined PROCESS_HEADER)
+          (define-struct-or-union-internal ,sou ,name (,@fields) ,@documentation))))
 
-(macro defunion (name (&rest fields) &rest documentation)
-   (if documentation
-    (if (listp name)
-      `(def ,(cdr name) (union ,(car name) ,@fields) ,(car documentation))
-      `(def (union ,name ,@fields) ,(car documentation)))
-    (if (listp name)
-      `(def ,(cdr name) (union ,(car name) ,@fields))
-      `(def (union ,name ,@fields)))))
+(macro define-struct-or-union (sou name &rest body)
+  (let ((decl-attrs-body (extract-declare-forms nil nil nil body)))
+    (destructuring-bind (type-decls fn-decls misc-attrs
+                         ((&rest fields) &rest documentation)) decl-attrs-body
+      (let ((scope (car (cdr (assoc ':scope misc-attrs)))))
+        (if scope
+          (if (== scope 'local)
+            `(local-define-struct-or-union ,sou ,name (,@fields) ,@documentation)
+             (if (== scope 'global)
+               `(global-define-struct-or-union ,sou ,name (,@fields) ,@documentation)))
+          `(global-define-struct-or-union ,sou ,name (,@fields) ,@documentation))))))
 
-(macro local-defunion (name (&rest fields) &rest documentation)
-  `(%:if ((! (defined PROCESS_HEADER)) (defunion ,name (,@fields) ,@documentation))))
+(macro defstruct (name &rest body)
+  `(define-struct-or-union struct ,name ,@body))
 
-(macro global-defunion (name (&rest fields) &rest documentation)
-  `(%:if ((defined PROCESS_HEADER) (defunion ,name (,@fields) ,@documentation))))
+(macro defunion (name &rest body)
+  `(define-struct-or-union union ,name ,@body))
 
 (macro local-deftype (type definition)
   `(%:if ((! (defined PROCESS_HEADER)) (deftype ,type ,definition))))
