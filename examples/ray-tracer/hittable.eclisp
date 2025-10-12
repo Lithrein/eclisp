@@ -2,17 +2,41 @@
 
 (import "ray")
 
-(global-defstruct hit_record
-  ((p (union vec3))
-   (normal (union vec3))
-   (t double)
-   (front_face int)))
+(defstruct hit_record
+  (declare scope global)
+  ((p (union vec3)
+    "The point at which the `hit' takes place.")
+   (normal (union vec3)
+    "The normal vector supporting the ray that hit at P.")
+   (t double
+    "Floating point number used to decide whether the `hit' is valid.")
+   (front_face int
+    "Stores whether the normal points inwards (0) or outwards (1)."))
+  "Abstract structure for anything that a ray can hit.")
+
+(macro hit_record-p (ht)
+  `(. ,ht p))
+
+(macro hit_record-normal (ht)
+  `(. ,ht normal))
+
+(macro hit_record-t (ht)
+  `(. ,ht t))
+
+(macro hit_record-front_face (ht)
+  `(. ,ht front_face))
 
 (cl-defun set_face_normal (ht r outward_normal)
+  "Some docs."
   (declare rtype void)
   (declare type (ptr struct hit_record) ht)
   (declare type (ptr struct ray) r)
   (declare type (ptr union vec3) outward_normal)
   
-  (= ht->front_face (< (vec3_dot r->dir *outward_normal) 0))
-  (= ht->normal     (?: ht->front_face *outward_normal (vec3_minus *outward_normal))))
+  (= (hit_record-front_face (* ht))
+     (< (vec3_dot (ray-dir (* r)) (* outward_normal))
+        0))
+  (= (hit_record-normal (* ht))
+     (?: (hit_record-front_face (* ht))
+         (* outward_normal)
+         (vec3_minus (* outward_normal)))))

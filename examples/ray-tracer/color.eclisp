@@ -21,7 +21,8 @@
   (return (sqrt linear_component)))
 
 (cl-defun write_color (f color samples_per_pixel)
-  "Output the `color' as a ppm value into file `f'."
+  "Output the `color' as a ppm value into file `f'.
+The `color' is scaled by the `samples_per_pixel'."
   (declare rtype void)
   (declare type (ptr FILE) f)
   (declare type (union vec3) color)

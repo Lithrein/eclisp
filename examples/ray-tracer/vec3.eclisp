@@ -5,7 +5,8 @@
 
 (%:include <math.h>)
 
-(global-defunion vec3
+(defunion vec3
+  (declare scope global)
   ((e (array 3 double)
       "Coordinates as an array."))
   "A 3d vector.")

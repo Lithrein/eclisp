@@ -3,7 +3,8 @@
 (import "vec3")
 (import "ray")
 
-(global-defstruct ray
+(defstruct ray
+  (declare scope global)
   ((orig (union vec3)
          "The base 3d coordinates of the ray.")
    (dir  (union vec3)
@@ -13,9 +14,15 @@
 (macro mkray (orig dir)
   `(cast (struct ray) (list ,orig ,dir)))
 
+(macro ray-orig (r)
+  `(. ,r orig))
+
+(macro ray-dir (r)
+  `(. ,r dir))
+
 (cl-defun ray_at (r t)
   (declare rtype (union vec3))
   (declare type (struct ray) r)
   (declare type double t)
   
-  (return (vec3+ (. r orig) (vec3_smul (. r dir) t))))
+  (return (vec3+ (ray-orig r) (vec3_smul (ray-dir r) t))))
