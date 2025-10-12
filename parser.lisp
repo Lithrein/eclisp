@@ -728,7 +728,7 @@ All this information is returned as an ECLISP-SYMBOL instance"
            (let ((name nil) (tmpl nil) (documentation nil) (ml-body nil))
              (setf name (caar bcur))
              (setf tmpl (cadar bcur))
-             (if (stringp (caddar bcur))
+             (if (eq (et-type (caddar bcur)) :eclisp-string)
                  (progn
                    (setf documentation (caddar bcur))
                    (setf ml-body (car (cdddar bcur))))
