@@ -37,7 +37,7 @@
                                        (cdr rest))
               (if (== category 'static)
                   (extract-declare-forms typ-decls
-                                         `(:static ,@fn-attrs)
+                                         `(:linkage static ,@fn-attrs)
                                          misc-attrs
                                          (cdr rest))
                 (if (== category 'noreturn)
@@ -67,14 +67,22 @@
         (decl-attrs-body (extract-declare-forms nil nil nil (if docp (cdr body) body)))
         (params (extract-params sig)))
        (destructuring-bind (tmp-sig fn-attrs misc-attrs nbody) decl-attrs-body
-         (let ((nsig (build-type params tmp-sig)))
-           `(prog*
-              (macro ,fn-name ,sig (list '%funcall ',fn-name ,@params))
-              (%:if ((defined PROCESS_HEADER)
-                ,(if docp `(def (,fn-name ,@nattrs) ,nsig ,(car body))
-                          `(def (,fn-name ,@nattrs) ,nsig)))
-              (t (def (,fn-name ,@nattrs) ,nsig
-                      ,(if docp (car body)) ,@nbody))))))))
+         (let ((nsig (build-type params tmp-sig))
+               (scope_ (car (cdr (assoc ':scope misc-attrs))))
+               (scope (if scope_ scope_ 'global)))
+           (if (== scope 'global)
+             `(prog*
+                (macro ,fn-name ,sig (list '%funcall ',fn-name ,@params))
+                (%:if ((defined PROCESS_HEADER)
+                        ,(if docp `(def (,fn-name ,@fn-attrs) ,nsig ,(car body))
+                                  `(def (,fn-name ,@fn-attrs) ,nsig)))
+                      (t (def (,fn-name ,@fn-attrs) ,nsig
+                        ,(if docp (car body)) ,@nbody))))
+             `(prog*
+                (macro ,fn-name ,sig (list '%funcall ',fn-name ,@params))
+                (%:if ((! (defined PROCESS_HEADER))
+                        (def (,fn-name ,@fn-attrs) ,nsig
+                        ,(if docp (car body)) ,@nbody)))))))))
 
 (macro defun (fn-name typ &body body)
   (let ((docp (stringp (car body))))
