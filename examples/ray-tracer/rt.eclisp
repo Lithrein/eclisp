@@ -43,6 +43,17 @@
 
   (macrolet
     ((sphere (&key center diam color coef)
+       "Add a sphere to the scene.
+The center and the diameter are indicated by the first two parameters,
+the color is the third, the last one is a multiplier applied on the color.
+
+The center and color are indicated as a list of three values.  Color-components
+are floating-point numbers between 0 and 1.  The diameter and the coeficient
+are also floating point values.
+
+Example usage:
+    (sphere :center (2.0 0.0 3.0) :diam 0.5 :color (0.7 0.5 0.3) :coef 0.5)
+"
       `(prog*
          (= t (hit_sphere (& (mkvec3 ,@center)) ,diam r (& rec)))
          (when (> t 0.0)
@@ -54,6 +65,13 @@
                                                    (- depth 1))
                                         ,coef))))))
      (gradient (&key from_color to_color)
+        "Add a gradient to the whole scene.
+The gradient starts from `from_color' to `to_color'.  A color is a list of 3
+floating-point values between 0 and 1.
+
+Example usage:
+          (gradient :from_color (1.0 1.0 1.0) :to_color (0.9 0.3 0.4))
+"
         `(prog*
            (return (vec3+ (vec3_smul (mkvec3 ,@from_color) (- 1.0 a))
                           (vec3_smul (mkvec3 ,@to_color) a))))))
