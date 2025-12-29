@@ -237,6 +237,7 @@
     (unwind-protect
      (prog
         (= ,var (fopen ,filename ,mode))
+        (unless ,var (return -1))
         ,@body)
       (if ,var
         (fclose ,var)))))
