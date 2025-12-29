@@ -637,7 +637,7 @@ BODY is optional. DOCUMENTATION is optional"
 (defun print-ite (form stmtp indent to-stream)
   (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
-  (print-cond-expr (car form) stmtp 0 to-stream)
+  (print-form (car form) nil 0 to-stream)
   (format to-stream " ? ")
   (print-form (cadr form) nil 0 to-stream)
   (format to-stream " : ")
