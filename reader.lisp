@@ -194,6 +194,7 @@ with \t, \n, \r and \f respectively."
       (cond
         (escape
          (cond
+           ((char= c #\x) (setf char-list (list* #\x #\\ char-list)))
            ((char= c #\t) (setf char-list (list* #\t #\\ char-list)))
            ((char= c #\n) (setf char-list (list* #\n #\\ char-list)))
            ((char= c #\r) (setf char-list (list* #\r #\\ char-list)))
