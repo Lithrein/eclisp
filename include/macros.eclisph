@@ -45,11 +45,16 @@
                                            `(:noreturn ,@fn-attrs)
                                            misc-attrs
                                            (cdr rest))
-                  (if (== category 'scope)
+                  (if (== category 'interrupt)
                       (extract-declare-forms typ-decls
-                                             fn-attrs
-                                             `((:scope ,type) ,@misc-attrs)
-                                             (cdr rest)))))))))
+                                             `(:interrupt ,@fn-attrs)
+                                             misc-attrs
+                                             (cdr rest))
+                    (if (== category 'scope)
+                        (extract-declare-forms typ-decls
+                                               fn-attrs
+                                               `((:scope ,type) ,@misc-attrs)
+                                               (cdr rest))))))))))
     `(,typ-decls ,fn-attrs ,misc-attrs ,rest)))
 
 (macrofn extract-params (&rest rest)
