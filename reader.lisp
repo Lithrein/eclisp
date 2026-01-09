@@ -105,6 +105,7 @@ and can be followed by e or E and an exponent."
              (values res cursor))
            (sign-of (c) (cdr (assoc c '((#\+ . 1) (#\- . -1))))))
 
+      (setf s (string-downcase s))
       (setf cur (aref s cursor))
       (when (and (> len 1) (member cur '(#\+ #\-)))
         (incf cursor)
