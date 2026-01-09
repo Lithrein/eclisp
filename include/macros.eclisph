@@ -280,3 +280,14 @@
          ,@body)
       (SDL_DestroyRenderer ,renderer))))
 
+(macro ~> (fst snd &body rst)
+  (let ((snd (if (listp snd) snd (list snd))))
+    (if (null rst)
+        `(,(car snd) ,fst ,@(cdr snd))
+        `(~> (,(car snd) ,fst ,@(cdr snd)) ,@rst))))
+
+(macro ~>> (fst snd &body rst)
+  (let ((snd (if (listp snd) snd (list snd))))
+    (if (null rst)
+        `(,(car snd) ,@(cdr snd) ,fst)
+        `(~>> (,(car snd) ,@(cdr snd) ,fst) ,@rst))))
