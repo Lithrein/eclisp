@@ -12,3 +12,13 @@ typedef enum {
   cst1,
   val1
 };
+/* Some documentation.  */
+enum my_enum
+{
+  /* A is the first letter */
+  A = 1,
+  B,
+  C,
+  D = 3,
+  E
+};

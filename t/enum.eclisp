@@ -15,3 +15,11 @@
     (cst1 val1)
     (cst2 val3)
     cst3))
+
+(def (enum my_enum
+  (A 1 "A is the first letter")
+  (B)
+  C
+  (D 3)
+  E)
+  "Some documentation.")

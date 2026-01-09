@@ -1411,17 +1411,46 @@ ACC should be NIL at first."
                              (list "{")
                              ((lambda (l) (cons (cdar l) (cdr l)))
                               (loop for tt in enum-contents
-                                    collect (list "," #\Newline
-                                                  (if (consp tt)
-                                                      (list (et-value (car tt)) " = "
-                                                            (cond
-                                                              ((eq (et-type (cadr tt)) :eclisp-string)
-                                                                     (format nil "\"~a\"" (et-value (cadr tt))))
-                                                              ((eq (et-type (cadr tt)) :eclisp-character)
-                                                                     (format nil "'~a'" (et-value (cadr tt))))
-                                                              (t (format nil "~a" (et-value (cadr tt))))))
-
-                                                      (list (et-value tt))))))
+                                    collect (list
+                                              ","
+                                              #\Newline
+                                              (if (consp tt)
+                                                (cond ((= (length tt) 3)
+                                                       (let ((enum-ident (et-value (car tt)))
+                                                             (enum-value (et-value (cadr tt)))
+                                                             (enum-doc   (et-value (caddr tt))))
+                                                         (list
+                                                           (with-output-to-string (s)
+                                                             (format s "/* ~a */" enum-doc))
+                                                           #\Newline
+                                                           enum-ident
+                                                           " = "
+                                                           (cond
+                                                             ((eq (et-type (cadr tt)) :eclisp-string)
+                                                              (format nil "\"~a\"" enum-value))
+                                                             ((eq (et-type (cadr tt)) :eclisp-character)
+                                                              (format nil "'~a'" enum-value))
+                                                             (t (format nil "~a" enum-value))))))
+                                                       ((= (length tt) 2)
+                                                        (let ((enum-ident (et-value (car tt)))
+                                                              (enum-value-or-doc (et-value (cadr tt)))
+                                                              (doc (eq (et-type (cadr tt)) :eclisp-string)))
+                                                          (list
+                                                            (when doc
+                                                              (with-output-to-string (s)
+                                                                (format s "/* ~a */" enum-value-or-doc)))
+                                                            (when doc #\Newline)
+                                                            enum-ident
+                                                            (unless doc " = ")
+                                                            (unless doc
+                                                              (cond
+                                                                ((eq (et-type (cadr tt)) :eclisp-string)
+                                                                 (format nil "\"~a\"" enum-value-or-doc))
+                                                                ((eq (et-type (cadr tt)) :eclisp-character)
+                                                                 (format nil "'~a'" enum-value-or-doc))
+                                                                (t (format nil "~a" enum-value-or-doc)))))))
+                                                       ((= (length tt) 1) (list (et-value (car tt)))))
+                                                (list (et-value tt))))))
                              (list #\Newline "}")))
                           acc))))
               ((member kind `(,struct-kwd ,union-kwd))
