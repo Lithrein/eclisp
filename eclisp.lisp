@@ -851,14 +851,15 @@ BODY is optional. DOCUMENTATION is optional"
 
 (defun compile-numberp (args ctx)
   (eq (et-type (ctx-lookup (car args) ctx))
-      :eclisp-num))
+      :eclisp-number))
 
 (defun compile-stringp (args ctx)
   (eq (et-type (ctx-lookup (car args) ctx))
       :eclisp-string))
 
 (defun compile-length (args ctx)
-  (length (et-value (ctx-lookup (car args) ctx))))
+  (let ((len (length (ctx-lookup (car args) ctx))))
+    (intern-eclisp-token len :eclisp-number)))
 
 (defun compile-op-macro (op args ctx)
   (cond
