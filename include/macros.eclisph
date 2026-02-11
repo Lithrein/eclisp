@@ -158,6 +158,16 @@
 (macro global-deftype (type definition)
   `(%:if ((defined PROCESS_HEADER) (deftype ,type ,definition))))
 
+(macro defcast (name type val)
+  "Performs a cast to the proper type at definition time.
+When dealing with void pointers, we often see the following pattern:
+
+                (def name type ((cast type) ...))
+
+This macro allows to not have to type `type' twice especially when
+its a long structure name. "
+  `(def ,name ,type (cast ,type ,val)))
+
 (macrofn multiline-string-aux (&rest strings)
   (if strings
       (concat (car strings)
