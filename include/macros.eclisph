@@ -17,45 +17,50 @@
   (if vars
       `((,(car vars) ,type) ,@(process-type-decls type (cdr vars)))))
 
-(macrofn extract-declare-forms (typ-decls fn-attrs misc-attrs &rest rest)
+(macrofn extract-declare-forms-aux (typ-decls fn-attrs misc-attrs &rest rest)
   (if (== (car (car rest)) 'declare)
       (destructuring-bind (declare category type &rest vars) (car rest)
         (if (== category 'type)
-            (extract-declare-forms `(,@(process-type-decls type vars) ,@typ-decls)
-                                    fn-attrs
-                                    misc-attrs
-                                    (cdr rest))
-          (if (== category 'rtype)
-              (extract-declare-forms `((__rtype ,type) ,@typ-decls)
-                                      fn-attrs
-                                      misc-attrs
-                                      (cdr rest))
-            (if (== category 'inline)
-                (extract-declare-forms typ-decls
-                                       `(:inline ,type ,@fn-attrs)
-                                       misc-attrs
-                                       (cdr rest))
-              (if (== category 'static)
-                  (extract-declare-forms typ-decls
-                                         `(:linkage static ,@fn-attrs)
-                                         misc-attrs
-                                         (cdr rest))
-                (if (== category 'noreturn)
-                    (extract-declare-forms typ-decls
-                                           `(:noreturn ,@fn-attrs)
-                                           misc-attrs
-                                           (cdr rest))
-                  (if (== category 'interrupt)
-                      (extract-declare-forms typ-decls
-                                             `(:interrupt ,@fn-attrs)
-                                             misc-attrs
-                                             (cdr rest))
-                    (if (== category 'scope)
-                        (extract-declare-forms typ-decls
-                                               fn-attrs
-                                               `((:scope ,type) ,@misc-attrs)
-                                               (cdr rest))))))))))
+          (extract-declare-forms-aux
+            `(,@(process-type-decls type vars) ,@typ-decls)
+            fn-attrs
+            misc-attrs
+            (cdr rest))
+        (if (== category 'rtype)
+          (extract-declare-forms-aux
+            `((__rtype ,type) ,@typ-decls)
+            fn-attrs
+            misc-attrs
+            (cdr rest))
+        (if (== category 'inline)
+          (extract-declare-forms-aux typ-decls
+            `(:inline ,type ,@fn-attrs)
+            misc-attrs
+            (cdr rest))
+        (if (== category 'static)
+          (extract-declare-forms-aux typ-decls
+            `(:linkage static ,@fn-attrs)
+            misc-attrs
+            (cdr rest))
+        (if (== category 'noreturn)
+          (extract-declare-forms-aux typ-decls
+            `(:noreturn ,@fn-attrs)
+            misc-attrs
+            (cdr rest))
+        (if (== category 'interrupt)
+          (extract-declare-forms-aux typ-decls
+            `(:interrupt ,@fn-attrs)
+            misc-attrs
+            (cdr rest))
+        (if (== category 'scope)
+          (extract-declare-forms-aux typ-decls
+            fn-attrs
+            `((:scope ,type) ,@misc-attrs)
+            (cdr rest))))))))))
     `(,typ-decls ,fn-attrs ,misc-attrs ,rest)))
+
+(macrofn extract-declare-forms (&rest body)
+  (extract-declare-forms-aux nil nil nil body))
 
 (macrofn extract-params (&rest rest)
   "Extract function parameters from a function type."
@@ -69,7 +74,7 @@
 
 (macro defun (fn-name sig &body body)
   (let ((docp (stringp (car body)))
-        (decl-attrs-body (extract-declare-forms nil nil nil (if docp (cdr body) body)))
+        (decl-attrs-body (extract-declare-forms (if docp (cdr body) body)))
         (params (extract-params sig)))
        (destructuring-bind (tmp-sig fn-attrs misc-attrs nbody) decl-attrs-body
          (let ((nsig (build-type params tmp-sig))
@@ -135,7 +140,7 @@
           (define-struct-or-union-internal ,sou ,name (,@fields) ,@documentation))))
 
 (macro define-struct-or-union (sou name &rest body)
-  (let ((decl-attrs-body (extract-declare-forms nil nil nil body)))
+  (let ((decl-attrs-body (extract-declare-forms body)))
     (destructuring-bind (type-decls fn-decls misc-attrs
                          ((&rest fields) &rest documentation)) decl-attrs-body
       (let ((scope (car (cdr (assoc ':scope misc-attrs)))))
