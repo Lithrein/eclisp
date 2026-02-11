@@ -20,7 +20,7 @@
 (macro ray-dir (r)
   `(. ,r dir))
 
-(cl-defun ray_at (r t)
+(defun ray_at (r t)
   (declare rtype (union vec3))
   (declare type (struct ray) r)
   (declare type double t)

@@ -8,7 +8,7 @@
 (import "utils")
 (import "vec3")
 
-(cl-defun hit_sphere (center radius r ht)
+(defun hit_sphere (center radius r ht)
   (declare rtype double)
   (declare type (ptr union vec3) center)
   (declare type double radius)
@@ -28,7 +28,7 @@
 
   (return (?: (> discriminant 0) root -1.0)))
 
-(cl-defun ray_color (r depth)
+(defun ray_color (r depth)
   (declare rtype (union vec3))
   (declare type (ptr struct ray) r)
   (declare type int depth)
@@ -86,7 +86,7 @@ Example usage:
     ;; background
     (gradient :from_color (1.0 1.0 1.0) :to_color (0.9 0.3 0.4))))
 
-(cl-defun pixel_sample_square (pixel_delta_u pixel_delta_v)
+(defun pixel_sample_square (pixel_delta_u pixel_delta_v)
   (declare rtype (union vec3))
   (declare type (union vec3) pixel_delta_u pixel_delta_v)
  
@@ -94,7 +94,7 @@ Example usage:
   (def py double (+ -0.5 (random_double)))
   (return (vec3+ (vec3_smul pixel_delta_u px) (vec3_smul pixel_delta_v py))))
 
-(cl-defun get_ray (i j pixel00_loc pixel_delta_u pixel_delta_v camera_center)
+(defun get_ray (i j pixel00_loc pixel_delta_u pixel_delta_v camera_center)
   (declare rtype (struct ray))
   (declare type int i j)
   (declare type (union vec3) pixel00_loc pixel_delta_u pixel_delta_v camera_center)
@@ -112,7 +112,7 @@ Example usage:
 
   (return (mkray ray_origin ray_direction)))
 
-(cl-defun main ()
+(defun main ()
   "The entry point."
   (declare scope local)
   (declare rtype int)

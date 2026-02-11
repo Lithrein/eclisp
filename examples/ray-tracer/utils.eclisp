@@ -2,24 +2,24 @@
 
 (%:include <stdlib.h> <time.h>)
 
-(cl-defun random_double ()
+(defun random_double ()
   (declare rtype double)
 
   (return (/ (rand) (+ 1.0 RAND_MAX))))
 
-(cl-defun random_double_mm (min max)
+(defun random_double_mm (min max)
   (declare rtype double)
   (declare type double min max)
 
   (return (+ min (* (- max min) (random_double)))))
 
-(cl-defun max_i (a b)
+(defun max_i (a b)
   (declare rtype int)
   (declare type int a b)
 
   (return (?: (> a b) a b)))
 
-(cl-defun degrees_to_radians (degrees)
+(defun degrees_to_radians (degrees)
   (declare rtype double)
   (declare type double degrees)
 

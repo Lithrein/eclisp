@@ -26,7 +26,7 @@
 (macro hit_record-front_face (ht)
   `(. ,ht front_face))
 
-(cl-defun set_face_normal (ht r outward_normal)
+(defun set_face_normal (ht r outward_normal)
   "Some docs."
   (declare rtype void)
   (declare type (ptr struct hit_record) ht)

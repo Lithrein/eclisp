@@ -67,7 +67,7 @@
          (if (listp (car rest))
            `(,(car (car rest)) ,@(extract-params (cdr rest))))))))
 
-(macro cl-defun (fn-name sig &body body)
+(macro defun (fn-name sig &body body)
   (let ((docp (stringp (car body)))
         (decl-attrs-body (extract-declare-forms nil nil nil (if docp (cdr body) body)))
         (params (extract-params sig)))
@@ -88,13 +88,6 @@
                 (%:if ((! (defined PROCESS_HEADER))
                         (def (,fn-name ,@fn-attrs) ,nsig
                         ,(if docp (car body)) ,@nbody)))))))))
-
-(macro defun (fn-name typ &body body)
-  (let ((docp (stringp (car body))))
-    `(%:if ((defined PROCESS_HEADER)
-            ,(if docp `(def ,fn-name ,typ ,(car body))
-               `(def ,fn-name ,typ)))
-        (t (def ,fn-name ,typ ,@body)))))
 
 (macro local-defun (fn-name typ &body body)
   `(%:if ((! (defined PROCESS_HEADER)) (def ,fn-name ,typ ,@body))))
