@@ -41,9 +41,9 @@
 
   (def quit (bool) false)
   (def left int    (/ (- WIDTH PADDLE_LEN) 2))
-  (def ball Ball  `((,(+ left (/ PADDLE_LEN 2)) ,(- PADDLE_Y PADDLE_THICKNESS)
+  (def ball Ball  `(.pos (,(+ left (/ PADDLE_LEN 2)) ,(- PADDLE_Y PADDLE_THICKNESS)
                       PADDLE_THICKNESS PADDLE_THICKNESS)
-                   (0 0)))
+                   .vit (0 0)))
   (def red   SDL_Color '(255 100 100 0))
   (def green SDL_Color '(100 255 100 0))
   (def blue  SDL_Color '(100 100 255 0))
