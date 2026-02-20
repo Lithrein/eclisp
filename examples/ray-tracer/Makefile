@@ -26,7 +26,7 @@ X_FILES = $(addprefix build/,$(patsubst %.eclisp,%.X,$(SOURCES)))
 all: rt
 
 rt: build/utils.o build/rt.o build/vec3.o build/color.o build/ray.o
-	gcc $(CLAGS) $^ $(LDFLAGS) -o $@
+	$(CC) $(CLAGS) $^ $(LDFLAGS) -o $@
 
 build/rt.c: \
 	build/rt.h       \
@@ -57,8 +57,7 @@ build/vec3.c: \
 
 %.c: %.X
 	sed -e 's/#include/%include/' $< > $@
-	cpp -Ibuild -C $@ -o $@.i
-	sed -i '1,/# [0-9]\{1,\} "<command-line>" 2/d' $@.i
+	cpp -Ibuild -C -ffreestanding $@ -o $@.i
 	sed -i -e 's/^# [0-9]\{1,\}.*//' $@.i
 	mv $@.i $@
 	sed -i 's/%include/#include/' $@
@@ -67,8 +66,7 @@ build/vec3.c: \
 
 %.h: %.X
 	sed -e 's/#include/%include/' $< > $@
-	cpp -Ibuild -C -DPROCESS_HEADER $@ -o $@.ih
-	sed -i '3,/# 1 "<command-line>" 2/d' $@.ih
+	cpp -Ibuild -C -DPROCESS_HEADER -ffreestanding $@ -o $@.ih
 	sed -i -e 's/^# [0-9]\{1,\}.*//' $@.ih
 	mv $@.ih $@
 	sed -i '1i#ifndef $(basename $(notdir $@))_H\n' $@
