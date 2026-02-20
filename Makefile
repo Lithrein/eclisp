@@ -1,5 +1,5 @@
 all:
-	sbcl --eval "(asdf:load-asd \"$$PWD/eclisp.asd\")" \
+	sbcl --eval '(require :asdf)' --eval "(asdf:load-asd \"$$PWD/eclisp.asd\")" \
 			 --eval '(asdf:make :eclisp)' \
 			 --eval '(quit)'
 
