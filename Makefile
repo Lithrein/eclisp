@@ -1,12 +1,14 @@
 all:
-	sbcl --eval "(asdf:load-asd \"$$PWD/eclisp.asd\")" \
+	sbcl --eval '(require :asdf)' \
+			 --eval "(asdf:load-asd \"$$PWD/eclisp.asd\")" \
 			 --eval '(asdf:make :eclisp)' \
 			 --eval '(quit)'
 
 check:
-	sbcl --eval "(asdf:load-asd \"$$PWD/eclisp.asd\")" \
-	     --eval '(asdf:test-system :eclisp)' \
-	     --eval '(quit)'
+	sbcl --eval '(require :asdf)' \
+			 --eval "(asdf:load-asd \"$$PWD/eclisp.asd\")" \
+			 --eval '(asdf:test-system :eclisp)' \
+			 --eval '(quit)'
 
 doc: doc/eclisp.info
 doc/eclisp.info: doc/eclisp.texi

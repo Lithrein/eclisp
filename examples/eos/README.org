@@ -1,0 +1,8 @@
+* Eclisp Object System (EOS)
+
+This is an attempt at providing an object system on top of C insipired by
+the CLOS, the object system of Smalltalk and COS (C Object System) [1]
+
+Nothing is optimized for now, it's mostly a prototype.
+
+[1]: https://github.com/CObjectSystem/COS

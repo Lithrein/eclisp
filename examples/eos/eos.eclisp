@@ -1,0 +1,367 @@
+(%:include ("../../include/macros.eclisph"))
+(%:include <stdio.h> <stdint.h> <string.h>)
+
+(macro progn (&body rest)
+ `(prog* #{(\{} ,@rest #{\})}))
+
+(macro defcast (name type val)
+  `(def ,name ,type (cast ,type ,val)))
+
+(macrofn alist-keys (list)
+  (if list
+    `(,(car (car list)) ,@(alist-keys (cdr list)))))
+
+(macrofn alist-vals (list)
+  (if list
+    `(,(car (cdr (car list))) ,@(alist-vals (cdr list)))))
+
+(macrofn extract-args-aux (obj-args normal-args arg-list)
+  (if arg-list
+    (if (listp (car arg-list))
+      (extract-args-aux `(,@obj-args ,(car arg-list)) normal-args (cdr arg-list))
+      (extract-args-aux obj-args arg-list nil))
+  `(,obj-args ,normal-args)))
+
+(macrofn extract-args (arg-list)
+  (extract-args-aux nil nil arg-list))
+
+(macrofn build-method-obj-args (arg-list)
+  (if arg-list
+    ``(`,(cast (ptr struct OBJ) ,,(car arg-list))
+            ,,@(cdr (build-method-obj-args (cdr arg-list))))))
+
+(macrofn build-method-normal-args (arg-list)
+  (if arg-list
+     ``(,(symbolicate "." ',(car arg-list)) ,,(car arg-list)
+            ,,@(cdr (build-method-normal-args (cdr arg-list))))))
+
+(macrofn mangle-args (arg-list)
+  (if arg-list
+    (if (cdr arg-list)
+      (concat (car arg-list) "_" (car (cdr arg-list)))
+      (concat (car arg-list)))))
+    
+(macro defclass_1 (name (&rest super))
+  `(def ,(symbolicate "eclisp_class_" name) (struct class)
+     `(.behavior (.object (.any (._id 0 ._rc 0))
+                   .id ,,(concat "CLASS_" name "_TYPE_ID"))
+        .str ,,(concat name)
+        .isz ,(sizeof (%type (struct ,name)))
+        .spr ,(& ,(symbolicate "eclisp_class_" (car super)))
+        .cls ,(& ,(symbolicate "eclisp_class_" name))
+        .properties (0))))
+
+(macrofn defclass-expand-super-classes (&rest super)
+  (if super
+     (destructuring-bind (name &rest rest) super
+      `((,name (struct ,name))
+        ,@(defclass-expand-super-classes rest)))))
+
+(macro defclass (name (&rest super) &rest rest)
+  `(prog*
+     (def (struct ,name ,@(defclass-expand-super-classes super) ,@rest))
+     (defclass_1 ,name (,@super))))
+
+(macro defgeneric (gname param-list &rest declare-list)
+  (destructuring-bind (obj-params normal-params) (extract-args param-list)
+    (destructuring-bind (type-decls &rest _) (extract-declare-forms declare-list)
+      (let ((obj-keys (alist-keys obj-params))
+            (obj-vals (alist-vals obj-params))
+            (ret-type (car (cdr (assoc '__rtype type-decls)))
+            (void-p (== ret-type 'void))))
+      `(prog*
+         (def ,(symbolicate "eclisp_generic_" gname) (struct generic)
+           `(.behavior (.object (.any (._id 0 ._rc 0))
+                        .id ,,(concat "GENERIC_" gname "_TYPE_ID"))
+             .str ,,(concat gname)))
+         ,(if normal-params 
+           `(def (struct ,(symbolicate "eclisp_function_" gname "_" 
+                                       (mangle-args obj-vals) "_args")
+              ,@(build-type-aux normal-params type-decls)))
+           `(prog*))
+         (macro ,gname (,@obj-keys ,@normal-params)
+           `(cast ,',ret-type
+              (progn
+                ,(if (== ',ret-type 'void) `(prog*) `(def _ret_val ,',ret-type))
+                (%funcall 'lookup (& ,(symbolicate "eclisp_generic_" ',gname))
+                  (cast (ptr ptr struct OBJ) (array (ptr struct OBJ))
+                    `(,,,@(cdr (build-method-obj-args obj-keys))))
+                   ,(if ',normal-params
+                      `(& (cast (struct ,(symbolicate "eclisp_function_" ',gname
+                                                      "_" ,(mangle-args obj-vals)
+                                                      "_args"))
+                      `(,,,@(cdr (build-method-normal-args normal-params)))))
+                      'NULL)
+                   ,(if (== ',ret-type 'void) 'NULL `(& _ret_val)))
+             ,(if (== ',ret-type 'void) `(prog*) '_ret_val)))))))))
+
+(macrofn defmethod-expand-objs-definitions-aux (i obj-params)
+  (if obj-params
+    `((defcast ,(car (car obj-params))
+               (ptr struct ,(car (cdr (car obj-params))))
+               (aref _objs ,i))
+      ,@(defmethod-expand-objs-definitions-aux (+ i 1) (cdr obj-params)))))
+
+(macrofn defmethod-expand-objs-definitions (obj-params)
+  (defmethod-expand-objs-definitions-aux 0 obj-params))
+
+(macrofn defmethod-expand-args-definitions (type-decls)
+  "Expand the normal arguments so that they can be directly accessed.
+(def arg1 arg1-type (. (* args) arg1))
+(def arg2 arg2-type (. (* args) arg2))
+...
+(def argn argn-type (. (* args) argn))"
+  (if type-decls
+    (if (== '__rtype (car (car type-decls)))
+      (defmethod-expand-args-definitions (cdr type-decls))
+      `((def ,(car (car type-decls))
+             ,(car (cdr (car type-decls)))
+             (. (* args) ,(car (car type-decls))))
+         ,@(defmethod-expand-args-definitions (cdr type-decls))))))
+
+(macrofn defmethod-expand-obj-params (obj-vals)
+  (if obj-vals
+    `( (& ,(symbolicate "eclisp_class_" (car obj-vals)))
+       ,@(defmethod-expand-obj-params (cdr obj-vals)))))
+
+(macro defmethod (name param-list &rest body)
+  (destructuring-bind (obj-params normal-params) (extract-args param-list)
+    (destructuring-bind (type-decls _ _ nbody) (extract-declare-forms body)
+      (let ((obj-keys (alist-keys obj-params))
+            (obj-vals (alist-vals obj-params))
+            (n-objs (length obj-keys))
+            (ret-type (car (cdr (assoc '__rtype type-decls))))
+            (no-ret-p (== ret-type 'void))
+            (no-args-p (null normal-params))
+            (method-suffix (concat name "_" (mangle-args obj-vals)))
+            (fn-name      (symbolicate "eclisp_function_" method-suffix))
+            (method-name  (symbolicate "eclisp_method_"   method-suffix))
+            (generic-name (symbolicate "eclisp_generic_"  name))
+            (args-type (symbolicate fn-name "_args")))
+        `(prog*
+           (defun ,fn-name (_objs _ret _args)
+             (declare rtype void)
+             (declare type (ptr ptr struct OBJ) _objs)
+             (declare type (ptr void)           _ret )
+             (declare type (ptr void)           _args)
+      
+             ,(if no-args-p `(cast void _args) `(prog*))
+             ,(if no-ret-p  `(cast void _ret) `(prog*))
+      
+             (prog*
+               ,@(defmethod-expand-objs-definitions obj-params))
+      
+             ,(if no-args-p `(prog*)
+               `(prog*
+                 (defcast args (ptr struct ,args-type) _args)
+                 (prog*
+                   ,@(defmethod-expand-args-definitions type-decls))))
+      
+             (macrolet ((return (expr)
+                          `(= (* (cast (ptr ptr char) _ret)) ,expr)))
+               ,@nbody))
+           (def (,method-name :section "eclisp_generic_methods_list" :aligned 8)
+                (struct method)
+                `(.n ,,n-objs
+                  .object (.any (._id 0 ._rc 0))
+                           .generic ,(& ,generic-name)
+                           .size ,(+ (* (sizeof (%type (ptr struct class))) ,n-objs)
+                                     (sizeof (%type (struct method))))
+                  .fn ,(& ,fn-name)
+                  .cls (,,@(defmethod-expand-obj-params obj-vals)))))))))
+
+(def (__start_eclisp_generic_methods_list :linkage extern) char)
+(def (__stop_eclisp_generic_methods_list :linkage extern) char)
+(def gen_begin (ptr char) (& __start_eclisp_generic_methods_list))
+(def gen_end (ptr char) (& __stop_eclisp_generic_methods_list))
+
+(def (struct OBJ
+  (isOBJ char)))
+
+(def (struct any
+  (_id uint32_t)
+  (_rc int32_t)
+  (cls (ptr struct class))))
+
+(def (struct object
+  (any (struct any))))
+
+(def (struct behavior
+  (object (struct object))
+  (id (ptr char))))
+
+(def (struct class
+  (behavior (struct behavior))
+  (str (ptr char))
+  (isz uint32_t)
+  (spr (ptr struct class))
+  (cls (ptr struct class))
+  (properties (array 2 uint32_t))))
+
+(defclass_1 any (any))
+(defclass_1 object (any))
+(defclass_1 behavior (object))
+(defclass_1 class (behavior))
+
+(defclass generic (behavior)
+  (str (ptr char)))
+
+(defclass method (object)
+  (generic (ptr (struct generic)))
+  (size uint32_t)
+  (fn (ptr (-> void (_objs (ptr (ptr (struct OBJ))))
+                    (_ret (ptr void))
+                    (_args (ptr void)))))
+  (n uint8_t)
+  (cls (array (ptr (struct class)))))
+
+;; generic lookup
+
+(defun lookup (_generic _objs _args _ret)
+  (declare rtype void)
+  (declare type (ptr struct generic) _generic)
+  (declare type (ptr ptr struct OBJ) _objs)
+  (declare type (ptr void) _args _ret)
+
+  (def found (int) 0)
+
+  (def _1 (ptr struct OBJ) (aref _objs 0))
+
+  (def class (ptr (struct class)) (-> (cast (ptr (struct any)) _1) cls))
+
+  (until found
+    (def behavior (ptr (struct behavior)) (& (. (* class) behavior)))
+      (for (def gen (ptr char) gen_begin)
+           (&& (!= gen gen_end) (! found))
+           (+= gen (-> (cast (ptr (struct method)) gen) size))
+        (defcast method (ptr (struct method)) gen)
+          (if (&& (== (. (* method) generic) _generic)
+                  (! (strcmp (. (* (aref (. (* method) cls) 0)) behavior id) 
+                             (. (* behavior) id))))
+            (prog
+              (= found 1)
+              ((. (* method) fn) _objs _ret _args))))
+      (if (== class (. (* class) spr))
+          (prog
+            (fprintf stderr "No method found.\n")
+            (break))
+          (= class (. (* class) spr)))))
+
+;; Class
+
+(defclass animal (object)
+  (name (ptr char)))
+
+(defclass cat (animal))
+
+(defclass dog (animal))
+
+;; Generics
+(defgeneric gmake_instance ((any any) &rest rest))
+
+(defgeneric say ((animal animal))
+  (declare rtype void))
+
+(defgeneric gname ((animal animal))
+  (declare rtype (ptr char)))
+
+(defgeneric set_name ((animal animal) name)
+  (declare rtype void)
+  (declare type (ptr char) name))
+
+;; Methods
+
+(defmethod gname ((animal animal))
+  (declare rtype (ptr char))
+
+  (return (. (* animal) name)))
+
+(defmethod set_name ((animal animal) name)
+  (declare rtype void)
+  (declare type (ptr char) name)
+
+  (= (. (* animal) name) name))
+
+(defmethod say ((animal animal))
+  (declare rtype void)
+
+  (printf "hello little animal, your name is '%s', right?\n"
+          (gname animal)))
+
+(defmethod say ((cat cat))
+  (declare rtype void)
+
+  (printf "hello little cat, your name is '%s', right?\n"
+          (gname cat)))
+
+(defmethod say ((dog dog))
+  (declare rtype void)
+
+  (printf "hello little dog, your name is '%s', right?\n"
+          (gname dog)))
+
+(defun make_instance_any (any &key (cls (& eclisp_class_any)))
+  (declare rtype void)
+  (declare type (ptr struct any) any)
+  (declare type (ptr struct class) cls)
+
+  (= (. (* any) _id) 0)
+  (= (. (* any) _rc) 0)
+  (= (. (* any) cls) cls))
+
+(defun make_instance_object (object &key (cls (& eclisp_class_object)))
+  (declare rtype void)
+  (declare type (ptr struct object) object)
+  (declare type (ptr struct class) cls)
+
+  (make_instance_any (& (. (* object) any)) :cls cls))
+
+(defun make_instance_animal (animal &key name (cls (& eclisp_class_animal)))
+  (declare rtype void)
+  (declare type (ptr struct animal) animal)
+  (declare type (ptr char) name)
+  (declare type (ptr struct class) cls)
+
+  (= (. (* animal) name) name)
+  (make_instance_object (& (. (* animal) object)) :cls cls))
+
+(defun make_instance_cat (cat &key name (cls (& eclisp_class_cat)))
+  (declare rtype void)
+  (declare type (ptr struct cat) cat)
+  (declare type (ptr char) name)
+  (declare type (ptr struct class) cls)
+
+  (make_instance_animal (& (. (* cat) animal)) :name name :cls cls))
+
+(defun make_instance_dog (dog &key name (cls (& eclisp_class_dog)))
+  (declare rtype void)
+  (declare type (ptr struct dog) dog)
+  (declare type (ptr char) name)
+  (declare type (ptr struct class) cls)
+
+  (make_instance_animal (& (. (* dog) animal)) :name name :cls cls))
+
+(macro make_instance (type &rest rest)
+  (let ((fn (symbolicate "make_instance_" type))
+        (sym (gensym (concat type "_"))))
+   `(progn
+      (def ,sym (struct ,type))
+      (,fn (& ,sym) ,@rest)
+      ,sym)))
+
+(defun main ()
+  (declare rtype int)
+  
+  (def animal (struct animal) (make_instance animal :name "animal_name"))
+  (def cat    (struct cat)    (make_instance cat    :name "cat_name"))
+  (def dog    (struct dog)    (make_instance dog    :name "dog_name"))
+
+  (say (& animal))
+  (say (& cat))
+  (say (& dog))
+
+  (set_name (& dog) "doggy")
+
+  (say (& dog))
+
+  (return 0))
