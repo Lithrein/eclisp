@@ -1,6 +1,15 @@
+(macrofn caar (list)
+  (car (car list)))
+
+(macrofn cadr (list)
+  (car (cdr list)))
+
+(macrofn cadar (list)
+  (car (cdr (car list))))
+
 (macrofn assoc (key list)
   (if list
-    (if (== (car (car list)) key)
+    (if (== (caar list) key)
         (car list)
         (assoc key (cdr list)))))
 
@@ -10,15 +19,15 @@
 
 (macrofn build-type (typ list)
   (if (car typ)
-      `(-> ,(car (cdr (assoc '__rtype list))) ,@(build-type-aux typ list))
-      `(-> ,(car (cdr (assoc '__rtype list))) void)))
+      `(-> ,(cadr (assoc '__rtype list)) ,@(build-type-aux typ list))
+      `(-> ,(cadr (assoc '__rtype list)) void)))
 
 (macrofn process-type-decls (type &rest vars)
   (if vars
       `((,(car vars) ,type) ,@(process-type-decls type (cdr vars)))))
 
 (macrofn extract-declare-forms-aux (typ-decls fn-attrs misc-attrs &rest rest)
-  (if (== (car (car rest)) 'declare)
+  (if (== (caar rest) 'declare)
       (destructuring-bind (declare category type &rest vars) (car rest)
         (if (== category 'type)
           (extract-declare-forms-aux
@@ -70,7 +79,7 @@
        (if (symbolp (car rest))
          `(,(car rest) ,@(extract-params (cdr rest)))
          (if (listp (car rest))
-           `(,(car (car rest)) ,@(extract-params (cdr rest))))))))
+           `(,(caar rest) ,@(extract-params (cdr rest))))))))
 
 (macro defun (fn-name sig &body body)
   (let ((docp (stringp (car body)))
@@ -78,7 +87,7 @@
         (params (extract-params sig)))
        (destructuring-bind (tmp-sig fn-attrs misc-attrs nbody) decl-attrs-body
          (let ((nsig (build-type params tmp-sig))
-               (scope_ (car (cdr (assoc ':scope misc-attrs))))
+               (scope_ (cadr (assoc ':scope misc-attrs)))
                (scope (if scope_ scope_ 'global)))
            (if (== scope 'global)
              `(prog*
@@ -94,6 +103,7 @@
                         (def (,fn-name ,@fn-attrs) ,nsig
                         ,(if docp (car body)) ,@nbody)))))))))
 
+;; deprecated 
 (macro local-defun (fn-name typ &body body)
   `(%:if ((! (defined PROCESS_HEADER)) (def ,fn-name ,typ ,@body))))
 
@@ -103,6 +113,7 @@
 (macro local-defvar (var-name typ &body body)
   `(%:if ((! (defined PROCESS_HEADER)) (def (,var-name :linkage static) ,typ ,@body))))
 
+;; deprecated
 (macro definline (fn-name typ &body body)
   (if (listp fn-name)
     `(%:if ((defined PROCESS_HEADER) (def (,@fn-name :inline always) ,typ ,@body)))
@@ -111,16 +122,27 @@
 (macro deftype (type definition)
   `(def ,type (typedef ,definition)))
 
-(macro defenum (name (&rest values) &rest documentation)
+(macro defenum-internal (name (&rest values) &rest documentation)
   (if documentation
       `(def (enum ,name ,@values) ,(car documentation))
       `(def (enum ,name ,@values))))
 
 (macro global-defenum (name (&rest values) &rest documentation)
-  `(%:if ((defined PROCESS_HEADER) (defenum ,name (,@values) ,@documentation))))
+  `(%:if ((defined PROCESS_HEADER) (defenum-internal ,name (,@values) ,@documentation))))
 
 (macro local-defenum (name (&rest values) &rest documentation)
-  `(%:if ((! (defined PROCESS_HEADER)) (defenum ,name (,@values) ,@documentation))))
+  `(%:if ((! (defined PROCESS_HEADER)) (defenum-internal ,name (,@values) ,@documentation))))
+
+(macro defenum (name &rest body)
+  (let ((decl-attrs-body (extract-declare-forms body)))
+    (destructuring-bind (_ _ misc-attrs
+                           ((&rest values) &rest documentation)) decl-attrs-body
+      (let ((scope (cadr (assoc ':scope misc-attrs))))
+        (if scope
+            (if (== scope 'local)
+                `(local-defenum ,name (,@values) ,@documentation)
+                `(global-defenum ,name (,@values) ,@documentation))
+            `(global-defenum ,name (,@values) ,@documentation))))))
 
 (macro define-struct-or-union-internal (sou name (&rest fields) &rest documentation)
   (if documentation
@@ -143,7 +165,7 @@
   (let ((decl-attrs-body (extract-declare-forms body)))
     (destructuring-bind (type-decls fn-decls misc-attrs
                          ((&rest fields) &rest documentation)) decl-attrs-body
-      (let ((scope (car (cdr (assoc ':scope misc-attrs)))))
+      (let ((scope (cadr (assoc ':scope misc-attrs))))
         (if scope
           (if (== scope 'local)
             `(local-define-struct-or-union ,sou ,name (,@fields) ,@documentation)
@@ -218,9 +240,9 @@ its a long structure name. "
 
 (macro cond (fst &body rest)
   (if rest
-      (if (&& (listp (car rest)) (|| (== (car (car rest)) 't)
-                                     (== (car (car rest)) 'else)
-                                     (== (car (car rest)) 'otherwise)))
+      (if (&& (listp (car rest)) (|| (== (caar rest) 't)
+                                     (== (caar rest) 'else)
+                                     (== (caar rest) 'otherwise)))
           `(if ,(car fst) (prog ,@(cdr fst))
              (prog ,@(cdr (car rest))))
         `(if ,(car fst) (prog ,@(cdr fst))
