@@ -986,7 +986,7 @@ BODY is optional. DOCUMENTATION is optional"
   (let ((prefix (car args)))
     (if (null prefix) (setf prefix "_G"))
     (intern-eclisp-token
-     (concatenate 'string (et-value prefix)
+     (concatenate 'string (format nil "~a" (et-value (ctx-lookup prefix ctx)))
                   (format nil "_~a_" (get-universal-time))
                   (format nil "~a" (incf *eclisp-gensym-counter*))))))
 
