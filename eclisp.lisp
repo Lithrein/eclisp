@@ -978,6 +978,14 @@ BODY is optional. DOCUMENTATION is optional"
     (expand-macro-args arg tmpl new-ctx)
     (compile-macro body new-ctx)))
 
+(defun compile-prog-macro (args ctx)
+  (cond
+    ((null args) nil)
+    ((and (car args) (null (cdr args)))
+      (compile-macro (car args) ctx))
+    (t (compile-macro (car args) ctx)
+       (compile-prog-macro (cdr args) ctx))))
+
 (defvar *eclisp-gensym-counter* 0)
 
 (defun compile-gensym (args ctx)
@@ -1026,15 +1034,17 @@ BODY is optional. DOCUMENTATION is optional"
                   ((eq +eclisp-gensym+      op) (compile-gensym      args ctx))
                   ((eq +eclisp-let+         op) (compile-let-macro   args ctx))
                   ((eq +eclisp-dbind+       op) (compile-dbind-macro args ctx))
+                  ((eq +eclisp-prog+        op) (compile-prog-macro  args ctx))
                   ((member (et-value op) '("<" ">" "<=" ">=" ">" "==" "!=" "&&" "||") :test #'equal)
                     (compile-op-macro (et-value op) args ctx))
                    ;; not implemented ^ | & ~ << >>
                   ((member (et-value op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
                            :test #'equal)
                    (compile-op-macro (et-value op) args ctx))
-                  (t (if (gethash op macrofn-tbl)
-                         (eval-macrofn op args ctx)
-                         (error (format nil "call to a C function (here, ~a) through the ffi is not yet unsupported.~%" op))))))
+                  (t (cond ((gethash op macrofn-tbl) (eval-macrofn op args ctx))
+                           ((gethash op macro-tbl)
+                            (compile-macro (expand-macro op args ctx) ctx))
+                           (t (error (format nil "call to a C function (here, ~a) through the ffi is not yet unsupported.~%" op)))))))
               (when form
                 (format t "unsupported: ~a~%" form))))
     res))
@@ -1082,9 +1092,8 @@ BODY is optional. DOCUMENTATION is optional"
              (setf (gethash (car tmpl) ctx) (car args))
              (expand-macro-args (cdr args) (cdr tmpl) ctx))))))
 
-(defun expand-macro (macro args)
-  (let ((ctx (make-hash-table))
-        (tmpl (car (gethash macro macro-tbl)))
+(defun expand-macro (macro args &optional (ctx (make-hash-table)))
+  (let ((tmpl (car (gethash macro macro-tbl)))
         (macro-body (cadr (gethash macro macro-tbl))))
     (expand-macro-args args tmpl ctx)
     (compile-macro macro-body ctx)))
