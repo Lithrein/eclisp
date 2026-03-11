@@ -1,3 +1,14 @@
+(macro cond (fst &body body)
+  (if body
+      (if (&& (listp (car body)) (|| (== (caar body) 't)
+                                     (== (caar body) 'else)
+                                     (== (caar body) 'otherwise)))
+          `(if ,(car fst) (prog ,@(cdr fst))
+             (prog ,@(cdr (car body))))
+        `(if ,(car fst) (prog ,@(cdr fst))
+           (cond ,@body)))
+    `(if ,(car fst) (prog ,@(cdr fst)))))
+
 (macrofn caar (list)
   (car (car list)))
 
@@ -29,43 +40,14 @@
 (macrofn extract-declare-forms-aux (typ-decls fn-attrs misc-attrs &rest rest)
   (if (== (caar rest) 'declare)
       (destructuring-bind (declare category type &rest vars) (car rest)
-        (if (== category 'type)
-          (extract-declare-forms-aux
-            `(,@(process-type-decls type vars) ,@typ-decls)
-            fn-attrs
-            misc-attrs
-            (cdr rest))
-        (if (== category 'rtype)
-          (extract-declare-forms-aux
-            `((__rtype ,type) ,@typ-decls)
-            fn-attrs
-            misc-attrs
-            (cdr rest))
-        (if (== category 'inline)
-          (extract-declare-forms-aux typ-decls
-            `(:inline ,type ,@fn-attrs)
-            misc-attrs
-            (cdr rest))
-        (if (== category 'static)
-          (extract-declare-forms-aux typ-decls
-            `(:linkage static ,@fn-attrs)
-            misc-attrs
-            (cdr rest))
-        (if (== category 'noreturn)
-          (extract-declare-forms-aux typ-decls
-            `(:noreturn ,@fn-attrs)
-            misc-attrs
-            (cdr rest))
-        (if (== category 'interrupt)
-          (extract-declare-forms-aux typ-decls
-            `(:interrupt ,@fn-attrs)
-            misc-attrs
-            (cdr rest))
-        (if (== category 'scope)
-          (extract-declare-forms-aux typ-decls
-            fn-attrs
-            `((:scope ,type) ,@misc-attrs)
-            (cdr rest))))))))))
+        (cond
+          ((== category 'type)      (extract-declare-forms-aux `(,@(process-type-decls type vars) ,@typ-decls) fn-attrs misc-attrs (cdr rest)))
+          ((== category 'rtype)     (extract-declare-forms-aux `((__rtype ,type) ,@typ-decls) fn-attrs misc-attrs (cdr rest)))
+          ((== category 'inline)    (extract-declare-forms-aux typ-decls `(:inline ,type ,@fn-attrs) misc-attrs (cdr rest)))
+          ((== category 'static)    (extract-declare-forms-aux typ-decls `(:linkage static ,@fn-attrs) misc-attrs (cdr rest)))
+          ((== category 'noreturn)  (extract-declare-forms-aux typ-decls `(:noreturn ,@fn-attrs) misc-attrs (cdr rest)))
+          ((== category 'interrupt) (extract-declare-forms-aux typ-decls `(:interrupt ,@fn-attrs) misc-attrs (cdr rest)))
+          ((== category 'scope)     (extract-declare-forms-aux typ-decls fn-attrs `((:scope ,type) ,@misc-attrs) (cdr rest)))))
     `(,typ-decls ,fn-attrs ,misc-attrs ,rest)))
 
 (macrofn extract-declare-forms (&rest body)
@@ -238,16 +220,6 @@ its a long structure name. "
 (macro loop (&body body)
   `(while 1 ,@body))
 
-(macro cond (fst &body rest)
-  (if rest
-      (if (&& (listp (car rest)) (|| (== (caar rest) 't)
-                                     (== (caar rest) 'else)
-                                     (== (caar rest) 'otherwise)))
-          `(if ,(car fst) (prog ,@(cdr fst))
-             (prog ,@(cdr (car rest))))
-        `(if ,(car fst) (prog ,@(cdr fst))
-           (cond ,@rest)))
-    `(if ,(car fst) (prog ,@(cdr fst)))))
 
 (macro unwind-protect (form &body cleanup-forms)
   (let ((cleanup (gensym "cleanup"))
