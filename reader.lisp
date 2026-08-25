@@ -175,22 +175,34 @@ A word is the longuest contiguous sequence of non whitespace characters."
 Typically associated to the reader macro #\(."
   (declare (ignore char))
   (loop for c = (eclisp-read stream)
-        while c collect c into terms
+        for p = (peek-char t stream nil nil nil)
+        do (if (and (null c) (null p))
+             (progn
+               (format t "Unexpected EOF while reading list.~%")
+               (return)))
+        while (not (eq c 'end-of-list)) collect c into terms
         finally (return (if terms terms '(nil)))))
 
 (defun eclisp-read-close-curly-brace (stream char)
   "Nothing to do when reading the end-list character.
 Typically associated to the read macro #\)."
-  (declare (ignore stream) (ignore char)))
+  (declare (ignore stream) (ignore char))
+  'end-of-list)
 
-(defun eclisp-read-string (stream char &aux char-list)
+(defun eclisp-read-string (stream char &aux char-list (errorp nil))
   "Read a string and returns it as an eClisp token.
 Whitespaces such as tabs, linefeed, carriage returns and formfeed are escaped
 with \t, \n, \r and \f respectively."
   (declare (ignore char))
   (loop
     with escape = nil
+    for p = (peek-char nil stream nil nil nil)
     for c = (read-char stream nil)
+        do (if (null p)
+             (progn
+               (format t "Unexpected EOF while reading string.~%")
+               (setf errorp t)
+               (return)))
     while (and c (or (not (char= c #\")) escape)) do
       (cond
         (escape
@@ -207,8 +219,9 @@ with \t, \n, \r and \f respectively."
          (if (char= #\\ c)
              (setf escape t)
              (setf char-list (cons c char-list))))))
-  (intern-eclisp-token (coerce (reverse char-list) 'string)
-                       :eclisp-string))
+  (unless errorp
+    (intern-eclisp-token (coerce (reverse char-list) 'string)
+                         :eclisp-string)))
 
 (defun eclisp-read-comment (stream char)
   "Read a comment and store it as an eClisp token."

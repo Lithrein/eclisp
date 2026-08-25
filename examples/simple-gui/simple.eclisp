@@ -1,0 +1,980 @@
+(%:include ("../../include/macros.eclisph"))
+
+(%:include <assert.h> <stdbool.h> <stdio.h> <stdlib.h> <time.h>)
+(%:include <SDL2/SDL.h>)
+
+(import "simple")
+
+(%:define WIDTH  640)
+(%:define HEIGHT 480)
+
+(macro progn (&body rest)
+  "Use statement-expressions to emulate the behavior of PROGN."
+ `(prog* #{(\{} ,@rest #{\})}))
+
+(macro min (a b)
+  "Evalutate to MIN(a, b)."
+  `(progn
+     (def _a (type-of ,a) ,a)
+     (def _b (type-of ,b) ,b)
+     (?: (< _a _b) _a _b)))
+
+(macro max (a b)
+  "Evalutate to MAX(a, b)."
+  `(progn
+     (def _a (type-of ,a) ,a)
+     (def _b (type-of ,b) ,b)
+     (?: (> _a _b) _a _b)))
+
+(defstruct font
+  (declare scope global)
+  ((glyphs (array 95 int))
+  (glyph_h glyph_w int)))
+
+(local-defvar default_font (struct font)
+  '(.glyph_h 5 .glyph_w 5
+    .glyphs (0x00000000 0x00401084 0x0000014a 0x00afabea 0x00ea38ae
+             0x01111111 0x01649926 0x00000084 0x00410844 0x00442104
+             0x000abaa0 0x00027c80 0x00220000 0x00007c00 0x00400000
+             0x00111110 0x00e9e62e 0x00e210c4 0x01f2222e 0x00f83a0f
+             0x00847d29 0x00f83c3f 0x00e8bc2e 0x0042221f 0x00e8ba2e
+             0x00e87a2e 0x00020080 0x00220080 0x00820888 0x000f83e0
+             0x00222082 0x0040222e 0x00e0f62e 0x0118fe2e 0x00f8be2f
+             0x01e0843e 0x00f8c62f 0x01f09c3f 0x00109c3f 0x01e8f43e
+             0x0118fe31 0x00e2108e 0x0064a108 0x00929d31 0x01f08421
+             0x0118d771 0x011cd671 0x00e8c62e 0x0010be2f 0x0164d62e
+             0x0114be2f 0x00f8383e 0x0042109f 0x00e8c631 0x00454631
+             0x011dd631 0x01151151 0x00421151 0x01f1111f 0x00e1084e
+             0x01041041 0x00e4210e 0x00004544 0x01f00000 0x00000082
+             0x019f41c0 0x00f8bc21 0x00e085c0 0x01e8fa10 0x00e0fdc0
+             0x00211c4c 0x010f45c0 0x0118bc21 0x00e21804 0x00943008
+             0x01149d21 0x00e21086 0x015ad760 0x0118c5e0 0x00e8c5c0
+             0x0017c5e0 0x010f47c0 0x0010cda0 0x00f707c0 0x00c108e2
+             0x00e8c620 0x00454620 0x00ead620 0x01122a20 0x00222a20
+             0x01f113e0 0x00c10c4c 0x00421084 0x00646106 0x000036c0)))
+
+(defmacro char-glyph (font char)
+  "The glyphs start from SPACE (which is 0x20 in ascii)."
+  `(@ ,font glyphs (- ,char 0x20)))
+
+(macro SDL_SetRenderDrawColorStruct (renderer color)
+ `(SDL_SetRenderDrawColor ,renderer
+                         (. ,color r) (. ,color g) (. ,color b) (. ,color a)))
+
+(macro SDL_GetRenderDrawColorStruct (renderer color)
+ `(SDL_GetRenderDrawColor ,renderer
+                         (& (. ,color r)) (& (. ,color g)) (& (. ,color b)) (& (. ,color a))))
+
+(defstruct point
+  (declare scope global)
+  ((x y int)))
+
+(defstruct rect
+  (declare scope global)
+  ((x y w h int)))
+
+(defun point_in_rect_p (point rect)
+  (declare rtype int)
+  (declare type (struct point) point)
+  (declare type (struct rect) rect)
+
+  (return (and (<= (@ rect x) (@ point x) (- (+ (@ rect x) (@ rect w)) 1))
+               (<= (@ rect y) (@ point y) (- (+ (@ rect y) (@ rect h)) 1)))))
+
+(defun rect_in_rect_p (outer_rect inner_rect)
+  "Check if INNER_RECT is contained within OUTER_RECT."
+  (declare rtype int)
+  (declare type (struct rect) outer_rect inner_rect)
+
+  (return (&& (<= (@ outer_rect x) (@ inner_rect x))
+              (<= (@ outer_rect y) (@ inner_rect y))
+              (< (+ (@ inner_rect x) (@ inner_rect w))
+                 (+ (@ outer_rect x) (@ outer_rect w)))
+              (< (+ (@ inner_rect y) (@ inner_rect h))
+                 (+ (@ outer_rect y) (@ outer_rect h))))))
+
+
+
+;; vector begin
+
+(defstruct vector
+  (declare scope global)
+  ((capacity  int
+    "The maximum number of elements that the vector can store.")
+   (size      int
+    "The current number of elements.")
+   (elem_size (const int)
+    "The actual size of a single element.")
+   (data      (ptr void) 
+    "A pointer to the data."))
+"A dynamic vector.")
+
+;; currently missing:
+;; insert
+;; erase
+
+;; (macro vector-init (type &env env)
+;;   (prog
+;;     (symbol-set (symbol-under-definition env) 'elem-type type env)
+;;    `(cast (struct vector) `(0 0 ,(sizeof (%type ,type)) NULL))))
+
+(macro vector-init (&env env)
+  (let ((type (symbol-get (symbol-under-definition env) 'type env))
+        (elem-type (symbol-attrs-get (cadr type) ':elem-type)))
+    `(cast (struct vector) `(0 0 ,(sizeof (%type ,elem-type)) NULL))))
+
+(macro vector-update (vector &key capacity size data)
+  `(prog*
+    ,(if capacity `(= (@ ,vector capacity) ,capacity) '(prog*))
+    ,(if size     `(= (@ ,vector size) ,size)         '(prog*))
+    ,(if data     `(= (@ ,vector data) ,data)         '(prog*))))
+
+(macro vector-clear (vector)
+  `(vector-update ,vector :size 0))
+
+(macro vector-empty-p (vector)
+  `(== 0 (@ ,vector size)))
+
+(macro vector-free (vector)
+  `(when (@ ,vector data)
+     (free (@ ,vector data))
+     (vector-update ,vector :capacity 0 :size 0 :data NULL)))
+
+(macro vector-ptr (vector at)
+  `(+ (cast (ptr char) (@ ,vector data))
+      (* ,at
+         (@ ,vector elem_size))))
+
+(macro vector-at (vector at &env env)
+  (let ((type (my-type-of-aux (macroexpand vector env) env))
+        (elem-type (symbol-attrs-get (cadr type) ':elem-type)))
+    `(* (cast (ptr ,elem-type) (vector-ptr ,vector ,at)))))
+
+(macro vector-foreach-ref (vector it &body body &env env)
+  (let ((i (gensym "i"))
+        (type (my-type-of-aux (macroexpand vector env) env))
+        (elem-type (symbol-attrs-get (cadr type) ':elem-type)))
+    `(for (def ,i int 0) (< ,i (@ ,vector size)) (.++ ,i)
+      (def ,it (ptr ,elem-type) (& (vector-at ,vector ,i ,env)))
+      ,@body)))
+
+(macro vector-foreach-val (vector it &body body &env env)
+  (let ((i (gensym "i"))
+        (type (my-type-of-aux (macroexpand vector env) env))
+        (elem-type (symbol-attrs-get (cadr type) ':elem-type)))
+    `(for (def ,i int 0) (< ,i (@ ,vector size)) (.++ ,i)
+      (def ,it ,elem-type (vector-at ,vector ,i ,env))
+      ,@body)))
+
+(defun vector_grow_capacity (capacity)
+  (declare rtype int)
+  (declare type int capacity)
+  (declare inline always)
+
+  (return (?: capacity (* 2 capacity) 1)))
+
+(defun vector_reserve (vector wanted)
+  (declare rtype void)
+  (declare type (ptr struct vector) vector)
+  (declare type int wanted)
+
+  (def new_vec_data (ptr void) NULL)
+
+  (unless (> wanted (@ vector capacity))
+    (return))
+
+  (unless (= new_vec_data
+             (realloc (@ vector data) (* (@ vector elem_size) wanted)))
+    (fprintf stderr "vector_reserve: alloc failed.\n")
+    (abort))
+
+  (vector-update vector
+    :capacity wanted
+    :data     (?: new_vec_data new_vec_data (@ vector data))))
+
+(defun vector_push_back (vector data)
+  (declare rtype void)
+  (declare type (ptr struct vector) vector)
+  (declare type (ptr void) data)
+
+  (when (== (@ vector size) (@ vector capacity))
+    (vector_reserve vector (vector_grow_capacity (@ vector capacity))))
+
+  (memcpy (vector-ptr vector (@ vector size)) data (@ vector elem_size))
+  (vector-update vector
+    :size (+ (@ vector size) 1)))
+
+(defun vector_pop_back (vector)
+  (declare rtype void)
+  (declare type (ptr struct vector) vector)
+  (declare inline always)
+
+  (vector-update vector
+    :size (?: (vector-empty-p vector) 0 (- (@ vector size) 1))))
+
+(macro vector_front (vector &env env)
+  (vector-at vector 0 env))
+
+(macro vector_back (vector &env env)
+  (vector-at vector (- (@ vector size) 1) env))
+
+;; vector end
+
+
+(defstruct click_payload
+  ((cursor (struct point))
+   (button int)))
+
+(defunion payload
+  ((move (struct point))
+   (click (struct click_payload))))
+
+;; bug if payload is included inline.
+(defstruct event
+  (declare scope global)
+  ((type 
+     (enum event_type
+       MOUSE_MOVE
+       MOUSE_DOWN
+       MOUSE_RELEASE))
+   (payload (union payload))))
+
+(defenum widget_event_type
+  ((WIDGET_ENTER
+    "The mouse entered the widget.")
+   (WIDGET_LEAVE
+    "The mouse left the widget.")
+   (WIDGET_PRESS
+    "The mouse clicked the widget.")
+   (WIDGET_RELEASE
+    "The mouse released the widget.")
+
+   (WIDGET_FOCUS
+    "The keyboard focused the widget.")
+   (WIDGET_BLUR
+    "The keyboard unfocused the widget.")
+
+   (WIDGET_KEY_UP
+    "A key was released while the widget was focused.")
+   (WIDGET_KEY_DOWN
+    "A key was pressed while the widget was focused.")
+   (WIDGET_TEXT_INPUT
+    "Text input was received while the widget was focused.")
+
+   (WIDGET_CLICKED
+    "The widget was clicked. Either by the keyboard or by the mouse.")))
+
+(defstruct input_state
+  (declare scope global)
+  ((keys (array SDL_NUM_SCANCODES int)
+    "Array which records the state of every key.")
+   (mouse (array 6 int)
+    "Array which records the state of each mouse button.")
+   (x y xrel yrel int
+    "The position of the cursor.")
+   (xwheel ywheel int
+    "The state of the mouse's wheel.")
+   (quit bool
+    "Whether we should quit the program."))
+ "A record with the state of the input devices.")
+
+(defun update_input_state (in ev)
+  (declare rtype void)
+  (declare type (ptr struct input_state) in)
+  (declare type (ptr SDL_Event) ev)
+
+  (when (SDL_PollEvent ev)
+    (switch (. (* ev) type)
+      (default (break))
+      (SDL_QUIT
+        (= (@ in quit) true)
+        (break))
+      (SDL_KEYDOWN
+        (= (@ in keys (. (* ev) key keysym scancode)) true)
+        (break))
+      (SDL_KEYUP
+        (= (@ in keys (. (* ev) key keysym scancode)) false)
+        (break))
+      (SDL_MOUSEMOTION
+        (= (@ in x) (. (* ev) motion x))
+        (= (@ in y) (. (* ev) motion y))
+        (= (@ in xrel) (. (* ev) motion xrel))
+        (= (@ in yrel) (. (* ev) motion yrel))
+        (break))
+      (SDL_MOUSEWHEEL
+        (= (@ in xwheel) (. (* ev) wheel x))
+        (= (@ in ywheel) (. (* ev) wheel y))
+        (break))
+      (SDL_MOUSEBUTTONDOWN
+        (= (@ in mouse (. (* ev) button button)) true)
+        (break))
+      (SDL_MOUSEBUTTONUP
+        (= (@ in mouse (. (* ev) button button)) false)
+        (break)))))
+
+(macro set_case (board i j v)
+  `(= (aref ,board (+ (* ,i (/ HEIGHT 20)) ,j)) ,v))
+
+(macro get_case (board i j v)
+  `(aref ,board (+ (* ,i (/ HEIGHT 20)) ,j)))
+
+(macro toggle (v)
+  `(= ,v (- 1 ,v)))
+
+(defenum dispatch_result
+  (declare scope global)
+  (EVENT_IGNORED
+   EVENT_HANDLED))
+
+(defstruct event_callback
+  ((fn (ptr (-> void ((ptr void)) ((ptr struct event)))))
+   (data (ptr void))))
+
+(defstruct listener
+  ((event_type (enum widget_event_type))
+   (callback (struct event_callback))))
+
+(defstruct widget
+  (declare scope global)
+  ((dispatch (ptr (-> (enum dispatch_result) ((ptr void)) ((ptr struct event)))))
+   (listeners (struct vector :elem-type (struct listener)))
+   (ondraw   (ptr (-> void ((ptr void)) ((ptr SDL_Renderer)))))
+   (depth    int)
+   (data     (ptr void))))
+
+(defstruct window
+  (declare scope global)
+  ((bounds (struct rect))
+   (focused_widget (ptr struct widget))
+   (captured_widget (ptr struct widget)) 
+   (widgets (struct vector :elem-type (struct widget)))))
+;; add keymap to window
+
+(defenum button_state
+  (declare scope global)
+  (BUTTON_STATE_IDLE
+   BUTTON_STATE_HOVER
+   BUTTON_STATE_SELECTED
+   BUTTON_STATE_PRESSED
+   BUTTON_STATE_RELEASE))
+
+(defstruct button
+  (declare scope global)
+  ((bounds (struct rect))
+   (text (const ptr char))
+   (state (enum button_state))))
+
+;; text should be const, check if it works with @
+(defun text_to_object (text font bg_color fg_color renderer)
+  (declare rtype (ptr SDL_Texture))
+  (declare type (ptr char) text)
+  (declare type (ptr struct font) font)
+  (declare type SDL_Color bg_color fg_color)
+  (declare type (ptr SDL_Renderer) renderer)
+
+  ;; todo: handle line breaks.
+  (def text_len int (strlen text))
+  (def surface (ptr SDL_Surface)
+    (SDL_CreateRGBSurface 0 (* (@ font glyph_w) text_len) (@ font glyph_h) 32 0 0 0 0))
+
+  (for (def i int 0) (< i (* (@ font glyph_w) text_len)) (.++ i)
+    (for (def j int 0) (< j (@ font glyph_h)) (.++ j)
+      (= (aref (cast (ptr int) (. (* surface) pixels))
+               (+ i (* (@ font glyph_h) text_len j)))
+          (+ (<< (. bg_color r) 24)
+             (<< (. bg_color g) 16)
+             (<< (. bg_color b)  8)
+             (<< (. bg_color a)  0)))))
+
+  (for (def i int 0) (< i text_len) (.++ i)
+    (for (def j int 0) (< j (@ font glyph_w)) (.++ j)
+      (for (def k int 0) (< k (@ font glyph_h)) (.++ k)
+        (when (& (char-glyph font (@ text i)) (<< 1 (* (@ font glyph_w) j) k))
+           (= (aref (cast (ptr int) (. (* surface) pixels))
+                    (+ (* i (@ font glyph_w)) (* j (@ font glyph_h) text_len) k))
+              (+ (<< (. fg_color r) 24)
+                 (<< (. fg_color g) 16)
+                 (<< (. fg_color b)  8)
+                 (<< (. fg_color a)  0)))))))
+
+  (def texture (ptr SDL_Texture) (SDL_CreateTextureFromSurface renderer surface))
+  (SDL_FreeSurface surface)
+  (return texture))
+
+(defun button_draw (_button renderer)
+  (declare rtype void)
+  (declare type (ptr void) _button)
+  (declare type (ptr SDL_Renderer) renderer)
+
+  (def color_white (SDL_Color) '(255 255 255 255))
+  (def color_gray  (SDL_Color) '(128 128 128 128))
+  (def color_black (SDL_Color) '(  0   0   0 0))
+
+  (def sdl_old_fill_color SDL_Color)
+
+  (defcast button (ptr struct button) _button)
+
+  (def sdl_rect SDL_Rect
+    `(,(@ button bounds x) ,(@ button bounds y) ,(@ button bounds w) ,(@ button bounds h)))
+  (def sdl_fill_color SDL_Color (?: (!= BUTTON_STATE_IDLE (@ button state)) color_gray color_white))
+
+  (def texture (ptr SDL_Texture)
+    (text_to_object (@ button text) (& default_font) sdl_fill_color color_black renderer))
+  (def texture_w int 0)
+  (def texture_h int 0)
+  (SDL_QueryTexture texture NULL NULL (& texture_w) (& texture_h))
+
+  (SDL_GetRenderDrawColorStruct renderer sdl_old_fill_color)
+  (SDL_SetRenderDrawColorStruct renderer sdl_fill_color)
+  (SDL_RenderFillRect renderer (& sdl_rect))
+  (SDL_SetRenderDrawColorStruct renderer sdl_old_fill_color)
+  (SDL_RenderCopy renderer texture NULL
+    (& (cast (SDL_Rect) `(
+      ,(+ (/ (- (@ button bounds w) texture_w) 2) (@ button bounds x))
+      ,(+ (/ (- (@ button bounds h) texture_h) 2) (@ button bounds y))
+      ,texture_w texture_h))))
+
+ (SDL_DestroyTexture texture))
+
+(defstruct widget_list
+  (declare scope global)
+  ((nxt (ptr struct widget_list))
+   (val (struct widget))))
+
+(local-defvar world (ptr struct widget_list) NULL)
+
+(defun cons (object object_list)
+  (declare rtype (ptr struct widget_list))
+  (declare type (struct widget) object)
+  (declare type (ptr struct widget_list) object_list)
+
+  (def new_head (ptr struct widget_list) NULL)
+
+  (unless (= new_head (malloc (sizeof (* new_head))))
+    (fprintf stderr "cons: alloc failed")
+    (abort))
+
+  (= (@ new_head nxt) object_list)
+  (memcpy (& (@ new_head val)) (& object) (sizeof object))
+
+  (return new_head))
+
+(defun draw_world (renderer)
+  (declare rtype void)
+  (declare type (ptr SDL_Renderer) renderer)
+
+  (def objects (ptr struct widget_list) world)
+
+  (def screen SDL_Rect '(0 0 WIDTH HEIGHT))
+  (def black SDL_Color '(0 0 0 0))
+
+  ;; clear the screen
+  (SDL_SetRenderDrawColorStruct renderer black)
+  (SDL_RenderFillRect renderer (& screen))
+
+  (while objects
+    ((. (* objects) val ondraw) (. (* objects) val data) renderer)
+    (= objects (. (* objects) nxt))))
+
+(defstruct grid
+  (declare scope global)
+  ((area  SDL_Rect)
+   (vpitch hpitch int)
+   (active int)))
+
+(defstruct color
+  ((red int)
+   (green int)
+   (blue int)
+   (alpha int)))
+
+(defstruct fillrect
+  (declare scope global)
+  ((area (struct rect))
+   (color (struct color))))
+
+(macro push (val list)
+  `(= ,list (cons ,val ,list)))
+
+(defun grid_draw (_grid renderer)
+  (declare rtype void)
+  (declare type (ptr void) _grid)
+  (declare type (ptr SDL_Renderer) renderer)
+
+  (defcast grid (ptr struct grid) _grid)
+  (def white SDL_Color '(255 255 255 0))
+
+  (when (@ grid active)
+    (SDL_SetRenderDrawColorStruct renderer white)
+    (for (def i int (. (* grid) area x)) (< i (. (* grid) area w)) (+= i (. (* grid) hpitch))
+     (def line_v SDL_Rect `(,i 0 1 ,(. (* grid) area h)))
+     (SDL_RenderFillRect renderer (& line_v)))
+    (for (def j int (. (* grid) area y)) (< j (. (* grid) area h)) (+= j (. (* grid) vpitch))
+     (def line_h SDL_Rect `(0 ,j ,(. (* grid) area w) 1))
+     (SDL_RenderFillRect renderer (& line_h)))))
+
+(defun fillrect_draw (_rect renderer)
+  (declare rtype void)
+  (declare type (ptr void) _rect)
+  (declare type (ptr SDL_Renderer) renderer)
+
+  (def sdl_old_fill_color SDL_Color)
+
+  (defcast rect (ptr struct fillrect) _rect)
+
+  (def sdl_rect SDL_Rect
+    `(,(@ rect area x) ,(@ rect area y) ,(@ rect area w) ,(@ rect area h)))
+  (def sdl_fill_color SDL_Color
+    `(,(@ rect color red) ,(@ rect color green) ,(@ rect color blue) ,(@ rect color alpha)))
+
+  (SDL_GetRenderDrawColorStruct renderer sdl_old_fill_color)
+  (SDL_SetRenderDrawColorStruct renderer sdl_fill_color)
+  (SDL_RenderFillRect renderer (& sdl_rect))
+  (SDL_SetRenderDrawColorStruct renderer sdl_old_fill_color))
+
+;; maybe using unwind protect would be nice, to be sure that
+;; the viewport is always restored.
+(defmacro with-render-window (renderer window &body body)
+  (let ((old_viewport (gensym "old_viewport"))
+        (new_viewport (gensym "new_viewport")))
+    `(prog
+       (def ,old_viewport SDL_Rect '(0))
+       (SDL_RenderGetViewport ,renderer (& ,old_viewport))
+       (def ,new_viewport SDL_Rect
+         `(,(?: (> (@ ,window bounds x) 0)
+                (+ (. ,old_viewport x) (@ ,window bounds x))
+                (. ,old_viewport x))
+           ,(?: (> (@ ,window bounds y) 0)
+                (+ (. ,old_viewport y) (@ ,window bounds y))
+                (. ,old_viewport y))
+           ,(?: (> (+ (@ ,window bounds x) (@ ,window bounds w))
+                   (. ,old_viewport w))
+                (- (. ,old_viewport w) (@ ,window bounds x))
+                (@ ,window bounds w))
+           ,(?: (> (+ (@ ,window bounds y) (@ ,window bounds h))
+                   (. ,old_viewport h))
+                (- (. ,old_viewport h) (@ ,window bounds y))
+                (@ ,window bounds h))))
+       (SDL_RenderSetViewport ,renderer (& ,new_viewport))
+       ,@body
+       (SDL_RenderSetViewport ,renderer (& ,old_viewport)))))
+
+(defun window_draw (_window renderer)
+  (declare rtype void)
+  (declare type (ptr void) _window)
+  (declare type (ptr SDL_Renderer) renderer)
+
+  (defcast window (ptr struct window) _window)
+
+  (with-render-window renderer window
+    (vector-foreach-ref (@ window widgets) widget
+      ((@ widget ondraw) (@ widget data) renderer))))
+
+(defun event_dispatch (object event)
+  (declare rtype (enum dispatch_result))
+  (declare type (ptr struct widget) object)
+  (declare type (ptr struct event) event)
+
+  (return ((@ object dispatch) object event)))
+
+(defun window_dispatch (_window event)
+  (declare rtype (enum dispatch_result))
+  (declare type (ptr void) _window)
+  (declare type (ptr struct event) event)
+
+  (defcast widget (ptr struct widget) _window)
+  (defcast window (ptr struct window) (@ widget data))
+
+  (vector-foreach-ref (@ window widgets) widget
+    (switch (@ event type)
+      (default (return EVENT_IGNORED))
+      (MOUSE_MOVE
+        (def translated_event (struct event)
+          `(.type ,(@ event type)
+            .payload (.move (.x ,(- (@ event payload move x) (@ window bounds x))
+                             .y ,(- (@ event payload move y) (@ window bounds y))))))
+        (when (and (@ widget dispatch)
+                   (== EVENT_HANDLED
+                       ((@ widget dispatch) widget (& translated_event))))
+          (return EVENT_HANDLED))
+       (break))
+      ((MOUSE_DOWN MOUSE_RELEASE)
+        (def translated_event (struct event)
+          `(.type ,(@ event type)
+            .payload (.click (.cursor (.x ,(- (@ event payload click cursor x) (@ window bounds x))
+                                       .y ,(- (@ event payload click cursor y) (@ window bounds y)))
+                              .button ,(@ event payload click button)))))
+        (when (and (@ widget dispatch)
+                   (== EVENT_HANDLED
+                       ((@ widget dispatch) widget (& translated_event))))
+          (return EVENT_HANDLED))
+       (break))))
+
+  (return EVENT_IGNORED))
+
+(defmacro call-callback (callback &rest params)
+  `((@ ,callback callback fn) (@ ,callback callback data) ,@params))
+
+(defun widget_emit_event (widget event_type event)
+  (declare rtype void)
+  (declare type (ptr struct widget) widget)
+  (declare type (enum widget_event_type) event_type)
+  (declare type (ptr struct event) event)
+
+  (vector-foreach-ref (@ widget listeners) listener
+    (when (== event_type (@ listener event_type))
+      (call-callback listener event))))
+
+(defun button_dispatch (_button event)
+  (declare rtype (enum dispatch_result))
+  (declare type (ptr void) _button)
+  (declare type (ptr struct event) event)
+
+  (defcast widget (ptr struct widget) _button)
+  (defcast button (ptr struct button) (@ widget data))
+
+  (switch (@ event type)
+    (default (return EVENT_IGNORED))
+    ((MOUSE_MOVE MOUSE_DOWN MOUSE_RELEASE)
+     (unless (point_in_rect_p (@ event payload move) (@ button bounds))
+       (when (|| (== BUTTON_STATE_HOVER (@ button state))
+                 (== MOUSE_RELEASE (@ event type)))
+         (widget_emit_event widget WIDGET_LEAVE event)
+         (= (@ button state) BUTTON_STATE_IDLE))
+       (return EVENT_IGNORED))))
+
+  (switch (@ button state)
+    (default (break))
+    (BUTTON_STATE_IDLE
+      (when (== MOUSE_MOVE (@ event type))
+        (= (@ button state) BUTTON_STATE_HOVER)
+        (widget_emit_event widget WIDGET_ENTER event)
+        (puts "Hovered button"))
+      (return EVENT_HANDLED))
+    (BUTTON_STATE_HOVER
+      (when (== MOUSE_DOWN (@ event type))
+        (= (@ button state) BUTTON_STATE_PRESSED)
+        (widget_emit_event widget WIDGET_PRESS event)
+        (puts "Pressed button"))
+      (return EVENT_HANDLED))
+    (BUTTON_STATE_PRESSED
+      (when (== MOUSE_RELEASE (@ event type))
+        (= (@ button state) BUTTON_STATE_HOVER)
+        (widget_emit_event widget WIDGET_RELEASE event)
+        (widget_emit_event widget WIDGET_CLICKED event)
+        (puts "Released button"))
+      (return EVENT_HANDLED)))
+
+    (return EVENT_IGNORED))
+
+(defun gui_dispatch (world ev)
+  (declare rtype void)
+  (declare type (ptr struct widget_list) world)
+  (declare type (ptr SDL_Event) ev)
+
+    (switch (. (* ev) type)
+      (default (break))
+      (SDL_QUIT
+        (break))
+      (SDL_KEYDOWN
+        (break))
+      (SDL_KEYUP
+        (break))
+      (SDL_MOUSEMOTION
+       (def event (struct event)
+         `(.type MOUSE_MOVE
+           .payload (.move (.x ,(. (* ev) motion x) 
+                            .y ,(. (* ev) motion y)))))
+       (event_dispatch (& (@ world val)) (& event))
+       (break))
+      (SDL_MOUSEWHEEL
+        (break))
+      (SDL_MOUSEBUTTONDOWN
+       (def event (struct event)
+         `(.type MOUSE_DOWN
+           .payload (.click (.cursor (.x ,(. (* ev) button x) 
+                                      .y ,(. (* ev) button y))
+                             .button ,(. (* ev) button button)))))
+       (event_dispatch (& (@ world val)) (& event))
+        (break))
+      (SDL_MOUSEBUTTONUP
+       (def event (struct event)
+         `(.type MOUSE_RELEASE
+           .payload (.click (.cursor (.x ,(. (* ev) button x) 
+                                      .y ,(. (* ev) button y))
+                             .button ,(. (* ev) button button)))))
+       (event_dispatch (& (@ world val)) (& event))
+        (break))))
+
+(defstruct grid_toggle_params
+  (declare scope local)
+  ((grid (ptr struct grid))))
+
+(defun grid_toggle (_data event)
+  (declare rtype void)
+  (declare type (ptr void) _data)
+  (declare type (ptr struct event) event)
+
+  (cast (void) event)
+
+  (defcast params (ptr struct grid_toggle_params) _data)
+  (= (@ params grid active) (- 1 (@ params grid active))))
+
+(defstruct quit_callback_params
+  (declare scope local)
+  ((in (ptr struct input_state))))
+
+(defun quit_callback (_data event)
+  (declare rtype void)
+  (declare type (ptr void) _data)
+  (declare type (ptr struct event) event)
+
+  (cast (void) event)
+
+  (defcast params (ptr struct quit_callback_params) _data)
+  (= (@ params in quit) 1))
+
+(defun game_loop (renderer)
+  (declare rtype int)
+  (declare type (ptr SDL_Renderer) renderer)
+
+  (def in (struct input_state) '(0))
+
+  (def grid (struct grid) '((0 0 WIDTH HEIGHT) 20 20 0))
+
+  (def grid_object (struct widget)
+    `(.listeners (0 0 ,(sizeof (%type (struct listener))) NULL)
+      .dispatch NULL
+      .ondraw ,grid_draw .data ,(& grid)))
+
+  ;; window 1
+  (def window_1 (struct window)
+    `(.bounds (50 51 100 200)
+      .widgets (0 0 ,(sizeof (%type (struct widget))) NULL)))
+
+  (def background_1 (struct fillrect)
+    `(.area (0 0 100 200)
+      .color (128 64 173 0)))
+
+  (def background_1_object (struct widget)
+    `(.listeners (0 0 ,(sizeof (%type (struct listener))) NULL)
+      .dispatch NULL .ondraw fillrect_draw .data ,(& background_1)))
+
+  (def button_1 (struct button)
+    `(.bounds (20 160 60 20)
+      .text "Click me!"
+      .state BUTTON_STATE_IDLE))
+
+  (def button_1_object (struct widget)
+    `(.listeners (0 0 ,(sizeof (%type (struct listener))) NULL)
+      .dispatch ,button_dispatch .ondraw button_draw .data ,(& button_1)))
+
+  (def grid_toggle_listener (struct listener)
+    `(.event_type WIDGET_CLICKED 
+      .callback (.fn grid_toggle 
+                 .data ,(& (cast (struct grid_toggle_params) `(,(& grid)))))))
+
+  (vector_push_back (& (@ button_1_object listeners)) (& grid_toggle_listener))
+
+  (def button_2 (struct button)
+    `(.bounds (20 130 60 20)
+      .text "Quit"
+      .state BUTTON_STATE_IDLE))
+
+  (def button_2_object (struct widget)
+    `(.listeners (0 0 ,(sizeof (%type (struct listener))) NULL)
+      .dispatch ,button_dispatch .ondraw button_draw .data ,(& button_2)))
+
+  (def quit_listener (struct listener)
+    `(.event_type WIDGET_CLICKED 
+      .callback (.fn quit_callback
+                 .data ,(& (cast (struct quit_callback_params) `(,(& in)))))))
+  (vector_push_back (& (@ button_2_object listeners)) (& quit_listener))
+
+  (vector_push_back (& (@ window_1 widgets)) (& background_1_object))
+  (vector_push_back (& (@ window_1 widgets)) (& button_1_object))
+  (vector_push_back (& (@ window_1 widgets)) (& button_2_object))
+
+  (def window_1_object (struct widget)
+    `(.listeners (0 0 ,(sizeof (%type (struct listener))) NULL)
+      .dispatch window_dispatch
+      .ondraw ,window_draw
+      .data ,(& window_1)))
+
+  (push grid_object world)
+  (push window_1_object world)
+
+  (until (. in quit)
+    (def ev SDL_Event '(0))
+    (update_input_state (& in) (& ev))
+    (gui_dispatch world (& ev))
+    (draw_world renderer)
+    (SDL_RenderPresent renderer))
+
+  (return 1))
+
+(%:define QTREE_ITEM_THRESHOLD 10)
+
+(defenum qtree_quadrant
+  (declare scope global)
+  (QTREE_TOP_LEFT QTREE_TOP_RIGHT
+   QTREE_BOT_LEFT QTREE_BOT_RIGHT))
+
+(defstruct qtree_element
+  (declare scope global)
+  ((object (ptr void)
+   "A drawable object.")
+   (bounds (struct rect)
+   "The bounding box of the object"))
+"An element of a quad tree.
+
+Such an element contains a pointer to the drawable element, as well as a
+rectangular approximation of its bounding box.")
+
+(defstruct qtree
+  (declare scope global)
+  ((items (struct vector :elem-type (ptr struct qtree_element))
+   "The items covered by this node.")
+   (children (array 4 (ptr struct qtree))
+    "If not a leaf, the 4 children of the node.")
+   (rect (struct rect)
+    "The bounding box of this node."))
+"A Quad-Tree.")
+
+(defmacro qtree-leafp (qtree)
+  "Check if the quad-tree QTREE is a leaf.
+
+The current representation forces a leaf to have all the children to be NULL.
+So we actually need to check only one of them."
+  `(== (@ ,qtree children QTREE_TOP_LEFT) NULL))
+
+(defmacro qtree-node-init (&env env)
+  '(list (vector-init (ptr void)) (list 0) (list 0) 1))
+
+(defun qtree_insert_1 (qtree qtree_elt)
+  "Insert the displayable object QTREE_ELT into the quad-tree QTREE."
+  (declare scope local)
+  (declare rtype void)
+  (declare type (ptr struct qtree) qtree)
+  (declare type (ptr struct qtree_element) qtree_elt)
+
+  (cond 
+    ((qtree-leafp qtree)
+     (cond
+      ((< (@ qtree items size) QTREE_ITEM_THRESHOLD)
+       (vector_push_back (& (@ qtree items)) (& qtree_elt)))
+      (t
+        (qtree_split_node qtree)
+        (qtree_insert_1 qtree qtree_elt))))
+    (otherwise
+      (cond
+        ((rect_in_rect_p (@ qtree children 0 rect) (@ qtree_elt bounds))
+         (qtree_insert_1 (@ qtree children 0) qtree_elt))
+        ((rect_in_rect_p (@ qtree children 1 rect) (@ qtree_elt bounds)) 
+         (qtree_insert_1 (@ qtree children 1) qtree_elt))
+        ((rect_in_rect_p (@ qtree children 2 rect) (@ qtree_elt bounds))
+         (qtree_insert_1 (@ qtree children 2) qtree_elt))
+        ((rect_in_rect_p (@ qtree children 3 rect) (@ qtree_elt bounds))
+         (qtree_insert_1 (@ qtree children 3) qtree_elt))
+        (otherwise
+         (vector_push_back (& (@ qtree items)) (& qtree_elt)))))))
+
+(defun qtree_split_node (qtree)
+  "Split a quad-tree node.
+
+Split QTREE into four sub-trees if the number of items is above
+QTREE_ITEM_THRESHOLD."
+  (declare rtype void)
+  (declare type (ptr struct qtree) qtree)
+
+  (unless (< (@ qtree items size) QTREE_ITEM_THRESHOLD)
+    (def old_items (struct vector :elem-type (ptr void)) (@ qtree items))
+    (def sub_qtrees (ptr struct qtree) NULL)
+    (def empty_items (struct vector :elem-type (ptr struct qtree_element)) (vector-init))
+
+    (unless (= sub_qtrees (calloc 4 (sizeof (* (@ qtree children QTREE_TOP_LEFT)))))
+      (fprintf stderr "qtree_split_node: alloc failed.")
+      (abort))
+
+    (def half_w int (/ (@ qtree rect w) 2))
+    (def half_h int (/ (@ qtree rect h) 2))
+
+    (def child_rects (array 4 (struct rect))
+      `(:QTREE_TOP_LEFT
+        (.x ,(@ qtree rect x)
+         .y ,(@ qtree rect y)
+         .w ,half_w
+         .h ,half_h)
+        :QTREE_TOP_RIGHT
+          (.x ,(+ (@ qtree rect x) half_w)
+           .y ,(@ qtree rect y)
+         .w ,half_w
+         .h ,half_h)
+        :QTREE_BOT_LEFT
+          (.x ,(@ qtree rect x)
+           .y ,(+ (@ qtree rect y) half_h)
+         .w ,half_w
+         .h ,half_h)
+        :QTREE_BOT_RIGHT
+          (.x ,(+ (@ qtree rect x) half_w)
+           .y ,(+ (@ qtree rect y) half_h)
+           .w ,half_w
+           .h ,half_h)))
+
+    (vector-update (@ qtree items)
+      :capacity 0
+      :size     0
+      :data     NULL)
+
+    (for (def i int 0) (< i 4) (.++ i)
+      (= (@ qtree children i) (@ sub_qtrees children i))
+      (= (@ qtree children i rect) (@ child_rects i))
+      (memcpy (& (@ qtree children i items)) (& empty_items) (sizeof empty_items)))
+
+    (vector-foreach-val old_items it
+      (qtree_insert_1 qtree it))
+
+    (vector-free old_items)))
+
+(defun qtree_insert (qtree bounds object)
+  "Insert a displayable object (BOUNDS OBJECT) in the quad-tree QTREE."
+  (declare rtype void)
+  (declare type (ptr struct qtree) qtree)
+  (declare type (struct rect) bounds)
+  (declare type (ptr void) object)
+
+  (defcast qtree_elt (struct qtree_element)
+    `(.object ,object
+      .bounds ,bounds))
+
+  (qtree_insert_1 qtree (& qtree_elt)))
+
+;; qtree_init
+;; qtree_free
+;; qtree_remove
+;; qtree_update
+;; qtree_query
+;; qtree_query_point
+;; qtree_clear
+;; qtree_size
+;; qtree_empty_p
+;; qtree_item_count
+;; qtree_node_count
+;; qtree_depth
+;; check that it makes sense to split a qtree before splitting it.
+
+(defun main ()
+  (declare rtype int)
+
+  (srand (time NULL))
+
+  (with-sdl2-init (SDL_INIT_VIDEO)
+    (with-sdl2-window
+      (window "Wallbreaker"
+              SDL_WINDOWPOS_CENTERED SDL_WINDOWPOS_CENTERED
+              WIDTH HEIGHT
+              SDL_WINDOW_SHOWN)
+      (with-sdl2-renderer
+        (renderer window -1 SDL_RENDERER_ACCELERATED)
+        (game_loop renderer)
+        (return EXIT_SUCCESS)))))

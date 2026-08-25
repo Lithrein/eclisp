@@ -7,35 +7,35 @@
 (macro defcast (name type val)
   `(def ,name ,type (cast ,type ,val)))
 
-(macrofn alist-keys (list)
+(metafn alist-keys (list)
   (if list
     `(,(car (car list)) ,@(alist-keys (cdr list)))))
 
-(macrofn alist-vals (list)
+(metafn alist-vals (list)
   (if list
     `(,(car (cdr (car list))) ,@(alist-vals (cdr list)))))
 
-(macrofn extract-args-aux (obj-args normal-args arg-list)
+(metafn extract-args-aux (obj-args normal-args arg-list)
   (if arg-list
     (if (listp (car arg-list))
       (extract-args-aux `(,@obj-args ,(car arg-list)) normal-args (cdr arg-list))
       (extract-args-aux obj-args arg-list nil))
   `(,obj-args ,normal-args)))
 
-(macrofn extract-args (arg-list)
+(metafn extract-args (arg-list)
   (extract-args-aux nil nil arg-list))
 
-(macrofn build-method-obj-args (arg-list)
+(metafn build-method-obj-args (arg-list)
   (if arg-list
     ``(`,(cast (ptr struct OBJ) ,,(car arg-list))
             ,,@(cdr (build-method-obj-args (cdr arg-list))))))
 
-(macrofn build-method-normal-args (arg-list)
+(metafn build-method-normal-args (arg-list)
   (if arg-list
      ``(,(symbolicate "." ',(car arg-list)) ,,(car arg-list)
             ,,@(cdr (build-method-normal-args (cdr arg-list))))))
 
-(macrofn mangle-args (arg-list)
+(metafn mangle-args (arg-list)
   (if arg-list
     (if (cdr arg-list)
       (concat (car arg-list) "_" (car (cdr arg-list)))
@@ -51,7 +51,7 @@
         .cls ,(& ,(symbolicate "eclisp_class_" name))
         .properties (0))))
 
-(macrofn defclass-expand-super-classes (&rest super)
+(metafn defclass-expand-super-classes (&rest super)
   (if super
      (destructuring-bind (name &rest rest) super
       `((,name (struct ,name))
@@ -95,17 +95,17 @@
                    ,(if (== ',ret-type 'void) 'NULL `(& _ret_val)))
              ,(if (== ',ret-type 'void) `(prog*) '_ret_val)))))))))
 
-(macrofn defmethod-expand-objs-definitions-aux (i obj-params)
+(metafn defmethod-expand-objs-definitions-aux (i obj-params)
   (if obj-params
     `((defcast ,(car (car obj-params))
                (ptr struct ,(car (cdr (car obj-params))))
                (aref _objs ,i))
       ,@(defmethod-expand-objs-definitions-aux (+ i 1) (cdr obj-params)))))
 
-(macrofn defmethod-expand-objs-definitions (obj-params)
+(metafn defmethod-expand-objs-definitions (obj-params)
   (defmethod-expand-objs-definitions-aux 0 obj-params))
 
-(macrofn defmethod-expand-args-definitions (type-decls)
+(metafn defmethod-expand-args-definitions (type-decls)
   "Expand the normal arguments so that they can be directly accessed.
 (def arg1 arg1-type (. (* args) arg1))
 (def arg2 arg2-type (. (* args) arg2))
@@ -116,10 +116,10 @@
       (defmethod-expand-args-definitions (cdr type-decls))
       `((def ,(car (car type-decls))
              ,(car (cdr (car type-decls)))
-             (. (* args) ,(car (car type-decls))))
+             (@ args ,(car (car type-decls))))
          ,@(defmethod-expand-args-definitions (cdr type-decls))))))
 
-(macrofn defmethod-expand-obj-params (obj-vals)
+(metafn defmethod-expand-obj-params (obj-vals)
   (if obj-vals
     `( (& ,(symbolicate "eclisp_class_" (car obj-vals)))
        ,@(defmethod-expand-obj-params (cdr obj-vals)))))
@@ -146,7 +146,7 @@
              (declare type (ptr void)           _args)
       
              ,(if no-args-p `(cast void _args) `(prog*))
-             ,(if no-ret-p  `(cast void _ret) `(prog*))
+             ,(if no-ret-p  `(cast void _ret)  `(prog*))
       
              (prog*
                ,@(defmethod-expand-objs-definitions obj-params))
@@ -223,29 +223,26 @@
   (declare type (ptr ptr struct OBJ) _objs)
   (declare type (ptr void) _args _ret)
 
-  (def found (int) 0)
+  (def found int 0)
 
   (def _1 (ptr struct OBJ) (aref _objs 0))
 
   (def class (ptr (struct class)) (-> (cast (ptr (struct any)) _1) cls))
 
   (until found
-    (def behavior (ptr (struct behavior)) (& (. (* class) behavior)))
-      (for (def gen (ptr char) gen_begin)
-           (&& (!= gen gen_end) (! found))
-           (+= gen (-> (cast (ptr (struct method)) gen) size))
-        (defcast method (ptr (struct method)) gen)
-          (if (&& (== (. (* method) generic) _generic)
-                  (! (strcmp (. (* (aref (. (* method) cls) 0)) behavior id) 
-                             (. (* behavior) id))))
-            (prog
-              (= found 1)
-              ((. (* method) fn) _objs _ret _args))))
-      (if (== class (. (* class) spr))
-          (prog
-            (fprintf stderr "No method found.\n")
-            (break))
-          (= class (. (* class) spr)))))
+    (for (def gen (ptr char) gen_begin)
+         (&& (!= gen gen_end) (! found))
+         (+= gen (-> (cast (ptr (struct method)) gen) size))
+      (defcast method (ptr (struct method)) gen)
+        (when (&& (== (@ method generic) _generic)
+                  (== (@ method cls 0) class))
+            (= found 1)
+            ((@ method fn) _objs _ret _args)))
+    (if (== class (@ class spr))
+        (prog
+          (fprintf stderr "No method found.\n")
+          (break))
+        (= class (@ class spr)))))
 
 ;; Class
 
@@ -274,13 +271,13 @@
 (defmethod gname ((animal animal))
   (declare rtype (ptr char))
 
-  (return (. (* animal) name)))
+  (return (@ animal name)))
 
 (defmethod set_name ((animal animal) name)
   (declare rtype void)
   (declare type (ptr char) name)
 
-  (= (. (* animal) name) name))
+  (= (@ animal name) name))
 
 (defmethod say ((animal animal))
   (declare rtype void)
@@ -305,16 +302,16 @@
   (declare type (ptr struct any) any)
   (declare type (ptr struct class) cls)
 
-  (= (. (* any) _id) 0)
-  (= (. (* any) _rc) 0)
-  (= (. (* any) cls) cls))
+  (= (@ any _id) 0)
+  (= (@ any _rc) 0)
+  (= (@ any cls) cls))
 
 (defun make_instance_object (object &key (cls (& eclisp_class_object)))
   (declare rtype void)
   (declare type (ptr struct object) object)
   (declare type (ptr struct class) cls)
 
-  (make_instance_any (& (. (* object) any)) :cls cls))
+  (make_instance_any (& (@ object any)) :cls cls))
 
 (defun make_instance_animal (animal &key name (cls (& eclisp_class_animal)))
   (declare rtype void)
@@ -322,8 +319,8 @@
   (declare type (ptr char) name)
   (declare type (ptr struct class) cls)
 
-  (= (. (* animal) name) name)
-  (make_instance_object (& (. (* animal) object)) :cls cls))
+  (= (@ animal name) name)
+  (make_instance_object (& (@ animal object)) :cls cls))
 
 (defun make_instance_cat (cat &key name (cls (& eclisp_class_cat)))
   (declare rtype void)
@@ -331,7 +328,7 @@
   (declare type (ptr char) name)
   (declare type (ptr struct class) cls)
 
-  (make_instance_animal (& (. (* cat) animal)) :name name :cls cls))
+  (make_instance_animal (& (@ cat animal)) :name name :cls cls))
 
 (defun make_instance_dog (dog &key name (cls (& eclisp_class_dog)))
   (declare rtype void)
@@ -339,7 +336,7 @@
   (declare type (ptr char) name)
   (declare type (ptr struct class) cls)
 
-  (make_instance_animal (& (. (* dog) animal)) :name name :cls cls))
+  (make_instance_animal (& (@ dog animal)) :name name :cls cls))
 
 (macro make_instance (type &rest rest)
   (let ((fn (symbolicate "make_instance_" type))

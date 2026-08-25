@@ -1,0 +1,679 @@
+(%:include ("../../include/macros.eclisph"))
+
+(%:define _DEFAULT_SOURCE)
+(%:define _BSD_SOURCE)
+(%:define _GNU_SOURCE)
+
+(%:include
+   <ctype.h>
+   <errno.h>
+   <fcntl.h>
+   <stdarg.h>
+   <stdio.h>
+   <stdlib.h>
+   <string.h>
+   <sys/ioctl.h>
+   <termios.h>
+   <time.h>
+   <unistd.h>)
+
+(import "main")
+
+;; Macros
+
+(%:define HEI_VERSION "0.0.1")
+(%:define HEI_LOGFILE "hei.log")
+
+(%:define TAB_STOP 8)
+
+(local-defvar hei_logfile (ptr FILE) NULL
+ "Global log file.")
+
+(macro ignore (result)
+  "Ignore the result of a computation."
+  `(cast void (! ,result)))
+
+(macro ctrl-key (key)
+  "Control code associated to `key'."
+  `(& ,key 0x1f))
+
+;; Data
+(defstruct editor_row
+  (declare scope global)
+  ((chars (ptr (char))
+     "The content of the row.")
+   (render (ptr char)
+     "The actual visible characters which are displayed on screen.")
+   (size int
+     "The size of the row.")
+   (render_size int
+     "The size of the visible characters."))
+  "Structure to store a row of text.")
+
+(defstruct editor_config
+  (declare scope global)
+  ((orig_termios (struct termios)
+     "Original state of the terminal.")
+   (cx cy int
+     "Cursor position.")
+   (render_x int
+     "Cursor position (accounting for special characters) within a line.")
+   (row_offset int
+     "The offset of the topmost row on screen.")
+   (col_offset int
+     "The offset of the topmost column on screen.")
+   (screen_rows int
+     "Number of rows of the screen.")
+   (screen_cols int
+     "Number of columns of the screen.")
+   (numrows int
+     "The number of rows shown on screen.")
+   (rows (ptr struct editor_row)
+     "An array of `numrows' rows.")
+   (dirty int
+     "A flag which indicates whether the file has been modified.")
+   (filename (ptr char)
+     "Name of the currently opened file.")
+   (status_msg (array 80 char)
+     "The content of the status message.")
+   (status_msg_time time_t
+     "The timestamp of when the status message was issued."))
+  "Editor configuration.")
+
+(local-defvar ec (struct editor_config) '(0)
+  "The global configuration of the editor.")
+
+(defenum editor_keycode
+  (declare scope global)
+  ((BACKSPACE 127)
+   (ARROW_LEFT 1000)
+   ARROW_RIGHT
+   ARROW_UP
+   ARROW_DOWN
+   DEL_KEY
+   HOME_KEY
+   END_KEY
+   PAGE_UP
+   PAGE_DOWN)
+  "Association between keys and their values.")
+
+;; Terminal
+
+(defun die (msg)
+  "Print the message `msg' and die."
+  (declare rtype void)
+  (declare type (ptr const char) msg)
+
+  (ignore (write STDOUT_FILENO "\x1b[2J" 4))
+  (ignore (write STDOUT_FILENO "\x1b[H" 3))
+  
+  (perror msg)
+  (exit EXIT_FAILURE))
+
+(defun disable_raw_mode ()
+  "This function resets the terminal to its original mode."
+  (declare rtype void)
+
+  (if (== -1 (tcsetattr STDIN_FILENO TCSAFLUSH (& (@ ec orig_termios))))
+      (die "tcsetattr")))
+
+(defun enable_raw_mode ()
+  "This function sets the terminal in RAW mode."
+  (declare rtype void)
+
+  (if (== -1 (tcgetattr STDIN_FILENO (& (@ ec orig_termios))))
+      (die "tcgetattr"))
+  
+  (atexit 'disable_raw_mode)
+
+  (def raw (struct termios) (@ ec orig_termios))
+
+  (&= (@ raw c_iflag) (~ (| BRKINT ICRNL INPCK ISTRIP IXON)))
+  (&= (@ raw c_oflag) (~ OPOST))
+  (|= (@ raw c_cflag) CS8)
+  (&= (@ raw c_lflag) (~ (| ICANON IEXTEN ECHO ISIG)))
+
+  (= (aref (@ raw c_cc) VMIN) 0)
+  (= (aref (@ raw c_cc) VTIME) 1)
+
+  (if (== -1 (tcsetattr STDIN_FILENO TCSAFLUSH (& raw)))
+      (die "tcsetattr")))
+
+(defun editor_read_key ()
+  "Read one key and return its keycode."
+  (declare rtype int)
+
+  (def nread int 0)
+  (def c int 0)
+
+  (while (!= 1 (= nread (read STDIN_FILENO (& c) 1)))
+    (if (&& (== nread -1) (!= errno EAGAIN))
+        (die "read")))
+  
+  (if (== c 27)
+      (prog
+        (def seq (array 3 int) '(0))
+        (if (!= 1 (read STDIN_FILENO (+ seq 0) 1)) (return 27))
+        (if (!= 1 (read STDIN_FILENO (+ seq 1) 1)) (return 27))
+         
+        (cond
+          ((== #\[ (aref seq 0))
+           (if (<= #\0 (aref seq 1) #\9)
+               (prog
+                 (if (!= 1 (read STDIN_FILENO (+ seq 2) 1)) (return 27))
+                 (if (== #\~ (aref seq 2))
+                     (switch (aref seq 1)
+                             (#\1 (return HOME_KEY))
+                             (#\3 (return DEL_KEY))
+                             (#\4 (return END_KEY))
+                             (#\5 (return PAGE_UP))
+                             (#\6 (return PAGE_DOWN))
+                             (#\7 (return HOME_KEY))
+                             (#\8 (return END_KEY)))))
+               (switch (aref seq 1)
+                       (#\A (return ARROW_UP))
+                       (#\B (return ARROW_DOWN))
+                       (#\C (return ARROW_RIGHT))
+                       (#\D (return ARROW_LEFT))
+                       (#\H (return HOME_KEY))
+                       (#\F (return END_KEY)))))
+          ((== #\O (aref seq 0))
+           (switch (aref seq 1)
+                   (#\H (return HOME_KEY))
+                   (#\F (return END_KEY)))))
+        (return 27))
+      (return c)))
+
+(defun get_cursor_position (rows cols)
+  "Write the cursor position into `rows' and `cols'."
+  (declare rtype int)
+  (declare type (ptr int) rows cols)
+
+  (if (!= (write STDOUT_FILENO "\x1b[6n" 4) 4)
+      (return -1))
+
+  (if (!= (scanf "\x1b[%d;%dR" rows cols) 2)
+      (return -1))
+  
+  (return 0))
+
+(defun get_window_size (rows cols)
+  "Get the window size in the global state `ec'."
+  (declare rtype int)
+  (declare type (ptr int) rows cols)
+
+  (def ws (struct winsize))
+
+  (if (|| (== (ioctl STDOUT_FILENO TIOCGWINSZ (& ws)) -1)
+          (== (@ ws ws_col) 0))
+      (prog
+        (if (!= (write STDOUT_FILENO "\x1b[999C\x1b[999B" 12) 12)
+            (return -1))
+        (return (get_cursor_position rows cols)))
+      (prog
+        (= (* cols) (@ ws ws_col))
+        (= (* rows) (@ ws ws_row))
+         (return 0))))
+
+;; row operations
+
+(defun editor_row_cx_to_rx (row cx)
+  (declare rtype int)
+  (declare type (ptr struct editor_row) row)
+  (declare type int cx)
+
+  (def rx int 0)
+  (for (def j int 0) (< j cx) (.++ j)
+       (if (== #\Tab (@ row chars j))
+           (+= rx (- (- TAB_STOP 1) (% rx TAB_STOP))))
+       (.++ rx))
+  (return rx))
+
+(defun editor_update_row (row)
+  (declare rtype void)
+  (declare type (ptr struct editor_row) row)
+
+  (def idx int 0)
+  (def tabs int 0)
+
+  (for (def j int 0) (< j (@ row size)) (.++ j)
+       (if (== #\Tab (aref (@ row chars) j))
+           (.++ tabs)))
+  
+  (when (@ row render)
+    (free (@ row render)))
+
+  (= (@ row render) (calloc (+ 1 (@ row size) (* tabs (- TAB_STOP 1)))
+                             (sizeof (* (@ row render)))))
+
+  (for (def j int 0) (< j (@ row size)) (.++ j)
+       (cond ((== #\Tab (aref (@ row chars) idx))
+              (= (aref (@ row render) idx) #\Space)
+              (.++ idx)
+              (while (% idx TAB_STOP)
+                (= (aref (@ row render) idx) #\Space)
+                (.++ idx)))
+             (otherwise
+              (= (aref (@ row render) idx) (aref (@ row chars) j))
+              (.++ idx))))
+
+  (= (@ row render_size) idx))
+
+
+(defun editor_append_row (line len)
+  (declare rtype void)
+  (declare type (ptr char) line)
+  (declare type (size_t) len)
+  
+  (= (@ ec rows)
+     (realloc (@ ec rows) (* (+ (@ ec numrows) 1) (sizeof (* (@ ec rows))))))
+
+  (def at int (@ ec numrows))
+  (= (@ ec rows at chars) (calloc (+ 1 len) (sizeof (%type char))))
+  (= (@ ec rows at size) len)
+  (memcpy (@ ec rows at chars) line len)
+  (+= (@ ec numrows) 1)
+  (+= (@ ec dirty) 1)
+
+  (= (@ ec rows at render) NULL)
+  (= (@ ec rows at render_size) 0)
+  (editor_update_row (+ (@ ec rows) at)))
+
+(defun editor_row_insert_char (row at c)
+  (declare rtype void)
+  (declare type (ptr struct editor_row) row)
+  (declare type int at)
+  (declare type int c)
+  
+  (unless (<= 0 at (@ row size))
+    (= at (@ row size)))
+
+  (= (@ row chars)
+     (realloc (@ row chars) (+ 2 (@ row size))))
+  (memmove (+ (@ row chars) (+ at 1))
+           (+ (@ row chars) at) (+ (- (@ row size) at) 1))
+  (.++ (@ row size))
+  (= (aref (@ row chars) at) c)
+  (editor_update_row row)
+  (+= (@ ec dirty) 1))
+
+(defun editor_row_delete_char (row at)
+  (declare rtype void)
+  (declare type (ptr struct editor_row) row)
+  (declare type int at)
+
+  (unless (<= 0 at (- (@ row size) 1)) (return))
+
+  (memmove (+ (@ row chars) at) (+ (@ row chars) at 1) (- (@ row size) at))
+  (.-- (@ row  size))
+  (editor_update_row row)
+  (+= (@ ec dirty) 1))
+
+;; editor operations
+
+(defun editor_insert_char (c)
+  (declare rtype void)
+  (declare type int c)
+
+  (if (== (@ ec cy) (@ ec numrows))
+      (editor_append_row "" 0))
+
+  (editor_row_insert_char (& (aref (@ ec rows) (@ ec cy))) (@ ec cx) c)
+  (.++ (@ ec cx)))
+
+(defun editor_delete_char ()
+  (declare rtype void)
+
+  (if (== (@ ec cy) (@ ec numrows)) (return))
+  (when (> (@ ec cx) 0)
+    (editor_row_delete_char (& (aref (@ ec rows) (@ ec cy))) (- (@ ec cx) 1))
+    (.-- (@ ec cx))))
+
+;; File I/O
+
+(defun editor_rows_to_string (buflen)
+  (declare rtype (ptr char))
+  (declare type (ptr int) buflen)
+
+  (def totlen int 0)
+  (for (def j int 0) (< j (@ ec numrows)) (.++ j)
+    (+= totlen (+ (@ ec rows j size) 1)))
+  (= (* buflen) totlen)
+  (def buf (ptr char) (malloc totlen))
+  (def p (ptr char) buf)
+  (for (def j int 0) (< j (@ ec numrows)) (.++ j)
+    (memcpy p  (@ ec rows j chars) (@ ec rows j size))
+    (+= p (@ ec rows j size))
+    (= (* p) #\Linefeed)
+    (.++ p))
+  (return buf))
+
+(defun editor_open (filename)
+  "Load a file into the editor."
+  (declare rtype int)
+  (declare type (ptr char) filename)
+
+  (when (@ ec filename)
+      (free (@ ec filename)))
+
+  (= (@ ec filename) (strdup filename))
+
+  (with-open-file (fp filename "r")
+    (def line (ptr char) NULL)
+    (def len int 0)
+    (def cap size_t 0)
+
+    (while (!= -1 (= len (getline (& line) (& cap) fp)))
+      (if (!= -1 len)
+          (while (&& (> len 0)
+                     (|| (== (aref line (- len 1)) #\Linefeed)
+                         (== (aref line (- len 1)) #\Return)))
+            (.-- len)))
+  
+      (editor_append_row line len))
+    (free line))
+  (= (@ ec dirty) 0)
+  (return 0))
+
+(defun editor_save ()
+  (declare rtype void)
+
+  (unless (@ ec filename) (return))
+
+  (def len int 0)
+  (def buf (ptr char) (editor_rows_to_string (& len)))
+  (def fd int (open (@ ec filename) (| O_RDWR O_CREAT) 0644))
+  (when (!= -1 fd)
+    (if (!= -1 (ftruncate fd  len))
+      (when (== len (write fd buf len))
+        (close fd)
+        (free buf)
+        (editor_set_status_msg "%d bytes written to disk" len)
+        (= (@ ec dirty) 0)
+        (return)))
+    (close fd))
+      
+  (free buf)
+  (editor_set_status_msg "Can't save! I/O error: %s"  (strerror errno)))
+
+;; append buffer
+
+(defstruct abuf
+  (declare scope global)
+  ((b (ptr char)
+     "The content of the buffer.")
+   (len int
+     "The length of the buffer."))
+  "A growing buffer.")
+
+(macro empty_buffer ()
+  "Macro used to initialize an empty abuf."
+  `'(.b NULL .len 0))
+
+(defun ab_append (ab s len)
+  "Append the string `s' to the buffer `ab'."
+  (declare rtype void)
+  (declare type (ptr struct abuf) ab)
+  (declare type (ptr const char) s)
+  (declare type int len)
+
+  (def new (ptr char) (realloc (@ ab b) (+ (@ ab len) len)))
+
+  (unless new (return))
+
+  (memcpy (+ new (@ ab len)) s len)
+  (= (@ ab b) new)
+  (+= (@ ab len) len))
+
+(defun ab_free (ab)
+  "Reclaim the memory used by the buffer `ab'."
+  (declare rtype void)
+  (declare type (ptr struct abuf) ab)
+  
+  (free (@ ab b)))
+
+(macro ab_append (ab s &rest len)
+  (if len
+    `(%funcall 'ab_append ,ab ,s ,(car len))
+    `(%funcall 'ab_append ,ab ,s (__builtin_strlen ,s))))
+  
+
+;; Input
+
+(defun clamp (val min max)
+  (declare rtype int)
+  (declare type int val min max)
+
+  (def res int val)
+
+  (if (<= val min) (= res min))
+  (if (>= val max) (= res max))
+  (return res))
+
+(defun editor_move_cursor (c)
+  (declare rtype void)
+  (declare type int c)
+
+  (switch c
+          (ARROW_LEFT
+           (.-- (@ ec cx))
+           (when (&& (< (@ ec cx) 0) (> (@ ec cy) 0))
+             (-= (@ ec cy) 1)
+             (= (@ ec cx) (@ ec rows (@ ec cy) size)))
+           (break))
+          (ARROW_DOWN  (.++ (@ ec cy)) (break))
+          (ARROW_UP    (.-- (@ ec cy)) (break))
+          (ARROW_RIGHT
+           (.++ (@ ec cx))
+           (when (> (@ ec cx) (@ ec rows (@ ec cy) size))
+             (+= (@ ec cy) 1)
+             (= (@ ec cx) 0))
+           (break)))
+
+  (aif (@ ec rows (@ ec cy) size)
+   (= (@ ec cx) (clamp (@ ec cx) 0 it))
+   (= (@ ec cx) 0))
+  (= (@ ec cy) (clamp (@ ec cy) 0 (@ ec numrows))))
+
+(defun editor_process_key ()
+  "Read a key and execute its behavior."
+  (declare rtype void)
+
+  (def key int (editor_read_key))
+
+  (switch key
+          (#\Return (break))
+          (((ctrl-key #\q))
+           (ignore (write STDOUT_FILENO "\x1b[2J" 4))
+           (ignore (write STDOUT_FILENO "\x1b[H" 3))
+           (exit 0)
+           (break))
+          (((ctrl-key #\s)) (editor_save) (break))
+          (HOME_KEY
+           (= (@ ec cx) 0)
+           (break))
+          (END_KEY
+           (= (@ ec cx) (@ ec rows (@ ec cy) size))
+           (break))
+          ((BACKSPACE (ctrl-key #\h) DEL_KEY)
+           (when (== DEL_KEY key) (editor_move_cursor ARROW_RIGHT))
+           (editor_delete_char)
+           (break))
+          ((PAGE_DOWN PAGE_UP)
+           (def times int (@ ec screen_rows))
+           (while (.-- times)
+             (editor_move_cursor (?: (== key PAGE_UP) ARROW_UP ARROW_DOWN)))
+           (break))
+          ((ARROW_UP ARROW_DOWN ARROW_LEFT ARROW_RIGHT)
+           (editor_move_cursor key)
+           (break))
+          (((ctrl-key #\l) 27) (break))
+          (default
+            (editor_insert_char key)
+            (break))))
+
+(defun editor_scroll ()
+  (declare rtype void)
+
+  (= (@ ec render_x) 0)
+  (if (< (@ ec cy) (@ ec numrows))
+      (= (@ ec render_x)
+         (editor_row_cx_to_rx (+ (@ ec rows) (@ ec cy)) (@ ec cx))))
+
+  (if (< (@ ec cy) (@ ec row_offset))
+      (= (@ ec row_offset)  (@ ec cy)))
+  
+  (if (>= (@ ec cy) (+ (@ ec row_offset) (@ ec screen_rows)))
+      (= (@ ec row_offset) (+ 1
+                              (- (@ ec cy) (@ ec screen_rows)))))
+  
+  (if (< (@ ec render_x) (@ ec col_offset))
+      (= (@ ec col_offset)  (@ ec render_x)))
+
+  (if (>= (@ ec render_x) (+ (@ ec row_offset) (@ ec screen_cols)))
+      (= (@ ec col_offset) (+ 1
+                              (- (@ ec render_x) (@ ec screen_cols))))))
+
+(defun editor_refresh_screen ()
+  "Refresh the screen."
+  (declare rtype void)
+
+  (editor_scroll)
+
+  (def ab (struct abuf) (empty_buffer))
+
+  ;; Hide the cursor
+  (ab_append (& ab) "\x1b[?25l")
+     
+  ;; Move the cursor to the top left
+  (ab_append (& ab) "\x1b[H")
+  
+  (editor_draw_rows (& ab))
+  (editor_draw_status_bar (& ab))
+  (editor_draw_message_bar (& ab))
+
+  ;; Position the cursor
+  (def buf (array 32 char) '(0))
+  (snprintf buf (sizeof buf) "\x1b[%d;%dH"
+            (+ (- (@ ec cy) (@ ec row_offset)) 1)
+            (+ (- (@ ec render_x) (@ ec col_offset)) 1))
+  (ab_append (& ab) buf)
+  
+  ;; Show the cursor
+  (ab_append (& ab) "\x1b[?25h")
+  
+  (ignore (write STDOUT_FILENO (@ ab b) (@ ab len))))
+
+(macro editor_set_status_msg (&rest fmt)
+  "Set the status message."
+  `(prog*
+    (snprintf (@ ec status_msg) (sizeof (@ ec status_msg)) ,@fmt)
+    (= (@ ec status_msg_time) (time NULL))))
+
+(defun editor_draw_rows (ab)
+  "Draw visible raws on screen."
+  (declare rtype void)
+  (declare type (ptr struct abuf) ab)
+  
+  (for (def y int 0) (< y (@ ec screen_rows)) (.++ y)
+       (def file_row int (+ y (@ ec row_offset)))
+       (cond ((&& (== (@ ec numrows) 0) (>= y (@ ec numrows)))
+              (cond ((== y (/ (@ ec screen_rows) 3))
+                     (def welcome (array 80 char) '(0))
+                     (def welcome_len (int)
+                       (snprintf welcome (sizeof welcome)
+                                 "Hei editor -- version %s" HEI_VERSION))
+                     (when (> welcome_len (@ ec screen_cols))
+                       (= welcome_len (@ ec screen_cols)))
+                     (def padding int (/ (- (@ ec screen_cols) welcome_len) 2))
+                     (when padding
+                       (.-- padding)
+                       (ab_append ab "~"))
+                     (while (.-- padding)
+                       (ab_append ab " "))
+                     (ab_append ab welcome welcome_len))
+                    (otherwise
+                     (ab_append ab "~"))))
+             (otherwise
+              (when (< file_row (@ ec numrows))
+                (def len int (@ ec rows file_row render_size))
+                (if (> len (@ ec screen_cols))
+                    (= len (@ ec screen_cols)))
+                (ab_append ab (@ ec rows file_row render) len))))
+       
+       (ab_append ab "\x1b[K")
+       (ab_append ab "\r\n")))
+
+(defun editor_draw_status_bar (ab)
+  (declare rtype void)
+  (declare type (ptr struct abuf) ab)
+  
+  (def status (array 80 char) '(0))
+  (ab_append ab "\x1b[K")
+  (def status_len int
+       (sprintf status
+                " -- %s%s -- (row: %d, col: %d)"
+                (?: (@ ec dirty) "*" "")
+                (?: (@ ec filename) (@ ec filename) "*scratch*")
+                (@ ec cy) (@ ec cx)))
+  (ab_append ab "\x1b[7m")
+  (ab_append ab status status_len)
+  (ab_append ab "\x1b[m")
+  (ab_append ab "\r\n"))
+
+(defun editor_draw_message_bar (ab)
+  (declare rtype void)
+  (declare type (ptr struct abuf) ab)
+  
+  (ab_append ab "\x1b[K")
+  (def msg_len int (strlen (@ ec status_msg)))
+  (if (> msg_len (@ ec screen_cols))
+      (= msg_len (@ ec screen_cols)))
+  (if (&& msg_len
+          (< (- (time NULL) (@ ec status_msg_time)) 5))
+      (ab_append ab (@ ec status_msg) msg_len)))
+
+;; init
+
+(defun init_editor ()
+  "Initialize the editor global state."
+  (declare rtype void)
+
+  (= hei_logfile (fopen HEI_LOGFILE "w"))
+
+  (= (@ ec cx)                 0)
+  (= (@ ec render_x)           0)
+  (= (@ ec cy)                 0)
+  (= (@ ec row_offset)         0)
+  (= (@ ec col_offset)         0)
+  (= (@ ec numrows)            0)
+  (= (@ ec rows)            NULL)
+  (= (@ ec dirty)              0)
+  (= (@ ec filename)        NULL)
+  (= (@ ec status_msg 0)     #\0)
+  (= (@ ec status_msg_time)    0)
+  
+  (if (== (get_window_size (& (@ ec screen_rows)) (& (@ ec screen_cols))) -1)
+      (die "get_window_size"))
+  (-= (@ ec screen_rows) 2))
+
+(defun main (argc argv)
+  (declare rtype int)
+  (declare type int argc)
+  (declare type (ptr ptr char) argv)
+  
+  (enable_raw_mode)
+  (init_editor)
+
+  (if (>= argc 2)
+      (editor_open (aref argv 1)))
+
+  (editor_set_status_msg "HELP: Ctrl-S = save | Ctrl-Q = Quit")
+  
+  (loop
+   (editor_refresh_screen)
+   (editor_process_key))
+
+  (fclose hei_logfile)
+  (return 0))
+

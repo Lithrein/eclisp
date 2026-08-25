@@ -1,0 +1,250 @@
+(%:include ("../../include/macros.eclisph"))
+
+(%:include <stdbool.h> <stdio.h> <stdlib.h> <time.h>)
+(%:include <SDL2/SDL.h>)
+
+(%:define WIDTH  640)
+(%:define HEIGHT 480)
+
+(macro progn (&body rest)
+  "Use statement-expressions to emulate the behavior of PROGN."
+ `(prog* #{(\{} ,@rest #{\})}))
+
+(macro min (a b)
+  "Evalutate to MIN(a, b)."
+  `(progn
+     (def _a (type-of ,a) ,a)
+     (def _b (type-of ,b) ,b)
+     (?: (< _a _b) _a _b)))
+
+(macro max (a b)
+  "Evalutate to MAX(a, b)."
+  `(progn
+     (def _a (type-of ,a) ,a)
+     (def _b (type-of ,b) ,b)
+     (?: (> _a _b) _a _b)))
+
+(macro defstruct (name (&rest fields) &rest rest)
+  "Convenience macro to define a structure and expose it to the global
+  namespace through typedef."
+  `(prog*
+     (def ,name (typedef struct ,name))
+     (def (struct ,name ,@fields) ,@rest)))
+
+(macro SDL_SetRenderDrawColorStruct (renderer color)
+ `(SDL_SetRenderDrawColor ,renderer
+                         (. ,color r) (. ,color g) (. ,color b) (. ,color a)))
+
+(defstruct Point ((x y int)))
+
+(defstruct Events
+  ((keys (array SDL_NUM_SCANCODES int)
+    "Array which records the state of every key.")
+   (mouse (array 6 int)
+    "Array which records the state of each mouse button.")
+   (x y xrel yrel int
+    "The position of the cursor.")
+   (xwheel ywheel int
+    "The state of the mouse's wheel.")
+   (quit bool
+    "Whether we should quit the program."))
+ "A record with the state of the input devices.")
+
+(def update_events (-> void (in (ptr Events)))
+  (def ev SDL_Event)
+  (while (SDL_PollEvent (& ev))
+    (switch (. ev type)
+      (default (break))
+      (SDL_QUIT
+        (= (-> in quit) true)
+        (break))
+      (SDL_KEYDOWN
+        (= (aref (-> in keys) (. ev key keysym scancode)) true)
+        (break))
+      (SDL_KEYUP
+        (= (aref (-> in keys) (. ev key keysym scancode)) false)
+        (break))
+      (SDL_MOUSEMOTION
+        (= (-> in x) (. ev motion x))
+        (= (-> in y) (. ev motion y))
+        (= (-> in xrel) (. ev motion xrel))
+        (= (-> in yrel) (. ev motion yrel))
+        (break))
+      (SDL_MOUSEWHEEL
+        (= (-> in xwheel) (. ev wheel x))
+        (= (-> in ywheel) (. ev wheel y))
+        (break))
+      (SDL_MOUSEBUTTONDOWN
+        (= (aref (-> in mouse) (. ev button button)) true)
+        (break))
+      (SDL_MOUSEBUTTONUP
+        (= (aref (-> in mouse) (. ev button button)) false)
+        (break)))))
+
+(macro set_case (board i j v)
+  `(= (aref ,board (+ (* ,i (/ HEIGHT 20)) ,j)) ,v))
+
+(macro get_case (board i j v)
+  `(aref ,board (+ (* ,i (/ HEIGHT 20)) ,j)))
+
+(macro toggle (v)
+  `(= ,v (- 1 ,v)))
+
+(def game_loop (-> int (renderer (ptr SDL_Renderer)))
+  (def ev Events '(0))
+  (def screen SDL_Rect '(0 0 WIDTH HEIGHT))
+  (def square (SDL_Rect) `(,(/ (- WIDTH 20) 2) ,(- HEIGHT 40) 20 20))
+  (def square_v (Point) '(0 0))
+  (def board (array (* (/ WIDTH 20) (/ HEIGHT 20)) int) '(0))
+
+  (for (def i int 0) (< i (/ WIDTH 20)) (.++ i)
+      (set_case board i (- (/ HEIGHT 20) 1) 1))
+
+  ; (def red   SDL_Color '(255 100 100 0))
+  (def green SDL_Color '(100 255 100 0))
+  (def blue  SDL_Color '(100 100 255 0))
+  ; (def gray  SDL_Color '(150 150 150 0))
+  (def white SDL_Color '(255 255 255 0))
+  (def black SDL_Color '(  0   0   0 0))
+  (def active int 0)
+  (def offset int 0)
+  (def delta int 0)
+  (def delta2 int 0)
+
+  (def next Point `(,(- (/ WIDTH 20) 2) ,(- (/ HEIGHT 20) 1)))
+
+  (until (. ev quit)
+    (update_events (& ev))
+    (when (aref (. ev keys) SDL_SCANCODE_Q)
+      (break))
+
+    (when (> (. square y) HEIGHT)
+      (break))
+
+    (when (&& (aref (. ev keys) SDL_SCANCODE_SPACE)
+              (== (. square_v y) 0))
+      (= (. square_v y) -15))
+
+    (when (aref (. ev keys) SDL_SCANCODE_LEFT)
+      (= (. square_v x) -10))
+
+    (when (aref (. ev keys) SDL_SCANCODE_RIGHT)
+      (= (. square_v x) +10))
+
+    (unless (|| (aref (. ev keys) SDL_SCANCODE_LEFT)
+                (aref (. ev keys) SDL_SCANCODE_RIGHT))
+      (= (. square_v x) 0))
+
+    (when (aref (. ev keys) SDL_SCANCODE_G)
+      (toggle active)
+      (= (aref (. ev keys) SDL_SCANCODE_G) 0))
+
+    (SDL_Delay 30)
+    (+= delta 30)
+    (when (> delta 333)
+      (= delta 0)
+      (.++ delta2)
+      (for (def i int 0) (< i (/ WIDTH 20)) (.++ i)
+        (for (def j int 0) (< j (/ HEIGHT 20)) (.++ j)
+           (if (== i (- (/ WIDTH 20) 1)) 
+            (set_case board i j 0)
+            (set_case board i j (get_case board (+ i 1) j)))))
+      (when (== delta2 6)
+        (= delta2 0)
+        (def n int 0)
+        (until n (= n (cast int (- (* 3 (/ (cast double (rand)) RAND_MAX)) 0))))
+        (+= (. next x) n)
+        (= n 0)
+        (until n (= n (cast int (- (* 4 (/ (cast double (rand)) RAND_MAX)) 2))))
+        (+= (. next y) n)
+        (if (< (. next x) 0) (= (. next x) 0))
+        (if (> (. next x) (- (/ WIDTH 20) 1)) (= (. next x) (- (/ WIDTH 20) 1)))
+        (if (< (. next y) 3) (= (. next y) 3))
+        (if (> (. next y) (- (/ HEIGHT 20) 3)) (= (. next y) (- (/ HEIGHT 20) 3)))
+        (set_case board (. next x) (. next y) 1))
+      (unless (. square_v x)
+        (-= (. square x) 20)))
+
+    (when (|| (. square_v y) (. square_v x))
+      (when (. square_v y)
+        (+= (. square_v y) 2))
+      (for (def i int 0) (< i (/ WIDTH 20)) (+= i 1)
+        (for (def j int 0) (< j (/ HEIGHT 20)) (+= j 1)
+          (when (&& (get_case board i j)
+                    (< (* 20 (- i 1)) (+ (. square x) (. square_v x)) (* 20 (+ i 1)))
+                    (< (* 20 (- j 1)) (+ (. square y) (. square_v y)) (* 20 (+ j 1))))
+            (= (. square_v y) (. square_v x) 0)))))
+
+    (unless (. square_v y)
+      (def none int 1)
+      (for (def i int 0) (< i (/ WIDTH 20)) (+= i 1)
+        (for (def j int 0) (< j (/ HEIGHT 20)) (+= j 1)
+          (when (&& (get_case board i j)
+                    (< (* 20 (- i 1)) (+ (. square x) (. square_v x)) (* 20 (+ i 1)))
+                    (< (* 20 (- j 1)) (+ (. square y) 1) (* 20 (+ j 1))))
+            (= none 0))))
+       (when none
+        (= (. square_v y) 1)))
+
+    (when (<= 0 (+ (. square y) (. square_v y)) (+ HEIGHT 20))
+      (+= (. square y) (. square_v y)))
+    (when (<= 0 (+ (. square x) (. square_v x)) (- WIDTH 20))
+      (+= (. square x) (. square_v x)))
+
+    ;; register the click
+    (when (aref (. ev mouse) SDL_BUTTON_LEFT)
+      (def x0 int (/ (. ev x) 20))
+      (def y0 int (/ (. ev y) 20))
+      (set_case board x0 y0 true))
+
+    (when (aref (. ev mouse) SDL_BUTTON_RIGHT)
+      (def x0 int (/ (. ev x) 20))
+      (def y0 int (/ (. ev y) 20))
+      (set_case board x0 y0 false))
+
+    ;; clear the screen
+    (SDL_SetRenderDrawColorStruct renderer black)
+    (SDL_RenderFillRect renderer (& screen))
+
+    ;; draw the screen
+    (SDL_SetRenderDrawColorStruct renderer blue)
+
+    ;; draw the board
+    (for (def i int 0) (< i (/ WIDTH 20)) (+= i 1)
+         (for (def j int 0) (< j (/ HEIGHT 20)) (+= j 1)
+              (when (get_case board i j)
+                    (def sq SDL_Rect `(,(* 20 (- i offset)) ,(* 20 j) 20 20))
+                    (SDL_RenderFillRect renderer (& sq)))))
+
+    ;; draw the player
+    (SDL_SetRenderDrawColorStruct renderer green)
+    (SDL_RenderFillRect renderer (& square))
+
+    ;; draw grid
+    (when active
+      (SDL_SetRenderDrawColorStruct renderer white)
+      (for (def i int 0) (< i WIDTH) (+= i 20)
+           (def line_v SDL_Rect `(,i 0 1 HEIGHT))
+           (SDL_RenderFillRect renderer (& line_v)))
+      (for (def j int 0) (< j HEIGHT) (+= j 20)
+           (def line_h SDL_Rect `(0 ,j WIDTH 1))
+           (SDL_RenderFillRect renderer (& line_h))))
+
+    ;; refresh time
+    (SDL_RenderPresent renderer))
+  (return 1))
+
+(def main (-> int void)
+  (srand (time NULL))
+
+  (with-sdl2-init (SDL_INIT_VIDEO)
+    (with-sdl2-window
+      (window "Wallbreaker"
+              SDL_WINDOWPOS_CENTERED SDL_WINDOWPOS_CENTERED
+              WIDTH HEIGHT
+              SDL_WINDOW_SHOWN)
+      (with-sdl2-renderer
+        (renderer window -1 SDL_RENDERER_ACCELERATED)
+        (game_loop renderer)
+        (return EXIT_SUCCESS)))))
+

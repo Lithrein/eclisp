@@ -1,0 +1,438 @@
+(%:include ("../../include/macros.eclisph"))
+
+(%:include <assert.h> <stdbool.h> <stdio.h> <stdlib.h> <time.h>)
+(%:include <SDL2/SDL.h>)
+
+(%:define WIDTH  640)
+(%:define HEIGHT 480)
+
+(macro progn (&body rest)
+  "Use statement-expressions to emulate the behavior of PROGN."
+ `(prog* #{(\{} ,@rest #{\})}))
+
+(macro min (a b)
+  "Evalutate to MIN(a, b)."
+  `(progn
+     (def _a (type-of ,a) ,a)
+     (def _b (type-of ,b) ,b)
+     (?: (< _a _b) _a _b)))
+
+(macro max (a b)
+  "Evalutate to MAX(a, b)."
+  `(progn
+     (def _a (type-of ,a) ,a)
+     (def _b (type-of ,b) ,b)
+     (?: (> _a _b) _a _b)))
+
+
+(macro SDL_SetRenderDrawColorStruct (renderer color)
+ `(SDL_SetRenderDrawColor ,renderer
+                         (. ,color r) (. ,color g) (. ,color b) (. ,color a)))
+
+(defstruct events
+  (declare scope local)
+  ((keys (array SDL_NUM_SCANCODES int)
+    "Array which records the state of every key.")
+   (mouse (array 6 int)
+    "Array which records the state of each mouse button.")
+   (x y xrel yrel int
+    "The position of the cursor.")
+   (xwheel ywheel int
+    "The state of the mouse's wheel.")
+   (quit bool
+    "Whether we should quit the program."))
+ "A record with the state of the input devices.")
+
+(def update_events (-> void (in (ptr struct events)))
+  (def ev SDL_Event)
+  (while (SDL_PollEvent (& ev))
+    (switch (. ev type)
+      (default (break))
+      (SDL_QUIT
+        (= (-> in quit) true)
+        (break))
+      (SDL_KEYDOWN
+        (= (aref (-> in keys) (. ev key keysym scancode)) true)
+        (break))
+      (SDL_KEYUP
+        (= (aref (-> in keys) (. ev key keysym scancode)) false)
+        (break))
+      (SDL_MOUSEMOTION
+        (= (-> in x) (. ev motion x))
+        (= (-> in y) (. ev motion y))
+        (= (-> in xrel) (. ev motion xrel))
+        (= (-> in yrel) (. ev motion yrel))
+        (break))
+      (SDL_MOUSEWHEEL
+        (= (-> in xwheel) (. ev wheel x))
+        (= (-> in ywheel) (. ev wheel y))
+        (break))
+      (SDL_MOUSEBUTTONDOWN
+        (= (aref (-> in mouse) (. ev button button)) true)
+        (break))
+      (SDL_MOUSEBUTTONUP
+        (= (aref (-> in mouse) (. ev button button)) false)
+        (break)))))
+
+(macro set_case (board i j v)
+  `(= (aref ,board (+ (* ,i (/ HEIGHT 20)) ,j)) ,v))
+
+(macro get_case (board i j v)
+  `(aref ,board (+ (* ,i (/ HEIGHT 20)) ,j)))
+
+(macro toggle (v)
+  `(= ,v (- 1 ,v)))
+
+(defstruct object
+  (declare scope local)
+  ((onclick (ptr (-> void ((ptr void)) SDL_Point)))
+   (ondraw  (ptr (-> void ((ptr void)) ((ptr SDL_Renderer)))))
+   (depth   int)
+   (data    (ptr void))))
+
+(defstruct object_list
+  (declare scope local)
+  ((nxt (ptr struct object_list))
+   (val (struct object))))
+
+(def world (ptr struct object_list) NULL)
+
+(defun cons (object object_list)
+  (declare rtype (ptr struct object_list))
+  (declare type (struct object) object)
+  (declare type (ptr struct object_list) object_list)
+
+  (def new_head (ptr struct object_list) NULL)
+
+  (unless (= new_head (malloc (sizeof (* new_head))))
+    (fprintf stderr "cons: alloc failed")
+    (abort))
+
+  (= (. (* new_head) nxt) object_list)
+  (= (. (* new_head) val) object)
+
+  (return new_head))
+
+(defun draw_world (renderer)
+  (declare rtype void)
+  (declare type (ptr SDL_Renderer) renderer)
+
+  (def objects (ptr struct object_list) world)
+
+  (while objects
+    ((. (* objects) val ondraw) (. (* objects) val data) renderer)
+    (= objects (. (* objects) nxt))))
+
+(defstruct grid
+  (declare scope local)
+  ((area  SDL_Rect)
+   (vpitch int)
+   (hpitch int)))
+
+(macro push (val list)
+  `(= ,list (cons ,val ,list)))
+
+(defun grid_draw (_grid renderer)
+  (declare rtype void)
+  (declare type (ptr void) _grid)
+  (declare type (ptr SDL_Renderer) renderer)
+
+  (defcast grid (ptr struct grid) _grid)
+  (def white SDL_Color '(255 255 255 0))
+
+  (SDL_SetRenderDrawColorStruct renderer white)
+  (for (def i int (. (* grid) area x)) (< i (. (* grid) area w)) (+= i (. (* grid) hpitch))
+   (def line_v SDL_Rect `(,i 0 1 ,(. (* grid) area h)))
+   (SDL_RenderFillRect renderer (& line_v)))
+  (for (def j int (. (* grid) area y)) (< j (. (* grid) area h)) (+= j (. (* grid) vpitch))
+   (def line_h SDL_Rect `(0 ,j ,(. (* grid) area w) 1))
+   (SDL_RenderFillRect renderer (& line_h))))
+
+(def game_loop (-> int (renderer (ptr SDL_Renderer)))
+  (def ev (struct events) '(0))
+  (def screen SDL_Rect '(0 0 WIDTH HEIGHT))
+  (def square SDL_Rect `(,(/ (- WIDTH 20) 2) ,(- HEIGHT 40) 20 20))
+  (def square_v SDL_Point '(0 0))
+  (def board (array (* (/ WIDTH 20) (/ HEIGHT 20)) int) '(0))
+
+  (for (def i int 0) (< i (/ WIDTH 20)) (.++ i)
+      (set_case board i (- (/ HEIGHT 20) 1) 1))
+
+  ; (def red   SDL_Color '(255 100 100 0))
+  (def green SDL_Color '(100 255 100 0))
+  (def blue  SDL_Color '(100 100 255 0))
+  ; (def gray  SDL_Color '(150 150 150 0))
+  (def white SDL_Color '(255 255 255 0))
+  (def black SDL_Color '(  0   0   0 0))
+  (def active int 0)
+  (def offset int 0)
+  (def delta int 0)
+  (def delta2 int 0)
+
+  (def next SDL_Point `(,(- (/ WIDTH 20) 2) ,(- (/ HEIGHT 20) 1)))
+
+  (def grid (struct grid) '((0 0 WIDTH HEIGHT) 20 20))
+  (def grid_object (struct object)
+    `(.onclick NULL .ondraw ,grid_draw .data ,(& grid)))
+
+  (push grid_object world)
+
+  (until (. ev quit)
+    (update_events (& ev))
+    (when (aref (. ev keys) SDL_SCANCODE_Q)
+      (break))
+
+    (when (> (. square y) HEIGHT)
+      (break))
+
+    (when (&& (aref (. ev keys) SDL_SCANCODE_SPACE)
+              (== (. square_v y) 0))
+      (= (. square_v y) -15))
+
+    (when (aref (. ev keys) SDL_SCANCODE_LEFT)
+      (= (. square_v x) -10))
+
+    (when (aref (. ev keys) SDL_SCANCODE_RIGHT)
+      (= (. square_v x) +10))
+
+    (unless (ior (aref (. ev keys) SDL_SCANCODE_LEFT)
+                 (aref (. ev keys) SDL_SCANCODE_RIGHT))
+      (= (. square_v x) 0))
+
+    (when (aref (. ev keys) SDL_SCANCODE_G)
+      (toggle active)
+      (= (aref (. ev keys) SDL_SCANCODE_G) 0))
+
+    (SDL_Delay 30)
+    (+= delta 30)
+    (when (> delta 333)
+      (= delta 0)
+      (.++ delta2)
+      (for (def i int 0) (< i (/ WIDTH 20)) (.++ i)
+        (for (def j int 0) (< j (/ HEIGHT 20)) (.++ j)
+           (if (== i (- (/ WIDTH 20) 1)) 
+            (set_case board i j 0)
+            (set_case board i j (get_case board (+ i 1) j)))))
+      (when (== delta2 6)
+        (= delta2 0)
+        (def n int 0)
+        (until n (= n (cast int (- (* 3 (/ (cast double (rand)) RAND_MAX)) 0))))
+        (+= (. next x) n)
+        (= n 0)
+        (until n (= n (cast int (- (* 4 (/ (cast double (rand)) RAND_MAX)) 2))))
+        (+= (. next y) n)
+        (if (< (. next x) 0) (= (. next x) 0))
+        (if (> (. next x) (- (/ WIDTH 20) 1)) (= (. next x) (- (/ WIDTH 20) 1)))
+        (if (< (. next y) 3) (= (. next y) 3))
+        (if (> (. next y) (- (/ HEIGHT 20) 3)) (= (. next y) (- (/ HEIGHT 20) 3)))
+        (set_case board (. next x) (. next y) 1))
+      (unless (. square_v x)
+        (-= (. square x) 20)))
+
+    (when (|| (. square_v y) (. square_v x))
+      (when (. square_v y)
+        (+= (. square_v y) 2))
+      (for (def i int 0) (< i (/ WIDTH 20)) (+= i 1)
+        (for (def j int 0) (< j (/ HEIGHT 20)) (+= j 1)
+          (when (&& (get_case board i j)
+                    (< (* 20 (- i 1)) (+ (. square x) (. square_v x)) (* 20 (+ i 1)))
+                    (< (* 20 (- j 1)) (+ (. square y) (. square_v y)) (* 20 (+ j 1))))
+            (= (. square_v y) (. square_v x) 0)))))
+
+    (unless (. square_v y)
+      (def none int 1)
+      (for (def i int 0) (< i (/ WIDTH 20)) (+= i 1)
+        (for (def j int 0) (< j (/ HEIGHT 20)) (+= j 1)
+          (when (&& (get_case board i j)
+                    (< (* 20 (- i 1)) (+ (. square x) (. square_v x)) (* 20 (+ i 1)))
+                    (< (* 20 (- j 1)) (+ (. square y) 1) (* 20 (+ j 1))))
+            (= none 0))))
+       (when none
+        (= (. square_v y) 1)))
+
+    (when (<= 0 (+ (. square y) (. square_v y)) (+ HEIGHT 20))
+      (+= (. square y) (. square_v y)))
+    (when (<= 0 (+ (. square x) (. square_v x)) (- WIDTH 20))
+      (+= (. square x) (. square_v x)))
+
+    ;; register the click
+    (when (aref (. ev mouse) SDL_BUTTON_LEFT)
+      (def x0 int (/ (. ev x) 20))
+      (def y0 int (/ (. ev y) 20))
+      (set_case board x0 y0 true))
+
+    (when (aref (. ev mouse) SDL_BUTTON_RIGHT)
+      (def x0 int (/ (. ev x) 20))
+      (def y0 int (/ (. ev y) 20))
+      (set_case board x0 y0 false))
+
+    ;; clear the screen
+    (SDL_SetRenderDrawColorStruct renderer black)
+    (SDL_RenderFillRect renderer (& screen))
+
+    ;; draw the screen
+    (SDL_SetRenderDrawColorStruct renderer blue)
+
+    ;; draw the board
+    (for (def i int 0) (< i (/ WIDTH 20)) (+= i 1)
+         (for (def j int 0) (< j (/ HEIGHT 20)) (+= j 1)
+              (when (get_case board i j)
+                    (def sq SDL_Rect `(,(* 20 (- i offset)) ,(* 20 j) 20 20))
+                    (SDL_RenderFillRect renderer (& sq)))))
+
+    ;; draw the player
+    (SDL_SetRenderDrawColorStruct renderer green)
+    (SDL_RenderFillRect renderer (& square))
+
+    (draw_world renderer)
+    ;; draw grid
+    (when active
+      (SDL_SetRenderDrawColorStruct renderer white)
+      (for (def i int 0) (< i WIDTH) (+= i 20)
+           (def line_v SDL_Rect `(,i 0 1 HEIGHT))
+           (SDL_RenderFillRect renderer (& line_v)))
+      (for (def j int 0) (< j HEIGHT) (+= j 20)
+           (def line_h SDL_Rect `(0 ,j WIDTH 1))
+           (SDL_RenderFillRect renderer (& line_h))))
+
+    ;; refresh time
+    (SDL_RenderPresent renderer))
+  (return 1))
+
+(defstruct vector
+  (declare scope local)
+  ((capacity  int)
+   (size      int)
+   (elem_size (const int))
+   (data      (ptr void))))
+
+;; currently missing:
+;; insert
+;; erase
+
+(macro vector-init (type &env env)
+  (prog
+    (symbol-set (symbol-under-definition env) 'elem-type type env)
+   `(cast (struct vector) `(0 0 ,(sizeof ,type) NULL))))
+
+(macro vector-update (vector &key capacity size data)
+  `(prog*
+    ,(if capacity `(= (@ ,vector capacity) ,capacity) '(prog*))
+    ,(if size     `(= (@ ,vector size) ,size)         '(prog*))
+    ,(if data     `(= (@ ,vector data) ,data)         '(prog*))))
+
+(macro vector-clear (vector)
+  `(vector-update ,vector :size 0))
+
+(macro vector-empty-p (vector)
+  `(== 0 (@ vector size)))
+
+(macro vector-free (vector)
+  `(when (@ ,vector data)
+     (free (@ ,vector data))
+     (vector-update ,vector :capacity 0 :size 0 :data NULL)))
+
+(macro vector-ptr (vector at)
+  `(+ (cast (ptr char) (@ ,vector data))
+      (* ,at
+         (@ ,vector elem_size))))
+
+(macro vector-at (vector at &env env)
+  (let ((type (symbol-get vector 'elem-type env)))
+    `(* (cast (ptr ,type) (vector-ptr ,vector ,at)))))
+
+(macro vector-foreach-ref (vector it &body body &env env)
+  (let ((i (gensym "i"))
+        (type (symbol-get vector 'elem-type env)))
+    `(for (def ,i int 0) (< ,i (@ ,vector size)) (.++ ,i)
+      (def ,it (ptr ,type) (& (vector-at ,vector ,i ,env)))
+      ,@body)))
+
+(macro vector-foreach-val (vector it &body body &env env)
+  (let ((i (gensym "i"))
+        (type (symbol-get vector 'elem-type env)))
+    `(for (def ,i int 0) (< ,i (@ ,vector size)) (.++ ,i)
+      (def ,it ,type (vector-at ,vector ,i ,env))
+      ,@body)))
+
+(defun vector_grow_capacity (capacity)
+  (declare rtype int)
+  (declare type int capacity)
+  (declare inline always)
+
+  (return (?: capacity (* 2 capacity) 1)))
+
+(defun vector_reserve (vector wanted)
+  (declare rtype void)
+  (declare type (ptr struct vector) vector)
+  (declare type int wanted)
+
+  (def new_vec_data (ptr void) NULL)
+
+  (unless (> wanted (@ vector capacity))
+    (return))
+
+  (unless (= new_vec_data
+             (realloc (@ vector data) (* (@ vector elem_size) wanted)))
+    (fprintf stderr "vector_reserve: alloc failed.\n")
+    (abort))
+
+  (vector-update vector
+    :capacity wanted
+    :data     (?: new_vec_data new_vec_data (@ vector data))))
+
+(defun vector_push_back (vector data)
+  (declare rtype void)
+  (declare type (ptr struct vector) vector)
+  (declare type (ptr void) data)
+
+  (when (== (@ vector size) (@ vector capacity))
+    (vector_reserve vector (vector_grow_capacity (@ vector capacity))))
+
+  (memcpy (vector-ptr vector (@ vector size)) data (@ vector elem_size))
+  (vector-update vector
+    :size (+ (@ vector size) 1)))
+
+(defun vector_pop_back (vector)
+  (declare rtype void)
+  (declare type (ptr struct vector) vector)
+  (declare inline always)
+
+  (vector-update vector
+    :size (?: (vector-empty-p vector) 0 (- (@ vector size) 1))))
+
+(macro vector_front (vector &env env)
+  (vector-at vector 0 env))
+
+(macro vector_back (vector &env env)
+  (vector-at vector (- (@ vector size) 1) env))
+
+(def main (-> int void)
+  (srand (time NULL))
+
+  (def vint (struct vector) (vector-init int))
+  (def i int 0)
+
+  (vector_push_back (& vint) (& i)) (++. i)
+  (vector_push_back (& vint) (& i)) (++. i)
+  (vector_push_back (& vint) (& i)) (++. i)
+  (vector_push_back (& vint) (& i)) (++. i)
+  (vector_push_back (& vint) (& i)) (++. i)
+
+  (vector-foreach-ref vint it
+    (printf "%d\n" (* it)))
+
+  (vector-free vint))
+
+;;  (with-sdl2-init (SDL_INIT_VIDEO)
+;;    (with-sdl2-window
+;;      (window "Wallbreaker"
+;;              SDL_WINDOWPOS_CENTERED SDL_WINDOWPOS_CENTERED
+;;              WIDTH HEIGHT
+;;              SDL_WINDOW_SHOWN)
+;;      (with-sdl2-renderer
+;;        (renderer window -1 SDL_RENDERER_ACCELERATED)
+;;        (game_loop renderer)
+;;        (return EXIT_SUCCESS))))
+
+

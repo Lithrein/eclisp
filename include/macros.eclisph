@@ -1,43 +1,198 @@
-(macro cond (fst &body body)
+(macro defmacro (&rest rest)
+  `(macro ,@rest))
+
+(defmacro caar (list-caar)   `(car (car ,list-caar)))
+(defmacro cadr (list-cadr)   `(car (cdr ,list-cadr)))
+(defmacro cdar (list-cadr)   `(cdr (car ,list-cdar)))
+(defmacro cddr (list-cddr)   `(cdr (cdr ,list-cddr)))
+
+(defmacro caaar (list-caaar) `(car (car (car ,list-caaar))))
+(defmacro caadr (list-caadr) `(car (car (cdr ,list-caadr))))
+(defmacro cadar (list-cadar) `(car (cdr (car ,list-cadar))))
+(defmacro caddr (list-caddr) `(car (cdr (cdr ,list-caddr))))
+(defmacro cdaar (list-cdaar) `(cdr (car (car ,list-cdaar))))
+(defmacro cdadr (list-cdadr) `(cdr (car (cdr ,list-cdadr))))
+(defmacro cddar (list-cddar) `(cdr (cdr (car ,list-cddar))))
+(defmacro cdddr (list-cdddr) `(cdr (cdr (cdr ,list-cdddr))))
+
+(defmacro metafn (name args &rest rest)
+  "Define a meta layer function."
+  (if (stringp (car rest))
+    `(meta (def ,name (lambda ,name ,args ,@(cdr rest)) ,(car rest)))
+    `(meta (def ,name (lambda ,name ,args ,@rest)))))
+
+(defmacro not (a) (! a))
+(defmacro ior (&rest or-rest)  `(|| ,@or-rest))
+(defmacro and (&rest and-rest) `(&& ,@and-rest))
+
+(defmacro lior (&rest lior-rest) `(| ,@lior-rest))
+(defmacro leor (&rest leor-rest) `(^ ,@leor-rest))
+(defmacro land (&rest land-rest) `(& ,@land-rest))
+
+;; todo: rewrite as a counted loop
+;; todo: rename to exactly-one
+;; todo: provide at-most-one
+;; todo: provide at-leat-one
+(defmacro eor (&rest eor-rest)
+  (if eor-rest
+    (if (== 1 (length eor-rest))
+        `,(car eor-rest)
+    (if (== 2 (length eor-rest))
+        `(ior (and (not ,(car eor-rest)) ,(cadr eor-rest))
+              (and ,(car eor-rest) (not ,(cadr eor-rest))))
+        `(ior (and ,(car eor-rest) (not (ior ,@(cdr eor-rest))))
+              (and (not ,(car eor-rest)) (eor ,@(cdr eor-rest))))))))
+
+(defmacro cond (fst &body body)
   (if body
-      (if (&& (listp (car body)) (|| (== (caar body) 't)
-                                     (== (caar body) 'else)
-                                     (== (caar body) 'otherwise)))
+      (if (&& (listp (car body)) (ior (== (caar body) 't)
+                                      (== (caar body) 'else)
+                                      (== (caar body) 'otherwise)))
           `(if ,(car fst) (prog ,@(cdr fst))
              (prog ,@(cdr (car body))))
         `(if ,(car fst) (prog ,@(cdr fst))
            (cond ,@body)))
     `(if ,(car fst) (prog ,@(cdr fst)))))
 
-(macrofn caar (list)
-  (car (car list)))
+(metafn member (elem list)
+  (if list
+      (if (== elem (car list))
+          elem
+          (member elem (cdr list)))))
 
-(macrofn cadr (list)
-  (car (cdr list)))
+(metafn member-if (pred list)
+  (if list
+    (if (funcall pred (car list))
+      (car list)
+      (member-if pred (cdr list)))))
 
-(macrofn cadar (list)
-  (car (cdr (car list))))
+(metafn symbol-get (sym prop env)
+  (if env
+    (if (member sym (scope-symbols env))
+        (scope-symbol-get sym prop env)
+        (symbol-get sym prop (cdr env)))))
 
-(macrofn assoc (key list)
+(metafn symbol-set (sym prop val env)
+  (if env
+    (if (member sym (scope-symbols env))
+        (scope-symbol-set sym prop val env)
+        (symbol-set sym prop val (cdr env)))))
+
+(metafn my-type-of-aux (expr env)
+  (if (consp expr)
+      (cond
+        ((== '& (car expr))
+          `(ptr ,(my-type-of-aux (cadr expr))))
+        ((== '* (car expr))
+          (let ((stype (my-type-of-aux (cadr expr) env)))
+            (if (== 'ptr (car stype))
+                (cadr stype)
+                (error "Invalid use of `*'."))))
+        ((== 'cast (car expr)) (cadr expr))
+        ((== 'aref (car expr))
+          (let ((stype (my-type-of-aux (cadr expr) env))
+                (len (length stype)))
+            (cond
+              ((&& (== 'array (car stype)) (== 3 len))
+			   (caddr stype))
+              ((&& (== 'array (car stype)) (== 2 len))
+			   (cadr stype))
+              (t (error "Invalid use of `aref'.")))))
+        ((== '. (car expr))
+          (let ((stype (my-type-of-aux (cadr expr) env)))
+            (if (== 'struct (car stype))
+				(cadr (member-if (lambda (x) (== (car x) (caddr expr)))
+								 (cddr stype)))
+                (error "Invalid use of `.'."))))
+        ((== '-> (car expr))
+          (let ((stype (my-type-of-aux (cadr expr) env)))
+            (if (&& (== 'ptr (car stype) (== 'struct (caadr stype))))
+				(cadr (member-if (lambda (x) (== (car x) (caddr expr)))
+								 (cddr (cadr stype))))
+                (error "Invalid use of `->'."))))
+        (t
+          (let ((stype (my-type-of-aux (car expr) env)))
+            (if (== '-> (car stype))
+                (cadr stype)
+                (error "can't determine return type.")))))
+      (symbol-get expr 'type env)))
+
+(defmacro my-type-of (sym &env env)
+  (my-type-of-aux sym env))
+
+(metafn current-function-aux (env)
+  (if env
+    (if (== (car (scope-type env)) 'function)
+        (cdr (scope-type env))
+        (current-function-aux (cdr env)))))
+
+(defmacro current-function (&env env)
+  (current-function-aux env))
+
+(metafn current-return-type-aux (env)
+  (if env
+    (if (== (car (scope-type env)) 'function)
+        (cadr (scope-symbol-get (cdr (scope-type env)) 'type (cdr env)))
+        (current-return-type-aux (cdr env)))))
+
+(metafn symbol-under-definition (env)
+  (if env
+    (if (== (car (scope-type env)) 'def)
+        (cdr (scope-type env))
+        (symbol-under-definition (cdr env)))))
+
+(defmacro current-return-type (&env env)
+  (current-return-type-aux env))
+
+(metafn expand-place (place type)
+   (if place
+     (if (== 1 (length place))
+       (car place)
+       (cond
+         ((== 'array (car type))
+          (cond ((== 3 (length type))
+               (expand-place `((aref ,(car place) ,(cadr place)) ,@(cddr place))
+                     (caddr type)))
+              ((== 2 (length type))
+               (expand-place `((aref ,(car place) ,(cadr place)) ,@(cddr place))
+                     (cadr type)))
+              (t (error "array expect 2 or 3 arguments."))))
+         ((member (car type) '(struct union))
+          (expand-place `((. ,(car place) ,(cadr place)) ,@(cddr place))
+                         (cadr (member-if (lambda (x) (== (car x) (cadr place)))
+                                          (cddr type)))))
+         ((&& (== 'ptr (car type)) (== 'struct (caadr type)))
+          (expand-place `((-> ,(car place) ,(cadr place)) ,@(cddr place))
+                         (cadr (member-if (lambda (x) (== (car x) (cadr place)))
+                                          (cddr (cadr type))))))
+         ((== 'ptr (car type))
+          (expand-place `((aref ,(car place) ,(cadr place)) ,@(cddr place))
+                         (cadr type)))))))
+
+(defmacro @ (&rest place &env env)
+  (let ((xplace (macroexpand (car place) env)))
+    (expand-place place (my-type-of-aux xplace env))))
+
+(metafn assoc (key list)
   (if list
     (if (== (caar list) key)
         (car list)
         (assoc key (cdr list)))))
 
-(macrofn build-type-aux (typ list)
+(metafn build-type-aux (typ list)
   (if typ
     `(,(assoc (car typ) list) ,@(build-type-aux (cdr typ) list))))
 
-(macrofn build-type (typ list)
+(metafn build-type (typ list)
   (if (car typ)
       `(-> ,(cadr (assoc '__rtype list)) ,@(build-type-aux typ list))
       `(-> ,(cadr (assoc '__rtype list)) void)))
 
-(macrofn process-type-decls (type &rest vars)
+(metafn process-type-decls (type &rest vars)
   (if vars
       `((,(car vars) ,type) ,@(process-type-decls type (cdr vars)))))
 
-(macrofn extract-declare-forms-aux (typ-decls fn-attrs misc-attrs &rest rest)
+(metafn extract-declare-forms-aux (typ-decls fn-attrs misc-attrs &rest rest)
   (if (== (caar rest) 'declare)
       (destructuring-bind (declare category type &rest vars) (car rest)
         (cond
@@ -50,10 +205,10 @@
           ((== category 'scope)     (extract-declare-forms-aux typ-decls fn-attrs `((:scope ,type) ,@misc-attrs) (cdr rest)))))
     `(,typ-decls ,fn-attrs ,misc-attrs ,rest)))
 
-(macrofn extract-declare-forms (&rest body)
+(metafn extract-declare-forms (&rest body)
   (extract-declare-forms-aux nil nil nil body))
 
-(macrofn extract-params (&rest rest)
+(metafn extract-params (&rest rest)
   "Extract function parameters from a function type."
   (if rest
     (if (== '&key (car rest))
@@ -63,7 +218,7 @@
          (if (listp (car rest))
            `(,(caar rest) ,@(extract-params (cdr rest))))))))
 
-(macro defun (fn-name sig &body body)
+(defmacro defun (fn-name sig &body body)
   (let ((docp (stringp (car body)))
         (decl-attrs-body (extract-declare-forms (if docp (cdr body) body)))
         (params (extract-params sig)))
@@ -85,7 +240,7 @@
                         (def (,fn-name ,@fn-attrs) ,nsig
                         ,(if docp (car body)) ,@nbody)))))))))
 
-;; deprecated 
+;; deprecated
 (macro local-defun (fn-name typ &body body)
   `(%:if ((! (defined PROCESS_HEADER)) (def ,fn-name ,typ ,@body))))
 
@@ -101,21 +256,21 @@
     `(%:if ((defined PROCESS_HEADER) (def (,@fn-name :inline always) ,typ ,@body)))
     `(%:if ((defined PROCESS_HEADER) (def (,fn-name :inline always) ,typ ,@body)))))
 
-(macro deftype (type definition)
+(defmacro deftype (type definition)
   `(def ,type (typedef ,definition)))
 
-(macro defenum-internal (name (&rest values) &rest documentation)
+(defmacro defenum-internal (name (&rest values) &rest documentation)
   (if documentation
       `(def (enum ,name ,@values) ,(car documentation))
       `(def (enum ,name ,@values))))
 
-(macro global-defenum (name (&rest values) &rest documentation)
+(defmacro global-defenum (name (&rest values) &rest documentation)
   `(%:if ((defined PROCESS_HEADER) (defenum-internal ,name (,@values) ,@documentation))))
 
-(macro local-defenum (name (&rest values) &rest documentation)
+(defmacro local-defenum (name (&rest values) &rest documentation)
   `(%:if ((! (defined PROCESS_HEADER)) (defenum-internal ,name (,@values) ,@documentation))))
 
-(macro defenum (name &rest body)
+(defmacro defenum (name &rest body)
   (let ((decl-attrs-body (extract-declare-forms body)))
     (destructuring-bind (_ _ misc-attrs
                            ((&rest values) &rest documentation)) decl-attrs-body
@@ -126,7 +281,7 @@
                 `(global-defenum ,name (,@values) ,@documentation))
             `(global-defenum ,name (,@values) ,@documentation))))))
 
-(macro define-struct-or-union-internal (sou name (&rest fields) &rest documentation)
+(defmacro define-struct-or-union-internal (sou name (&rest fields) &rest documentation)
   (if documentation
       (if (listp name)
           `(def ,(cdr name) (,sou ,(car name) ,@fields) ,(car documentation))
@@ -135,15 +290,15 @@
           `(def ,(cdr name) (,sou ,(car name) ,@fields))
           `(def (,sou ,name ,@fields)))))
 
-(macro local-define-struct-or-union (sou name (&rest fields) &rest documentation)
+(defmacro local-define-struct-or-union (sou name (&rest fields) &rest documentation)
   `(%:if ((! (defined PROCESS_HEADER))
           (define-struct-or-union-internal ,sou ,name (,@fields) ,@documentation))))
 
-(macro global-define-struct-or-union (sou name (&rest fields) &rest documentation)
+(defmacro global-define-struct-or-union (sou name (&rest fields) &rest documentation)
   `(%:if ((defined PROCESS_HEADER)
           (define-struct-or-union-internal ,sou ,name (,@fields) ,@documentation))))
 
-(macro define-struct-or-union (sou name &rest body)
+(defmacro define-struct-or-union (sou name &rest body)
   (let ((decl-attrs-body (extract-declare-forms body)))
     (destructuring-bind (type-decls fn-decls misc-attrs
                          ((&rest fields) &rest documentation)) decl-attrs-body
@@ -155,19 +310,19 @@
                `(global-define-struct-or-union ,sou ,name (,@fields) ,@documentation)))
           `(global-define-struct-or-union ,sou ,name (,@fields) ,@documentation))))))
 
-(macro defstruct (name &rest body)
+(defmacro defstruct (name &rest body)
   `(define-struct-or-union struct ,name ,@body))
 
-(macro defunion (name &rest body)
+(defmacro defunion (name &rest body)
   `(define-struct-or-union union ,name ,@body))
 
-(macro local-deftype (type definition)
+(defmacro local-deftype (type definition)
   `(%:if ((! (defined PROCESS_HEADER)) (deftype ,type ,definition))))
 
-(macro global-deftype (type definition)
+(defmacro global-deftype (type definition)
   `(%:if ((defined PROCESS_HEADER) (deftype ,type ,definition))))
 
-(macro defcast (name type val)
+(defmacro defcast (name type val)
   "Performs a cast to the proper type at definition time.
 When dealing with void pointers, we often see the following pattern:
 
@@ -177,51 +332,50 @@ This macro allows to not have to type `type' twice especially when
 its a long structure name. "
   `(def ,name ,type (cast ,type ,val)))
 
-(macrofn multiline-string-aux (&rest strings)
+(metafn multiline-string-aux (&rest strings)
   (if strings
       (concat (car strings)
               (multiline-string-aux (cdr strings)))
     ""))
 
-(macro multiline-string (&rest strings)
+(defmacro multiline-string (&rest strings)
   `,(multiline-string-aux strings))
 
-(macro import (&rest files)
+(defmacro import (&rest files)
   (if files
     `(prog
         (%:include (,(concat (car files) ".eclisp") ,(concat (car files) ".h")))
         (import ,@(cdr files)))))
 
-(macro when (condition &body body)
+(defmacro when (condition &body body)
   `(if ,condition
     (prog
       ,@body)))
 
-(macro unless (condition &body body)
+(defmacro unless (condition &body body)
   `(if (! ,condition)
      (prog
        ,@body)))
 
-(macro until (condition &body body)
+(defmacro until (condition &body body)
   `(while (! ,condition)
      (prog
        ,@body)))
 
-(macro awhen (condition &body body)
+(defmacro awhen (condition &body body)
   `(prog
      (def it int ,condition)
      (when it ,@body)))
 
-(macro aif (condition then else)
+(defmacro aif (condition then else)
   `(prog
      (def it int ,condition)
-     (if ,condition ,then ,else)))
+     (if ,it ,then ,else)))
 
-(macro loop (&body body)
+(defmacro loop (&body body)
   `(while 1 ,@body))
 
-
-(macro unwind-protect (form &body cleanup-forms)
+(defmacro unwind-protect (form &body cleanup-forms)
   (let ((cleanup (gensym "cleanup"))
         (result  (gensym "result"))
         (returnp (gensym "returnp")))
@@ -238,7 +392,7 @@ its a long structure name. "
         ,@cleanup-forms
        (if ,returnp (return ,result)))))
 
-(macro with-open-file ((var filename mode) &body body)
+(defmacro with-open-file ((var filename mode) &body body)
   `(prog
     (def ,var (ptr FILE) NULL)
     (unwind-protect
@@ -249,7 +403,7 @@ its a long structure name. "
       (if ,var
         (fclose ,var)))))
 
-(macro with-sdl2-init (args &body body)
+(defmacro with-sdl2-init (args &body body)
   `(unwind-protect
      (prog
        (when (SDL_Init ,@args)
@@ -258,7 +412,7 @@ its a long structure name. "
       ,@body)
      (SDL_Quit)))
 
-(macro with-sdl2-window ((window wtitle x y w h flags) &body body)
+(defmacro with-sdl2-window ((window wtitle x y w h flags) &body body)
   `(prog
       (def ,window (ptr SDL_Window)
            (SDL_CreateWindow ,wtitle ,x ,y ,w ,h ,flags))
@@ -270,7 +424,7 @@ its a long structure name. "
          ,@body)
       (SDL_DestroyWindow ,window))))
 
-(macro with-sdl2-renderer ((renderer window index flags) &body body)
+(defmacro with-sdl2-renderer ((renderer window index flags) &body body)
   `(prog
       (def ,renderer (ptr SDL_Renderer)
            (SDL_CreateRenderer ,window ,index ,flags))
@@ -282,13 +436,13 @@ its a long structure name. "
          ,@body)
       (SDL_DestroyRenderer ,renderer))))
 
-(macro ~> (fst snd &body rst)
+(defmacro ~> (fst snd &body rst)
   (let ((snd (if (listp snd) snd (list snd))))
     (if (null rst)
         `(,(car snd) ,fst ,@(cdr snd))
         `(~> (,(car snd) ,fst ,@(cdr snd)) ,@rst))))
 
-(macro ~>> (fst snd &body rst)
+(defmacro ~>> (fst snd &body rst)
   (let ((snd (if (listp snd) snd (list snd))))
     (if (null rst)
         `(,(car snd) ,@(cdr snd) ,fst)

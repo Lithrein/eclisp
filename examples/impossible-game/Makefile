@@ -1,8 +1,8 @@
 ECLISP := ../../eclisp
 QUIET := @
 CC = gcc
-CFLAGS := -g0 -fverbose-asm -save-temps -Wall -Wextra -O3 -fdump-tree-optimized
-LDFLAGS :=
+CFLAGS := -g3 -Wall -Wextra $(shell pkg-config --cflags sdl2)
+LDFLAGS := $(shell pkg-config --libs sdl2)
 .SUFFIXES: .eclisp .eclisph
 
 .eclisph.h:
@@ -11,14 +11,11 @@ LDFLAGS :=
 .eclisp.c:
 	$(QUIET)$(ECLISP) $< > $@
 
-all: eos
+all: ig
 	rm -rf *.c *.h
 
-eos: eos.o
+ig: ig.o
 	gcc $(CLAGS) $< $(LDFLAGS) -o $@
 
-macros.h: ../../include/macros.eclisph
-	$(QUIET)$(ECLISP) $< > $@
-
 clean:
-	rm -rf eos eos.o
+	rm -rf ig ig.o

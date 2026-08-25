@@ -377,47 +377,47 @@ and if, and write it on TO-STREAM."
     (format to-stream "~v@{~C~:*~}" indent #\Space)
     (print-type (when var (es-name var)) type to-stream)
     (when (and (es-attrs var)
-               (or (multiple-value-bind (var present-p) (gethash "packed" (es-attrs var)) present-p)
-                   (multiple-value-bind (var present-p) (gethash "aligned" (es-attrs var)) present-p)
-                   (multiple-value-bind (var present-p) (gethash "section" (es-attrs var)) present-p)))
+               (or (nth-value 1 (gethash "packed" (es-attrs var)))
+                   (nth-value 1 (gethash "aligned" (es-attrs var)))
+                   (nth-value 1 (gethash "section" (es-attrs var)))))
       (format to-stream " __attribute__ ((")
       (let ((comma-p nil))
-      (when (and (multiple-value-bind (var present-p) (gethash "packed" (es-attrs var)) present-p)
-                 (or (null (gethash "packed" (es-attrs var)))
-                     (string= (gethash "packed" (es-attrs var)) "t")))
-          (if comma-p (format to-stream ", "))
+		(when (and (nth-value 1 (gethash "packed" (es-attrs var)))
+                   (or (null (gethash "packed" (es-attrs var)))
+                       (string= (gethash "packed" (es-attrs var)) "t")))
           (format to-stream "packed")
           (setf comma-p t))
       (when (gethash "section" (es-attrs var))
         (format to-stream "section (\"~a\")" (gethash "section" (es-attrs var)))
         (setf comma-p t))
-      (when (multiple-value-bind (var present-p) (gethash "aligned" (es-attrs var)) present-p)
+      (when (nth-value 1 (gethash "aligned" (es-attrs var)))
           (if comma-p (format to-stream ", "))
           (format to-stream "aligned (~a)" (gethash "aligned" (es-attrs var)))
           (setf comma-p t))
       (format to-stream "))")))
     (when value
       (format to-stream " = ~a"
-              (with-output-to-string (s) (print-form (eclisp-eval value nil) nil 0 s))))
-      (when stmtp (format to-stream ";~%"))))
+              (with-output-to-string (s) (print-form value nil 0 s))))
+    (when stmtp (format to-stream ";~%"))))
 
-(defun compile-symbol-definition (symdef)
-  "Reads a name and its attributes.
-All this information is returned as an ECLISP-SYMBOL instance"
-  (if (listp symdef)
-      (let* ((sym (make-instance 'eclisp-symbol :name (car symdef)))
-             (cur-key nil))
-        (loop for elt in (cdr symdef) do
-              (cond ((and (or (stringp elt) (symbolp elt))
-                          (char= (aref (string elt) 0) #\:))
-                 (setf cur-key (subseq (string elt) 1))
-                 (setf (gethash cur-key (es-attrs sym)) nil))
-                (t
-                 (if (null cur-key)
-                     (error "cur-key is nil")
-                     (setf (gethash cur-key (es-attrs sym)) elt)))))
-        sym)
-      (make-instance 'eclisp-symbol :name symdef)))
+;; to delete:
+;; (defun compile-symbol-definition (symdef)
+;;   "Reads a name and its attributes.
+;; All this information is returned as an ECLISP-SYMBOL instance"
+;;   (if (listp symdef)
+;;       (let* ((sym (make-instance 'eclisp-symbol :name (car symdef)))
+;;              (cur-key nil))
+;;         (loop for elt in (cdr symdef) do
+;;               (cond ((and (or (stringp elt) (symbolp elt))
+;;                           (char= (aref (string elt) 0) #\:))
+;;                  (setf cur-key (subseq (string elt) 1))
+;;                  (setf (gethash cur-key (es-attrs sym)) nil))
+;;                 (t
+;;                  (if (null cur-key)
+;;                      (error "cur-key is nil")
+;;                      (setf (gethash cur-key (es-attrs sym)) elt)))))
+;;         sym)
+;;       (make-instance 'eclisp-symbol :name symdef)))
 
 (defun print-defun (form stmtp indent to-stream)
   "Compile a form which declares a global variable.
@@ -440,8 +440,8 @@ BODY is optional. DOCUMENTATION is optional"
         (setf type `(,(intern-eclisp-token "->") (,(intern-eclisp-token "static") ,(cadr type)) ,@(cddr type)))))
     (when (or (gethash "section" (es-attrs var))
               (gethash "inline" (es-attrs var))
-              (multiple-value-bind (val present-p) (gethash "noreturn" (es-attrs var)) present-p)
-              (multiple-value-bind (val present-p) (gethash "interrupt" (es-attrs var)) present-p))
+              (nth-value 1 (gethash "noreturn" (es-attrs var)))
+              (nth-value 1 (gethash "interrupt" (es-attrs var))))
       (format to-stream "__attribute__ ((")
       (let ((comma-p nil))
         (when (gethash "section" (es-attrs var))
@@ -455,11 +455,11 @@ BODY is optional. DOCUMENTATION is optional"
           (when comma-p (format to-stream ", "))
           (format to-stream "noinline")
           (setf comma-p t))
-        (when (multiple-value-bind (val present-p) (gethash "noreturn" (es-attrs var)) present-p)
+        (when (nth-value 1 (gethash "noreturn" (es-attrs var)))
           (when comma-p (format to-stream ", "))
           (format to-stream "noreturn")
           (setf comma-p t))
-        (when (multiple-value-bind (val present-p) (gethash "interrupt" (es-attrs var)) present-p)
+        (when (nth-value 1 (gethash "interrupt" (es-attrs var)))
           (when comma-p (format to-stream ", "))
           (format to-stream "interrupt")
           (setf comma-p t))
@@ -738,7 +738,7 @@ BODY is optional. DOCUMENTATION is optional"
   (declare (ignore stmtp))
   (pop form)
   (format to-stream "~v@{~C~:*~}" indent #\Space)
-  (format to-stream "//~a~%" (et-value (car form))))
+  (format to-stream "//~a~%" (apply #'concatenate 'string (mapcar #'et-value form))))
 
 (defun compile-quote (args ctx)
   (declare (ignore ctx))
@@ -797,10 +797,11 @@ BODY is optional. DOCUMENTATION is optional"
     (format to-stream ";~%")))
 
 (defun ctx-lookup (x ctx)
-  (cond ((symbolp x) (gethash x ctx))
-        ((listp x) (compile-macro x ctx))
-        ((and (eq (type-of x) 'eclisp-token) (eq (et-type x) :eclisp-symbol)) (gethash x ctx))
-        (t x)))
+  (cond ((listp x) (compile-macro x ctx ))
+		((and (eq (type-of x) 'eclisp-token)
+			  (eq (et-type x) :eclisp-symbol))
+		 (gethash x ctx))
+		(t x)))
 
 (defun compile-concat (args ctx)
   (intern-eclisp-token
@@ -831,7 +832,7 @@ BODY is optional. DOCUMENTATION is optional"
       :eclisp-character)))
 
 (defun compile-if-macro (args ctx)
-  ;; (format t "~a ~a~%" (car args) (ctx-lookup (car args) ctx))
+  ;; (format t "if: ~a ~a~%" (car args) (ctx-lookup (car args)))
   (let ((condition (ctx-lookup (car args) ctx))
         (then-branch (cadr args))
         (else-branch (caddr args)))
@@ -914,20 +915,18 @@ BODY is optional. DOCUMENTATION is optional"
     ((string= op "&&")
      (let ((res t)
            (arg0 (ctx-lookup (car args) ctx))
-           (arg1 (ctx-lookup (cadr args) ctx))
-           (arg2+ (cddr args)))
-       (setf res (and arg0 arg1))
-       (do ((cur arg2+ (cdr cur)))
+           (arg1+ (cdr args)))
+       (setf res arg0)
+       (do ((cur arg1+ (cdr cur)))
            ((or (not cur) (not res)))
          (setf res (and res (ctx-lookup (car cur) ctx))))
        res))
     ((string= op "||")
      (let ((res nil)
            (arg0 (ctx-lookup (car args) ctx))
-           (arg1 (ctx-lookup (cadr args) ctx))
-           (arg2+ (cddr args)))
-       (setf res (or arg0 arg1))
-       (do ((cur arg2+ (cdr cur)))
+           (arg1+ (cdr args)))
+       (setf res arg0)
+       (do ((cur arg1+ (cdr cur)))
            ((or (not cur) res))
          (setf res (or res (ctx-lookup (car cur) ctx))))
        res))
@@ -958,6 +957,15 @@ BODY is optional. DOCUMENTATION is optional"
         (when (cadar bcur)
           (setf (gethash (caar bcur) ctx) (cadar bcur)))))
     res))
+
+;; (def name val documentation)
+;; (macrofn name args doc body)
+;; = (def name (lambda args body) doc)
+(defun compile-def-macro (args ctx)
+   (let ((name (car args))
+         (args (compile-macro (cadr args) ctx))
+         (doc (if (stringp (caddr args)) (caddr args))))
+  (setf (gethash name macrofn-tbl) (list args doc))))
 
 (defun copy-hash-table (hash-table)
   (let ((ht (make-hash-table
@@ -990,7 +998,6 @@ BODY is optional. DOCUMENTATION is optional"
 
 (defun compile-gensym (args ctx)
   ;; todo: make something more robust
-  (declare (ignore ctx))
   (let ((prefix (car args)))
     (if (null prefix) (setf prefix "_G"))
     (intern-eclisp-token
@@ -1008,45 +1015,171 @@ BODY is optional. DOCUMENTATION is optional"
 (defun compile-list* (args ctx)
   (apply #'list* (mapcar #'(lambda (x) (ctx-lookup x ctx)) args)))
 
+(defun compile-error (args ctx)
+  (format t "error: ~a~%" (et-value (ctx-lookup (car args) ctx))))
+
+(defun compile-warn (args ctx)
+  (format t "warning: ~a~%" (et-value (ctx-lookup (car args) ctx))))
+
+(defun compile-lambda-capture-context (body ctx ctx-ref)
+  (loop for form in body do
+		(cond
+		  ((listp form)
+		   (compile-lambda-capture-context form ctx ctx-ref))
+		  ((gethash form ctx-ref)
+		   (setf (gethash form ctx) (gethash form ctx-ref))))))
+
+(defun compile-lambda (args ctx-ref
+                       &aux name tmpl documentation body
+						 (lctx (make-hash-table)))
+  ;; actually documentation is not really retrievable.
+  (if (listp (car args))
+      (destructuring-bind (ltmpl &rest rest) args
+        (setf tmpl ltmpl)
+        (cond ((and (atom (car rest))
+                    (eq (et-type (car rest)) :eclisp-string))
+               (setf documentation (car rest))
+               (setf body (cadr rest)))
+              (t
+               (setf body (car rest)))))
+      (destructuring-bind (lname ltmpl &rest rest) args
+        (setf name lname)
+        (setf tmpl ltmpl)
+        (cond ((and (atom (car rest))
+                    (eq (et-type (car rest)) :eclisp-string))
+               (setf documentation (car rest))
+               (setf body (cadr rest)))
+              (t
+               (setf body (car rest))))))
+  (compile-lambda-capture-context body lctx ctx-ref)
+  ;; (format t "lctx: //~a// ~a~%" body (loop for key being the hash-keys of lctx using (hash-value value) collect (list key value)))
+  (lambda (_args _ctx)
+    (when name (setf (gethash name macrofn-tbl) (list tmpl body documentation)))
+    (expand-macrofn-args _args tmpl lctx _ctx)
+    (setf res (compile-macro body lctx))
+    (when name (remhash name macro-tbl))
+    res))
+
+(defun compile-funcall (args ctx)
+  (funcall (ctx-lookup (car args) ctx) (cdr args) ctx))
+
+(defun compile-scope-type (args ctx)
+  (let* ((env (ctx-lookup (car args) ctx)))
+	(if (and env (eq 'scope (type-of (car env))))
+		(cond
+		 ((and (consp (scope-typ (car env)))
+               (stringp (car (scope-typ (car env))))
+               (null    (cdr (scope-typ (car env)))))
+          (make-instance 'eclisp-token :type :eclisp-symbol :value (car (scope-typ (car env)))))
+		 ((and (consp   (scope-typ (car env)))
+               (stringp (car (scope-typ (car env))))
+               (stringp (cdr (scope-typ (car env)))))
+          (list*
+           (make-instance 'eclisp-token :type :eclisp-symbol :value (car (scope-typ (car env))))
+           (make-instance 'eclisp-token :type :eclisp-symbol :value (cdr (scope-typ (car env))))))
+		 (t (error "unsupported env type."))))))
+
+(defun compile-scope-syms (args ctx)
+  ;; (format t "env:ss: ~a // ~a~%" env args)
+  (let* ((env (ctx-lookup (car args) ctx)))
+	;; (format t "env:ss!: ~a~%" env)
+	(when (and env (eq 'scope (type-of (car env))))
+      ;; (format t "ss: ~a~%" (loop for key being the hash-keys of (scope-syms (car env)) collect key))
+	  (loop for key being the hash-keys of (scope-syms (car env)) collect
+			(make-instance 'eclisp-token :type :eclisp-symbol :value key)))))
+
+(defun compile-scope-sym-get (args ctx)
+  (let* ((env (ctx-lookup (caddr args) ctx))
+         (sym (et-value (ctx-lookup (car args) ctx)))
+         (prop (et-value (ctx-lookup (cadr args) ctx))))
+	(when (and env (eq 'scope (type-of (car env))))
+      (let ((props (et-properties (gethash sym (scope-syms (car env))))))
+	   (when props
+		  (gethash prop props))))))
+
+(defun compile-sym-attrs-get (args ctx)
+  (let* ((sym (ctx-lookup (car args) ctx))
+         (prop (ctx-lookup (cadr args) ctx)))
+      (let ((props (et-properties sym)))
+	   (when props
+		  (gethash prop props)))))
+
+(defun compile-sym-attrs-set (args ctx)
+ (error "not implemented."))
+
+(defun compile-scope-sym-set (args ctx)
+  (let* ((env (ctx-lookup (cadddr args) ctx))
+         (sym (et-value (ctx-lookup (car args) ctx)))
+         (prop (et-value (ctx-lookup (cadr args) ctx)))
+         (value (ctx-lookup (caddr args) ctx)))
+	(when (and env (eq 'scope (type-of (car env))))
+      (let ((props (et-properties (gethash sym (scope-syms (car env))))))
+		(when props
+		  (setf (gethash prop props) value))))))
+
+(defun compile-macroexpand (args ctx)
+  (let ((form (ctx-lookup (car args) ctx))
+        (env (ctx-lookup (cadr args) ctx)))
+    (eclisp-macroexpand form env)))
+
 (defun compile-macro (form ctx)
+  ;; (format t "cm: ~a~%" form)
   (let ((res nil))
     (setf res
           (if (consp form)
               (destructuring-bind (op &rest args) form
-                (cond
-                  ((eq +eclisp-list+        op) (compile-list-macro  args ctx))
-                  ((eq +eclisp-list*+       op) (compile-list*       args ctx))
-                  ((eq +eclisp-append+      op) (compile-append      args ctx))
-                  ((eq +eclisp-quote+       op) (compile-quote       args ctx))
-                  ((eq +eclisp-symbolp+     op) (compile-symbolp     args ctx))
-                  ((eq +eclisp-listp+       op) (compile-listp       args ctx))
-                  ((eq +eclisp-car+         op) (compile-car         args ctx))
-                  ((eq +eclisp-cdr+         op) (compile-cdr         args ctx))
-                  ((eq +eclisp-null+        op) (compile-null        args ctx))
-                  ((eq +eclisp-consp+       op) (compile-consp       args ctx))
-                  ((eq +eclisp-stringp+     op) (compile-stringp     args ctx))
-                  ((eq +eclisp-length+      op) (compile-length      args ctx))
-                  ((eq +eclisp-aref+        op) (compile-aref-macro  args ctx))
-                  ((eq +eclisp-numberp+     op) (compile-numberp     args ctx))
-                  ((eq +eclisp-concat+      op) (compile-concat      args ctx))
-                  ((eq +eclisp-symbolicate+ op) (compile-symbolicate args ctx))
-                  ((eq +eclisp-if+          op) (compile-if-macro    args ctx))
-                  ((eq +eclisp-gensym+      op) (compile-gensym      args ctx))
-                  ((eq +eclisp-let+         op) (compile-let-macro   args ctx))
-                  ((eq +eclisp-dbind+       op) (compile-dbind-macro args ctx))
-                  ((eq +eclisp-prog+        op) (compile-prog-macro  args ctx))
-                  ((member (et-value op) '("<" ">" "<=" ">=" ">" "==" "!=" "&&" "||") :test #'equal)
-                    (compile-op-macro (et-value op) args ctx))
-                   ;; not implemented ^ | & ~ << >>
-                  ((member (et-value op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
-                           :test #'equal)
-                   (compile-op-macro (et-value op) args ctx))
-                  (t (cond ((gethash op macrofn-tbl) (eval-macrofn op args ctx))
-                           ((gethash op macro-tbl)
-                            (compile-macro (expand-macro op args ctx) ctx))
-                           (t (error (format nil "call to a C function (here, ~a) through the ffi is not yet unsupported.~%" op)))))))
-              (when form
-                (format t "unsupported: ~a~%" form))))
+								  (cond
+                   ((eq +eclisp-macroexpand+    op) (compile-macroexpand    args ctx))
+								   ((eq +eclisp-list+           op) (compile-list-macro     args ctx))
+								   ((eq +eclisp-list*+          op) (compile-list*          args ctx))
+								   ((eq +eclisp-append+         op) (compile-append         args ctx))
+								   ((eq +eclisp-quote+          op) (compile-quote          args ctx))
+								   ((eq +eclisp-symbolp+        op) (compile-symbolp        args ctx))
+								   ((eq +eclisp-listp+          op) (compile-listp          args ctx))
+								   ((eq +eclisp-car+            op) (compile-car            args ctx))
+								   ((eq +eclisp-cdr+            op) (compile-cdr            args ctx))
+								   ((eq +eclisp-null+           op) (compile-null           args ctx))
+								   ((eq +eclisp-consp+          op) (compile-consp          args ctx))
+								   ((eq +eclisp-stringp+        op) (compile-stringp        args ctx))
+								   ((eq +eclisp-length+         op) (compile-length         args ctx))
+								   ((eq +eclisp-aref+           op) (compile-aref-macro     args ctx))
+								   ((eq +eclisp-numberp+        op) (compile-numberp        args ctx))
+								   ((eq +eclisp-concat+         op) (compile-concat         args ctx))
+								   ((eq +eclisp-symbolicate+    op) (compile-symbolicate    args ctx))
+								   ((eq +eclisp-if+             op) (compile-if-macro       args ctx))
+								   ((eq +eclisp-gensym+         op) (compile-gensym         args ctx))
+								   ((eq +eclisp-let+            op) (compile-let-macro      args ctx))
+								   ((eq +eclisp-def+            op) (compile-def-macro      args ctx))
+								   ((eq +eclisp-dbind+          op) (compile-dbind-macro    args ctx))
+								   ((eq +eclisp-prog+           op) (compile-prog-macro     args ctx))
+								   ((eq +eclisp-error+          op) (compile-error          args ctx))
+								   ((eq +eclisp-scope-type+     op) (compile-scope-type     args ctx))
+								   ((eq +eclisp-scope-syms+     op) (compile-scope-syms     args ctx))
+								   ((eq +eclisp-scope-sym-get+  op) (compile-scope-sym-get  args ctx))
+								   ((eq +eclisp-scope-sym-set+  op) (compile-scope-sym-set  args ctx))
+								   ((eq +eclisp-sym-attrs-get+  op) (compile-sym-attrs-get  args ctx))
+								   ((eq +eclisp-sym-attrs-set+  op) (compile-sym-attrs-set  args ctx))
+								   ((eq +eclisp-warn+           op) (compile-warn           args ctx))
+								   ((eq +eclisp-lambda+         op) (compile-lambda         args ctx))
+								   ((eq +eclisp-funcall+        op) (compile-funcall        args ctx))
+								   ((listp                      op) (funcall (compile-macro op ctx) args ctx))
+								   ((member (et-value op) '("<" ">" "<=" ">=" ">" "==" "!=" "&&" "||") :test #'equal)
+									(compile-op-macro (et-value op) args ctx))
+								   ;; not implemented ^ | & ~ << >>
+								   ((member (et-value op) '("+" "-" "*" "/" "%" "^" "|" "&" "~" "<<" ">>")
+											:test #'equal)
+									(compile-op-macro (et-value op) args ctx))
+								   (t (cond
+                        ((and (gethash op macrofn-tbl) (listp (car (gethash op macrofn-tbl))))
+                          (eval-macrofn op args ctx))
+                        ((and (gethash op macrofn-tbl) (functionp (car (gethash op macrofn-tbl))))
+                          (funcall (car (gethash op macrofn-tbl)) args ctx))
+                        ((gethash op macro-tbl)
+                         (compile-macro (expand-macro op args ctx) ctx))
+                        (t (error (format nil "call to a C function (here, ~a) through the ffi is not yet unsupported.~%" op)))))))
+            (when form
+              (format t "unsupported: ~a~%" form))))
+	;; (format t "cm(res): ~a~%" res)
     res))
 
 (defun extract-keyword-args (args tmpl ctx)
@@ -1071,54 +1204,69 @@ BODY is optional. DOCUMENTATION is optional"
           for val = (if (get-val accessor) (get-val accessor) default) do
           (setf (gethash var-name ctx) val))))
 
-(defun expand-macro-args (args tmpl ctx)
+(defun expand-macro-args (args tmpl ctx &optional env)
+  ;; (format t "emat (~a): ~a~%" tmpl env)
   (when (or args tmpl)
+	;; (format t "car tmpl: ~a ~%" (car tmpl))
     (if (listp (car tmpl))
         (progn
-          (expand-macro-args (car args) (car tmpl) ctx)
-          (expand-macro-args (cdr args) (cdr tmpl) ctx))
+          (expand-macro-args (car args) (car tmpl) ctx env)
+          (expand-macro-args (cdr args) (cdr tmpl) ctx env))
       (cond ((or (string= (et-value (car tmpl)) "&body")
                  (string= (et-value (car tmpl)) "&rest"))
              (setf (gethash (cadr tmpl) ctx) args)
              (when (and (listp (cddr tmpl))
-                        (or (stringp (caddr tmpl)) (symbolp (caddr tmpl)))
-                        (string= (et-value (caddr tmpl)) "&key"))
-               (expand-macro-args args (cddr tmpl) ctx)))
+                        (or (string= (et-value (caddr tmpl)) "&key")
+							(string= (et-value (caddr tmpl)) "&env")
+							(string= (et-value (caddr tmpl)) "&environment")))
+               (expand-macro-args args (cddr tmpl) ctx env)))
             ((string= (et-value (car tmpl)) "&key")
              (unless (= (mod (length args) 2) 0)
                (format t "warning: odd number of keyword arguments."))
              (extract-keyword-args args (cdr tmpl) ctx))
+            ((or (string= (et-value (car tmpl)) "&environment")
+                 (string= (et-value (car tmpl)) "&env"))
+			 ;; (format t "emat2: ~a ~a~%" (cadr tmpl) env)
+             ;; (when (car args) (format t "t: ~a~%" (car args)))
+			 ;; (unless (car args) (format t "!t: ~a~%" env) (unless env (+ 1 who-are-you)))
+             (setf (gethash (cadr tmpl) ctx) env))
             (t
              (setf (gethash (car tmpl) ctx) (car args))
-             (expand-macro-args (cdr args) (cdr tmpl) ctx))))))
+             (expand-macro-args (cdr args) (cdr tmpl) ctx env))))))
 
-(defun expand-macro (macro args &optional (ctx (make-hash-table)))
+(defun expand-macro (macro args &optional (ctx (make-hash-table)) (env nil))
+  ;; (format t "emat0(~a): ~a~%" macro env)
   (let ((tmpl (car (gethash macro macro-tbl)))
         (macro-body (cadr (gethash macro macro-tbl))))
-    (expand-macro-args args tmpl ctx)
+    (expand-macro-args args tmpl ctx env)
     (compile-macro macro-body ctx)))
 
 (defun expand-macrofn-args (args tmpl ctx ctx-ref)
+  ;; (format t "emfa: ~a // ~a // ~a~%" env args tmpl)
   (when args
     (if (listp (car tmpl))
         (progn
           (expand-macrofn-args (car args) (car tmpl) ctx ctx-ref)
           (expand-macrofn-args (cdr args) (cdr tmpl) ctx ctx-ref))
-        (if (or (string= (string (et-value (car tmpl))) "&body")
+        (cond
+          ((or (string= (string (et-value (car tmpl))) "&body")
                 (string= (string (et-value (car tmpl))) "&rest"))
             ;; we should clarify where the evaluation of macrofn takes place
             ;; because this may raise issues in the &body case.
-            (setf (gethash (cadr tmpl) ctx) (ctx-lookup (car args) ctx-ref))
-            (progn
-              (setf (gethash (car tmpl) ctx) (ctx-lookup (car args) ctx-ref))
-              (expand-macrofn-args (cdr args) (cdr tmpl) ctx ctx-ref))))))
+           (setf (gethash (cadr tmpl) ctx) (ctx-lookup (car args) ctx-ref)))
+          (t
+            (setf (gethash (car tmpl) ctx) (ctx-lookup (car args) ctx-ref))
+            (expand-macrofn-args (cdr args) (cdr tmpl) ctx ctx-ref))))))
 
 (defun eval-macrofn (fn args ctx-ref)
   (let ((ctx (make-hash-table))
         (tmpl (car (gethash fn macrofn-tbl)))
         (fn-body (cadr (gethash fn macrofn-tbl))))
     (expand-macrofn-args args tmpl ctx ctx-ref)
-    (compile-macro fn-body ctx)))
+	;; (format t "emf(~a)(~a): ~a~%" fn args
+	;;    		(loop for key being the hash-keys using (hash-value value) of ctx
+	;;  		  	  collect (list key value)))
+			(compile-macro fn-body ctx)))
 
 (defun print-prefix (op form stmtp indent to-stream)
   (when stmtp
@@ -1278,12 +1426,20 @@ TO-STREAM."
            (,+eclisp-not+              . print-binop)
            (,+eclisp-lshift+           . print-binop)
            (,+eclisp-rshift+           . print-binop)
+           (,+eclisp-meta+             . nil)
+           (,+eclisp-scope-type+       . nil)
+           (,+eclisp-scope-syms+       . nil)
+           (,+eclisp-scope-sym-get+    . nil)
+           (,+eclisp-sym-attrs-get+    . nil)
+           (,+eclisp-sym-attrs-set+    . nil)
            (,+eclisp-macro+            . nil)
            (,+eclisp-macrofn+          . nil)
-           (,+eclisp-macrolet+         . nil))))
+           (,+eclisp-macrolet+         . nil)
+           (,+eclisp-lambda+           . nil)))
+        (ctx (list (make-scope :typ '("top-level" . nil)))))
     (loop for form = (eclisp-read from-stream)
           while form do
-            (print-form (eclisp-eval form nil) t -1 to-stream)))
+            (print-form (eclisp-eval form ctx) t -1 to-stream)))
   (setf +eclisp-readtable+ (make-eclisp-readtable :content '() :dtable '())))
 
 (defun main ()
@@ -1382,32 +1538,50 @@ ACC should be NIL at first."
                (print-c-type
                 nil
                 (if (consp (cadr type)) (cadr type) (cdr type))
-                (list "(*" acc name ")")))
+                (if acc
+					(if (and (cdr type) (consp (cadr type)) (or (eq (caadr type) arr-kwd) (eq (caadr type) fun-kwd)))
+						(list "(*" acc name ")") (list "*" acc name))
+				  (if (and (cdr type) (consp (cadr type)) (or (eq (caadr type) arr-kwd) (eq (caadr type) fun-kwd)))
+					  (list "(*" name ")") (list "*" name)))
+				))
               ((and (eq arr-kwd kind) (cdr type))
                (print-c-type
                 nil
                 (if (null (caddr type))
                     (if (consp (cadr type)) (cadr type) (cdr type))
-                    (if (consp (caddr type)) (caddr type) (cddr type)))
+                  (if (consp (caddr type)) (caddr type) (cddr type)))
                 (append
-                 (if (and (null acc) (null name)) nil (list "(" acc name ")"))
+                 (if (and (null acc) (null name))
+					 nil
+				   (if acc
+					   (list acc name)
+					 (list name)))
                  (list "["
                        (if (null (caddr type))
                            ""
-                           (with-output-to-string (s)
-                             ;; c89: (print-cpp-cond-expr (cadr type) nil 0 s)))
-                             (print-form (cadr type) nil 0 s)))
-                       "]"))))
+                         (with-output-to-string (s)
+												;; c89: (print-cpp-cond-expr (cadr type) nil 0 s)))
+												(print-form (cadr type) nil 0 s)))
+                       "]"))
+				))
               ((and (eq kind typeof-kwd) (cdr type))
                (print-c-type
-                 name
-                 nil
-                 (list "__typeof (" (with-output-to-string (s) (print-form (cadr type) nil 0 s)) ")")))
+                name
+                nil
+                (list "__typeof (" (with-output-to-string (s) (print-form (cadr type) nil 0 s)) ")")
+				))
               ((eq fun-kwd kind)
                (print-c-type
                 nil
                 (cadr type)
-                (list "(" acc name ")" (print-args (cddr type)))))
+                (if acc
+					(if (and (listp (cadr type)) (> (length (cadr type)) 1))
+						(list "(" acc name ")" (print-args (cddr type)))
+					  (list acc name (print-args (cddr type))))
+				  (if (and (listp (cadr type)) (> (length (cadr type)) 1))
+					  (list "(" name ")" (print-args (cddr type)))
+					(list name (print-args (cddr type)))))
+				))
               ((eq enum-kwd kind)
                (print-c-type
                 name kind
@@ -1422,53 +1596,59 @@ ACC should be NIL at first."
                              ((lambda (l) (cons (cdar l) (cdr l)))
                               (loop for tt in enum-contents
                                     collect (list
-                                              ","
-                                              #\Newline
-                                              (if (consp tt)
-                                                (cond ((= (length tt) 3)
-                                                       (let ((enum-ident (et-value (car tt)))
-                                                             (enum-value (et-value (cadr tt)))
-                                                             (enum-doc   (et-value (caddr tt))))
-                                                         (list
+                                             ","
+                                             #\Newline
+                                             (if (consp tt)
+                                                 (cond ((= (length tt) 3)
+														(let ((enum-ident (et-value (car tt)))
+                                                              (enum-value (et-value (cadr tt)))
+                                                              (enum-doc   (et-value (caddr tt))))
+                                                          (list
                                                            (with-output-to-string (s)
-                                                             (format s "/* ~a */" enum-doc))
+																				  (format s "/* ~a */" enum-doc))
                                                            #\Newline
                                                            enum-ident
                                                            " = "
                                                            (cond
-                                                             ((eq (et-type (cadr tt)) :eclisp-string)
-                                                              (format nil "\"~a\"" enum-value))
-                                                             ((eq (et-type (cadr tt)) :eclisp-character)
-                                                              (format nil "'~a'" enum-value))
-                                                             (t (format nil "~a" enum-value))))))
+                                                            ((eq (et-type (cadr tt)) :eclisp-string)
+                                                             (format nil "\"~a\"" enum-value))
+                                                            ((eq (et-type (cadr tt)) :eclisp-character)
+                                                             (format nil "'~a'" enum-value))
+                                                            (t (format nil "~a" enum-value))))))
                                                        ((= (length tt) 2)
                                                         (let ((enum-ident (et-value (car tt)))
                                                               (enum-value-or-doc (et-value (cadr tt)))
                                                               (doc (eq (et-type (cadr tt)) :eclisp-string)))
                                                           (list
-                                                            (when doc
-                                                              (with-output-to-string (s)
-                                                                (format s "/* ~a */" enum-value-or-doc)))
-                                                            (when doc #\Newline)
-                                                            enum-ident
-                                                            (unless doc " = ")
-                                                            (unless doc
-                                                              (cond
-                                                                ((eq (et-type (cadr tt)) :eclisp-string)
-                                                                 (format nil "\"~a\"" enum-value-or-doc))
-                                                                ((eq (et-type (cadr tt)) :eclisp-character)
-                                                                 (format nil "'~a'" enum-value-or-doc))
-                                                                (t (format nil "~a" enum-value-or-doc)))))))
+                                                           (when doc
+                                                             (with-output-to-string (s)
+																					(format s "/* ~a */" enum-value-or-doc)))
+                                                           (when doc #\Newline)
+                                                           enum-ident
+                                                           (unless doc " = ")
+                                                           (unless doc
+                                                             (cond
+                                                              ((eq (et-type (cadr tt)) :eclisp-string)
+                                                               (format nil "\"~a\"" enum-value-or-doc))
+                                                              ((eq (et-type (cadr tt)) :eclisp-character)
+                                                               (format nil "'~a'" enum-value-or-doc))
+                                                              (t (format nil "~a" enum-value-or-doc)))))))
                                                        ((= (length tt) 1) (list (et-value (car tt)))))
-                                                (list (et-value tt))))))
+                                               (list (et-value tt))))))
                              (list #\Newline "}")))
-                          acc))))
+                          acc))
+				))
               ((member kind `(,struct-kwd ,union-kwd))
                (print-c-type
                 name kind
                 (let* ((struct-anon-p (consp (cadr type)))
                        (struct-name (if struct-anon-p nil (list (et-value (cadr type)))))
                        (struct-contents (if struct-anon-p (cdr type) (cddr type))))
+                  ;; improve the skipping of parameters
+                  (do () ((not (and (not (null (car struct-contents)))
+                                    (atom (car struct-contents))
+                                    (char= (aref (et-value (car struct-contents)) 0) #\:))))
+                   (setf struct-contents (cddr struct-contents)))
                   (append struct-name
                           (when struct-contents
                             (append
@@ -1478,12 +1658,17 @@ ACC should be NIL at first."
                               (loop for tt in struct-contents
                                     collect (list ";" #\Newline (handle-struct-field tt))))
                              (list #\Newline "}")))
-                          acc))))
+                          (list " ")
+                          acc))
+				))
               ((member (et-value kind) '("volatile" "const") :test #'string=)
                (print-c-type
                 nil
                 (if (consp (cadr type)) (cadr type) (cdr type))
-                (list (et-value kind) " " acc name)))
+				(if acc
+					(list (et-value kind) " " acc name)
+				  (list (et-value kind) " " name))
+				))
               ((member (et-value kind) '("typedef" "static" "inline" "register" "extern"
                                          "long" "short" "signed" "unsigned")
                        :test #'string=)
